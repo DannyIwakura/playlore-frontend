@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import Footer from '../components/Footer.vue';
 import NavBar from '../components/NavBar.vue';
+import { userStore } from '../store/userStore'
+
 
 
 </script>
@@ -11,7 +13,7 @@ import NavBar from '../components/NavBar.vue';
     />
 
     <section class="container mt-5">
-        <h1>Bienvenido [Usuario] al Dashboard</h1>
+        <h1>Bienvenido {{ userStore.usuario?.username }} al Dashboard</h1>
         <p>Aquí podrás gestionar tus personajes, aventuras y mensajes privados.</p>
     </section>
 

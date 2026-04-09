@@ -1,6 +1,22 @@
 <script setup lang="ts">
 import Footer from '../../components/Footer.vue';
 import NavBar from '../../components/NavBar.vue';
+import { useRouter } from 'vue-router'
+import { onMounted, ref } from 'vue';
+import { useRoute } from 'vue-router';
+
+const router = useRouter()
+const route = useRoute()
+const mensajePErsonajeCreado = ref<string | null>(null)
+
+onMounted(() => {
+  // Si venimos de crear un personaje mostramos el mensaje de éxito
+  if (route.query.creacion === 'ok') {
+    mensajePErsonajeCreado.value = "Personaje creado correctamente."
+    // Limpiamos la query para que el mensaje no aparezca al recargar la página
+    router.replace({ query: {} })
+  }
+})
 
 
 const personajes = [
@@ -53,7 +69,9 @@ const personajes = [
         Crear Nuevo
       </router-link>
     </div>
-
+      <div v-if="mensajePErsonajeCreado" class="alert alert-success">
+        {{ mensajePErsonajeCreado }}
+      </div>
       <div
         class="col-md-4 mb-4"
         v-for="personaje in personajes"

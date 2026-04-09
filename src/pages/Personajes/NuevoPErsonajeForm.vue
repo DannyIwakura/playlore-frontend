@@ -2,6 +2,11 @@
 import { reactive } from 'vue'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
+import api from '../../services/api';
+import { userStore } from '../../store/userStore';
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 
 const personaje = reactive({
   nombre: "",
@@ -13,19 +18,41 @@ const personaje = reactive({
   clase: ""
 })
 
-function handleAvatarUpload(event: Event) {
-  const input = event.target as HTMLInputElement
-
-  if (input.files && input.files.length > 0) {
-    personaje.avatar = input.files[0]
+async function crearPersonaje() {
+  if (!userStore.usuario) {
+    alert("No se ha detectado usuario logueado");
+    return;
   }
-}
+  //creamos el bosyrequest que enviamos al back
+  const payload = {
+    nombre: personaje.nombre,
+    edadPersonaje: personaje.edad_personaje,
+    avatar: personaje.avatar,
+    estado: "ACTIVO",
+    trasfondo: personaje.trasfondo,
+    raza: personaje.raza,
+    clase: personaje.clase,
+    userId: userStore.usuario.id
+  };
+  
+  //si se registra el personaje correctamente redirigimos al usuario a la lista de personajes
+  router.push({
+    path: '/personajes', 
+    query: { 
+      creacion: 'ok'
+    }
+  })
 
-function crearPersonaje() {
-  console.log("Personaje a enviar:", personaje)
-
-  // Aquí luego harás el POST
-  // axios.post("/api/personajes", personaje)
+  try {
+    //enviamos la solicitud y recogesmos la respuesta
+    const response = await api.post('/personajes', payload);
+    //debug
+    console.log("Personaje creado:", response.data);
+    alert("Personaje creado correctamente");
+  } catch (error: any) {
+    console.error("Error al crear personaje:", error.response || error);
+    alert("No se pudo crear el personaje");
+  }
 }
 </script>
 

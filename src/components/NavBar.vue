@@ -1,11 +1,19 @@
 <script setup lang="ts">
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
+import { jwtDecode } from 'jwt-decode';
+import { userStore } from '../store/userStore'
 
 // constante para hacer comprobaciones de rutas
 const route = useRoute()
+const router = useRouter()
 
-// simulacion de usuario logueado
+// usuario logueado
 const props = defineProps<{ logeado: boolean }>()
+
+const logout = () => {
+  localStorage.removeItem('token');
+  router.push('/login');
+};
 </script>
 
 <template>
@@ -83,11 +91,21 @@ const props = defineProps<{ logeado: boolean }>()
         </ul>
 
         <!-- Botones alineados a la derecha -->
-        <div class="ms-auto d-flex gap-2">
-          <router-link v-if="!props.logeado" to="/login" class="btn btn-outline-light">Acceder</router-link>
-          <router-link v-if="!props.logeado" to="/registro" class="btn btn-outline-light">Registrarse</router-link>
-
-          <router-link v-if="props.logeado" to="/" class="btn btn-outline-danger">Cerrar sesión</router-link>
+        <div class="ms-auto d-flex gap-2 align-items-center">
+          <span v-if="props.logeado" class="text-white me-2">Hola, {{ userStore.usuario?.username }}</span>
+          <button 
+          v-if="props.logeado" 
+          class="btn btn-outline-danger" 
+          @click="logout"
+          >
+          Cerrar sesión
+          </button>
+          <router-link v-if="!props.logeado" to="/login" class="btn btn-outline-light">
+            Acceder
+          </router-link>
+          <router-link v-if="!props.logeado" to="/registro" class="btn btn-outline-light">
+            Registrarse
+          </router-link>
         </div>
       </div>
     </div>
