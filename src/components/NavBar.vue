@@ -1,40 +1,35 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
-import { jwtDecode } from 'jwt-decode';
 import { userStore } from '../store/userStore'
 
-// constante para hacer comprobaciones de rutas
+const BASE_URL = 'http://localhost:8080/api'
+
 const route = useRoute()
 const router = useRouter()
 
-// usuario logueado
+//extraemos el ref para mantener reactividad
+const usuario = userStore.usuario
+
 const props = defineProps<{ logeado: boolean }>()
 
 const logout = () => {
-  localStorage.removeItem('token');
-  router.push('/login');
-};
+  localStorage.removeItem('token')
+  userStore.setUsuario(null)
+  router.push('/login')
+}
 </script>
 
 <template>
   <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
     <div class="container px-4">
+
+      <!-- LOGO -->
       <a class="navbar-brand" href="/" v-if="!props.logeado">
-      <img 
-        src="../assets/img/lOGOpLAYlORE.png"
-        alt="PlayLole" 
-        height="40"
-        class="d-inline-block align-text-top"
-      >
+        <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
       </a>
 
       <a class="navbar-brand" href="/dashboard" v-if="props.logeado">
-      <img 
-        src="../assets/img/lOGOpLAYlORE.png" 
-        alt="PlayLole" 
-        height="40"
-        class="d-inline-block align-text-top"
-      >
+        <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
       </a>
 
       <button
@@ -42,72 +37,69 @@ const logout = () => {
         type="button"
         data-bs-toggle="collapse"
         data-bs-target="#navbarText"
-        aria-controls="navbarText"
-        aria-expanded="false"
-        aria-label="Toggle navigation"
       >
         <span class="navbar-toggler-icon"></span>
       </button>
 
       <div class="collapse navbar-collapse" id="navbarText">
-        <!-- Enlaces internos solo en Home -->
-        <ul class="navbar-nav me-auto" v-if="route.path === '/' && !props.logeado">
-          <li class="nav-item">
-            <a :class="['nav-link', route.path === '/' ? 'active' : '']" href="#">Inicio</a>
-          </li>
-          <li class="nav-item">
-            <a :class="['nav-link', route.hash === '#sobre' ? 'active' : '']" href="#sobre">Qué es PlayLole</a>
-          </li>
-          <li class="nav-item">
-            <a :class="['nav-link', route.hash === '#join' ? 'active' : '']" href="#join">Cómo entrar</a>
-          </li>
-        </ul>
 
-        <!-- Enlaces cuando el usuario está logueado -->
+        <!-- MENÚ LOGUEADO -->
         <ul class="navbar-nav me-auto" v-if="props.logeado">
+
           <li class="nav-item">
-            <router-link
-              to="/dashboard"
-              class="nav-link"
-              :class="{ active: route.path === '/dashboard' }"
-            >Dashboard</router-link>
+            <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
           </li>
+
           <li class="nav-item">
-            <router-link
-              to="/personajes"
-              class="nav-link"
-              :class="{ active: route.path === '/personajes' }"
-            >Personajes</router-link>
+            <router-link to="/personajes" class="nav-link">Personajes</router-link>
           </li>
-          <li class="nav-item">
-              <a
-                :class="['nav-link d-flex align-items-center', route.hash === '#join' ? 'active' : '']"
-                href="#join"
-              >
-                <span>Mensajes Privados</span>
-                <span class="badge rounded-pill bg-danger ms-2">0</span>
-              </a>
-          </li>
+
         </ul>
 
-        <!-- Botones alineados a la derecha -->
-        <div class="ms-auto d-flex gap-2 align-items-center">
-          <span v-if="props.logeado" class="text-white me-2">Hola, {{ userStore.usuario?.username }}</span>
-          <button 
-          v-if="props.logeado" 
-          class="btn btn-outline-danger" 
-          @click="logout"
+        <!-- DERECHA -->
+        <div class="ms-auto d-flex align-items-center gap-2">
+
+          <!-- AVATAR + USER -->
+          <template v-if="usuario">
+            <img
+              :src="BASE_URL + usuario.avatar"
+              class="avatar-navbar"
+              alt="avatar"
+            />
+
+            <span class="text-white me-2">
+              Hola, {{ usuario.username }}
+            </span>
+          </template>
+
+          <!-- BOTONES -->
+          <button
+            v-if="props.logeado"
+            class="btn btn-outline-danger"
+            @click="logout"
           >
-          Cerrar sesión
+            Cerrar sesión
           </button>
+
           <router-link v-if="!props.logeado" to="/login" class="btn btn-outline-light">
             Acceder
           </router-link>
+
           <router-link v-if="!props.logeado" to="/registro" class="btn btn-outline-light">
             Registrarse
           </router-link>
+
         </div>
       </div>
     </div>
   </nav>
 </template>
+
+<style scoped>
+.avatar-navbar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>

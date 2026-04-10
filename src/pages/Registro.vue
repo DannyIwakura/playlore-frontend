@@ -16,36 +16,63 @@ const password = ref('')
 //recpogemos los errores si los hay
 const errores = ref<Record<string, string>>({})
 
-const registrarUsuario = async () => {
+//avatar del usuario
+const avatarFile = ref<File | null>(null)
+//mostrar el avatar seleccionado
+const avatarPreview = ref<string | null>(null)
+//funcion para subis el avatar
+const onFileChange = (event: Event) => {
+  const target = event.target as HTMLInputElement
 
+  if (target.files && target.files[0]) {
+    avatarFile.value = target.files[0]
+    avatarPreview.value = URL.createObjectURL(target.files[0])
+  }
+}
+
+const registrarUsuario = async () => {
+  //array para guardar los errores
   errores.value = {}
 
   try {
-    //enviamos los datos al backend
-    const response = await api.post('/usuarios', {
+
+    const formData = new FormData()
+
+    const usuario = {
       nombre: nombre.value,
       email: email.value,
       password: password.value
+    }
+
+    formData.append(
+      "usuario",
+      new Blob([JSON.stringify(usuario)], { type: "application/json" })
+    )
+
+    if (avatarFile.value) {
+      formData.append("avatarFile", avatarFile.value)
+    }
+
+    const response = await api.post('/usuarios', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
     })
 
     console.log("Usuario creado", response.data)
 
-    //si el reggistro es correcto, redirigimos al login
     router.push({
-      path: '/login', 
-      query: { 
-        registro: 'ok' 
-      }
+      path: '/login',
+      query: { registro: 'ok' }
     })
 
   } catch (error: any) {
-    //si hay errores de los vamos añadiendo a a la constante
+
     if (error.response && error.response.status === 400) {
       errores.value = error.response.data
     } else {
       console.error(error)
     }
-
   }
 }
 
@@ -92,6 +119,22 @@ const registrarUsuario = async () => {
               placeholder="Ingresa tu correo electrónico">
               <div v-if="errores.email" class="text-danger">
               {{ errores.email }}
+              </div>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label">Avatar (opcional)</label>
+              <input
+                type="file"
+                class="form-control"
+                accept="image/*"
+                @change="onFileChange"
+              />
+              <div v-if="avatarPreview" class="mt-2">
+                <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail" />
+              </div>
+              <div v-if="errores.avatarFile" class="text-danger">
+                {{ errores.avatarFile }}
               </div>
             </div>
 

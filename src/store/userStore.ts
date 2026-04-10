@@ -1,29 +1,39 @@
-import { jwtDecode } from 'jwt-decode';
+import { ref } from 'vue'
+import { jwtDecode } from 'jwt-decode'
 
 interface Usuario {
-  id: number;
-  username: string;
-  role: string;
+  id: number
+  username: string
+  role: string
+  avatar: string
 }
 
-//null al inicio
-let usuario: Usuario | null = null; 
+const usuario = ref<Usuario | null>(null)
 
-//obbtenosmos la info del usuario contenida en el token
-const token = localStorage.getItem('token');
-if (token) {
-  const payload: any = jwtDecode(token);
-  usuario = {
+function cargarDesdeToken() {
+  const token = localStorage.getItem('token')
+
+  if (!token) {
+    usuario.value = null
+    return
+  }
+
+  const payload: any = jwtDecode(token)
+
+  usuario.value = {
     id: payload.id,
     username: payload.sub,
-    role: payload.role
-  };
-  console.log(usuario);
+    role: payload.role,
+    avatar: payload.avatar
+  }
+}
+
+function setUsuario(newUsuario: Usuario | null) {
+  usuario.value = newUsuario
 }
 
 export const userStore = {
   usuario,
-  setUsuario(newUsuario: Usuario) {
-    usuario = newUsuario;
-  }
-};
+  cargarDesdeToken,
+  setUsuario
+}

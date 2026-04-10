@@ -10,6 +10,7 @@ const router = useRouter()
 
 const personaje = reactive({
   nombre: "",
+  genero_personaje: "",
   edad_personaje: null as number | null,
   avatar: null as File | null,
   estado: 1,
@@ -26,6 +27,7 @@ async function crearPersonaje() {
   //creamos el bosyrequest que enviamos al back
   const payload = {
     nombre: personaje.nombre,
+    generoPersonaje: personaje.genero_personaje,
     edadPersonaje: personaje.edad_personaje,
     avatar: personaje.avatar,
     estado: "ACTIVO",
@@ -34,7 +36,16 @@ async function crearPersonaje() {
     clase: personaje.clase,
     userId: userStore.usuario.id
   };
-  
+
+  try {
+    //enviamos la solicitud con el palyload anterior y recogesmos la respuesta
+    const response = await api.post('/personajes', payload);
+    //debug
+    console.log("Personaje creado:", response.data);
+  } catch (error: any) {
+    console.error("Error al crear personaje:", error.response || error);
+  }
+
   //si se registra el personaje correctamente redirigimos al usuario a la lista de personajes
   router.push({
     path: '/personajes', 
@@ -42,17 +53,6 @@ async function crearPersonaje() {
       creacion: 'ok'
     }
   })
-
-  try {
-    //enviamos la solicitud y recogesmos la respuesta
-    const response = await api.post('/personajes', payload);
-    //debug
-    console.log("Personaje creado:", response.data);
-    alert("Personaje creado correctamente");
-  } catch (error: any) {
-    console.error("Error al crear personaje:", error.response || error);
-    alert("No se pudo crear el personaje");
-  }
 }
 </script>
 
@@ -74,6 +74,20 @@ async function crearPersonaje() {
         />
       </div>
 
+      <!-- Genero -->
+      <div class="mb-3">
+        <label class="form-label">Género</label>
+        <select
+          class="form-control"
+          v-model="personaje.genero_personaje"
+          required
+        >
+          <option disabled value="">Selecciona una opción</option>
+          <option value="Masculino">Masculino</option>
+          <option value="Femenino">Femenino</option>
+        </select>
+      </div>
+
       <!-- Edad -->
       <div class="mb-3">
         <label class="form-label">Edad</label>
@@ -91,7 +105,7 @@ async function crearPersonaje() {
         type="file"
         class="form-control"
         accept="image/*"
-        @change="handleAvatarUpload"
+        @change=""
     />
     </div>
 
