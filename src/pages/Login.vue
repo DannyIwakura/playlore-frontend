@@ -43,13 +43,8 @@ const iniciarSesion = async () => {
     //guardammos el token de sesion
     localStorage.setItem("token", response.data)
 
-    //decodificar token y guardar usuario en el store
-    const payload: any = jwtDecode(response.data);
-    userStore.usuario = {
-      id: payload.id,
-      username: payload.sub,
-      role: payload.role
-    };
+    //cargamops el token
+    userStore.cargarDesdeToken()
 
     //debug
     console.log(response.data)

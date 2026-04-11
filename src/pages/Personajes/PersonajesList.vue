@@ -1,122 +1,148 @@
 <script setup lang="ts">
-import Footer from '../../components/Footer.vue';
-import NavBar from '../../components/NavBar.vue';
+import Footer from '../../components/Footer.vue'
+import NavBar from '../../components/NavBar.vue'
 import { useRouter } from 'vue-router'
-import { onMounted, ref } from 'vue';
-import { useRoute } from 'vue-router';
+import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import api from '../../services/api'
+import { userStore } from '../../store/userStore'
+
+const BASE_URL = 'http://localhost:8080/api'
 
 const router = useRouter()
 const route = useRoute()
-const mensajePErsonajeCreado = ref<string | null>(null)
 
-onMounted(() => {
-  // Si venimos de crear un personaje mostramos el mensaje de éxito
+const mensajePersonajeCreado = ref<string | null>(null)
+const personajes = ref<any[]>([])
+
+onMounted(async () => {
   if (route.query.creacion === 'ok') {
-    mensajePErsonajeCreado.value = "Personaje creado correctamente."
-    // Limpiamos la query para que el mensaje no aparezca al recargar la página
+    mensajePersonajeCreado.value = "Personaje creado correctamente."
     router.replace({ query: {} })
   }
-})
 
-
-const personajes = [
-  {
-    id: 1,
-    nombre: "Aelion",
-    descripcion: "Un caballero errante que busca redención tras la caída de su reino.",
-    edad: 32,
-    genero: "Masculino",
-    raza: "Humano",
-    clase: "Caballero",
-    retrato: "https://picsum.photos/300/300?random=1"
-  },
-  {
-    id: 2,
-    nombre: "Lyra",
-    descripcion: "Hechicera élfica experta en magia lunar y conocimiento antiguo.",
-    edad: 120,
-    genero: "Femenino",
-    raza: "Elfa",
-    clase: "Hechicera",
-    retrato: "https://picsum.photos/300/300?random=2"
-  },
-  {
-    id: 3,
-    nombre: "Drog",
-    descripcion: "Guerrero orco que lucha para demostrar que su honor vale más que su fuerza.",
-    edad: 40,
-    genero: "Masculino",
-    raza: "Orco",
-    clase: "Guerrero",
-    retrato: "https://picsum.photos/300/300?random=3"
+  try {
+    const userId = userStore.usuario.value?.id
+    const response = await api.get(`/personajes/usuario/${userId}`)
+    personajes.value = response.data
+  } catch (error) {
+    console.error("Error cargando personajes:", error)
   }
-];
+})
+//función para eliminar un personaje
+const eliminarPersonaje = async (idPersonaje: number) => {
+  const confirmacion = confirm("¿Seguro que quieres eliminar este personaje?")
+
+  if (!confirmacion) return
+
+  try {
+    await api.delete(`/personajes/${idPersonaje}`)
+
+    personajes.value = personajes.value.filter(
+      (p) => p.idPersonaje !== idPersonaje
+    )
+
+  } catch (error) {
+    console.error("Error eliminando personaje:", error)
+  }
+}
 </script>
 
 <template>
   <NavBar :logeado="true" />
 
   <div class="container mt-4">
-    <div class="row">
-        
+
     <div class="d-flex justify-content-between align-items-center mb-4">
       <h1 class="mb-0">Lista de tus Personajes</h1>
 
-      <router-link 
-        to="/personajes/crear"
-        class="btn btn-success"
-      >
+      <router-link to="/personajes/crear" class="btn btn-success">
         Crear Nuevo
       </router-link>
     </div>
-      <div v-if="mensajePErsonajeCreado" class="alert alert-success">
-        {{ mensajePErsonajeCreado }}
-      </div>
+
+    <div v-if="mensajePersonajeCreado" class="alert alert-success">
+      {{ mensajePersonajeCreado }}
+    </div>
+
+    <div class="row">
       <div
         class="col-md-4 mb-4"
         v-for="personaje in personajes"
-        :key="personaje.id"
+        :key="personaje.idPersonaje"
       >
         <div class="card h-100 shadow">
-          
+
+          <!-- AVATAR -->
           <img
-            :src="personaje.retrato"
-            class="card-img-top"
-            alt="Retrato del personaje"
+          :src="BASE_URL + personaje.avatar"
+          class="card-img-top"
+          alt="Avatar personaje"
+          loading="lazy"
           />
-
           <div class="card-body">
-            <h5 class="card-title">{{ personaje.nombre }}</h5>
-            <p class="card-text">{{ personaje.descripcion }}</p>
 
-            <ul class="list-group list-group-flush mb-3">
-              <li class="list-group-item"><strong>Edad:</strong> {{ personaje.edad }}</li>
-              <li class="list-group-item"><strong>Género:</strong> {{ personaje.genero }}</li>
-              <li class="list-group-item"><strong>Raza:</strong> {{ personaje.raza }}</li>
-              <li class="list-group-item"><strong>Clase:</strong> {{ personaje.clase }}</li>
-            </ul>
+            <!-- NOMBRE -->
+            <h5 class="card-title">
+              {{ personaje.nombre }}
+            </h5>
 
-            <router-link 
-              :to="`/personaje/${personaje.id}`" 
-              class="btn btn-primary w-100"
+            <!-- INFO BASE -->
+            <p class="mb-1"><strong>Género:</strong> {{ personaje.genero }}</p>
+            <p class="mb-1"><strong>Raza:</strong> {{ personaje.raza }}</p>
+            <p class="mb-2"><strong>Clase:</strong> {{ personaje.clase }}</p>
+
+            <!-- TRASFONDO (HTML SAFE PREVIEW) -->
+            <div class="trasfondo-preview mb-3" v-html="personaje.trasfondo"></div>
+
+            <!-- BOTONES -->
+            <router-link
+              :to="`/personaje/${personaje.idPersonaje}`"
+              class="btn btn-primary w-100 mb-2"
             >
               Ver Perfil Completo
             </router-link>
 
-            <router-link 
-              :to="`/personajes/editar/${personaje.id}`" 
-              class="btn btn-secondary w-100 mb-2 mt-2"
+            <router-link
+              :to="`/personajes/editar/${personaje.idPersonaje}`"
+              class="btn btn-secondary w-100 mb-2"
             >
               Editar Perfil
             </router-link>
 
-          </div>
+            <button
+              class="btn btn-danger w-100"
+              @click="eliminarPersonaje(personaje.idPersonaje)"
+            >
+              Eliminar
+            </button>
 
+          </div>
         </div>
       </div>
-
     </div>
+
   </div>
 
   <Footer />
 </template>
+<style scoped> 
+.trasfondo-preview {
+  max-height: 120px;
+  overflow: hidden;
+  position: relative;
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+/* fade bonito estilo Notion */
+.trasfondo-preview::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, white);
+}
+</style>
