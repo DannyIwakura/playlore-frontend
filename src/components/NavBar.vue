@@ -54,6 +54,10 @@ const logout = () => {
             <router-link to="/personajes" class="nav-link">Personajes</router-link>
           </li>
 
+          <li class="nav-item" v-if="usuario?.role === 'ADMIN'">
+          <router-link to="/admin" class="nav-link">Panel de Administración</router-link>
+          </li>
+
         </ul>
 
         <!-- DERECHA -->

@@ -6,6 +6,10 @@ import Dashboard from '../pages/Dashboard.vue';
 import PersonajesList from '../pages/Personajes/PersonajesList.vue';
 import NuevoPErsonajeForm from '../pages/Personajes/NuevoPersonajeForm.vue';
 import EditarPersonajeForm from '../pages/Personajes/EditarPersonajeForm.vue';
+import CategoriaNueva from '../pages/Admin/Categorias/CategoriaNueva.vue';
+import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
+import AdminPanel from '../pages/Admin/AdminPanel.vue';
+import { userStore } from '../store/userStore';
 
 const routes = [
   //rutas públicas
@@ -17,6 +21,10 @@ const routes = [
   { path: '/personajes', component: PersonajesList, meta: { requiresAuth: true } },
   { path: '/personajes/crear', component: NuevoPErsonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
+  //rutas protegidas por roles
+  { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/categorias/nueva', component: CategoriaNueva, meta: { requiresAuth: true, requiresAdmin: true } },
 ];
 
 const router = createRouter({
@@ -40,6 +48,17 @@ router.beforeEach((to, from, next) => {
   } else {
     next();
   }
+
+  // Comprobación de rol ADMIN
+  if (to.meta.requiresAdmin) {
+    userStore.cargarDesdeToken();
+    if (userStore.usuario.value?.role !== 'ADMIN') {
+      next('/dashboard'); // o una página de "acceso denegado"
+      return;
+    }
+  }
+
+  next();
 });
 
 export default router;
