@@ -6,6 +6,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
+import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
 
 const BASE_URL = 'http://localhost:8080/api'
 
@@ -46,6 +47,22 @@ const eliminarPersonaje = async (idPersonaje: number) => {
     console.error("Error eliminando personaje:", error)
   }
 }
+
+const mostrarModal = ref(false);
+const personajeSeleccionadoId = ref<number | null>(null);
+
+const abrirModalCategorias = (id: number) => {
+  personajeSeleccionadoId.value = id;
+  mostrarModal.value = true;
+}
+
+const recargarDatos = async () => {
+  // Función para refrescar la lista si el modal hizo cambios
+  const userId = userStore.usuario.value?.id
+  const response = await api.get(`/personajes/usuario/${userId}`)
+  personajes.value = response.data
+}
+
 </script>
 
 <template>
@@ -109,6 +126,19 @@ const eliminarPersonaje = async (idPersonaje: number) => {
             >
               Editar Perfil
             </router-link>
+            <button 
+            @click="abrirModalCategorias(personaje.idPersonaje)"
+            class="btn btn-outline-secondary w-100 mb-2"
+            >
+            Gestionar Categorías
+            </button>
+
+            <AnadirCategoriaForm 
+            v-if="mostrarModal" 
+            :idPersonaje="personajeSeleccionadoId!" 
+            @close="mostrarModal = false"
+            @success="recargarDatos"
+            />
 
             <button
               class="btn btn-danger w-100"

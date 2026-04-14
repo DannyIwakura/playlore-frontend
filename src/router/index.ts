@@ -10,6 +10,7 @@ import CategoriaNueva from '../pages/Admin/Categorias/CategoriaNueva.vue';
 import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
 import AdminPanel from '../pages/Admin/AdminPanel.vue';
 import { userStore } from '../store/userStore';
+import MensajesPrivadosList from '../pages/Mensajes Privados/MensajesPrivadosList.vue';
 
 const routes = [
   //rutas públicas
@@ -21,6 +22,8 @@ const routes = [
   { path: '/personajes', component: PersonajesList, meta: { requiresAuth: true } },
   { path: '/personajes/crear', component: NuevoPErsonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
+  { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
+  { path: '/mensajes', component: MensajesPrivadosList, meta: { requiresAuth: true } },
   //rutas protegidas por roles
   { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },
