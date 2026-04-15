@@ -10,8 +10,10 @@ interface MensajePrivadoDTO {
   id: number
   emisorId: number
   receptorId: number
-emisorNombre: string
-  receptorNombre: string 
+  emisorNombre: string
+  receptorNombre: string
+  emisorAvatar: string
+  receptorAvatar: string
   contenido: string
   titulo: string
   fechaEnvio: string
@@ -29,17 +31,19 @@ const error = ref<string | null>(null)
 
 // Modal nuevo mensaje
 const modalNuevoMensaje = ref(false)
-const nuevoMensaje = ref({ receptorId: '', titulo: '', contenido: '' })
+const nuevoMensaje = ref({ receptorNombre: '', titulo: '', contenido: '' })
 const enviando = ref(false)
 const mensajePapelera = ref<number[]>([]) // IDs eliminados localmente (papelera visual)
 
 const userId = computed(() => userStore.usuario.value?.id)
 
 // --- Avatar placeholder por ID ---
-function avatarUrl(id: number): string {
-  return `https://api.dicebear.com/7.x/thumbs/svg?seed=${id}`
-}
+const BASE_URL = 'http://localhost:8080/api'
 
+function avatarUrl(avatar: string | null | undefined): string {
+  if (avatar) return BASE_URL + avatar
+  return `http://localhost:8080/api/images/AVATAR.png`
+}
 // --- Formato de fecha ---
 function formatFecha(fecha: string): string {
   if (!fecha) return ''
@@ -117,28 +121,30 @@ async function eliminarMensaje(m: MensajePrivadoDTO) {
 
 // --- Enviar nuevo mensaje ---
 async function enviarNuevoMensaje() {
-    console.log('[enviarMensaje] userId:', userId.value)
   if (!userId.value) return
   enviando.value = true
-
-  const payload = {
-    emisorId: userId.value,
-    receptorId: Number(nuevoMensaje.value.receptorId),
-    titulo: nuevoMensaje.value.titulo,
-    contenido: nuevoMensaje.value.contenido
-  }
-  console.log('[enviarMensaje] Payload:', payload)
-
   try {
-    const response = await axios.post('/mensajes/enviar', payload)
-    console.log('[enviarMensaje] Respuesta OK:', response.status, response.data)
+    const respuesta = await axios.get('/usuarios/buscar', {
+      params: { nombre: nuevoMensaje.value.receptorNombre }
+    })
+
+    const payload = {
+      emisorId: userId.value,
+      receptorId: respuesta.data.userId,
+      titulo: nuevoMensaje.value.titulo,
+      contenido: nuevoMensaje.value.contenido
+    }
+    await axios.post('/mensajes/enviar', payload)
 
     modalNuevoMensaje.value = false
-    nuevoMensaje.value = { receptorId: '', titulo: '', contenido: '' }
+    nuevoMensaje.value = { receptorNombre: '', titulo: '', contenido: '' }
     if (pestanaActiva.value === 'enviados') await cargarMensajes()
   } catch (error: any) {
-    console.error('[enviarMensaje] Error:', error.response?.status, error.response?.data ?? error.message)
-    alert('Error al enviar el mensaje.')
+    if (error.response?.status === 404) {
+      alert('No se encontró ningún usuario con ese nombre.')
+    } else {
+      alert('Error al enviar el mensaje.')
+    }
   } finally {
     enviando.value = false
   }
@@ -224,8 +230,7 @@ onMounted(() => {
           >
             <!-- Avatar -->
             <img
-              :src="avatarUrl(m.esMio ? m.receptorId : m.emisorId)"
-              class="avatar-img rounded-circle flex-shrink-0"
+              :src="avatarUrl(m.esMio ? m.receptorAvatar : m.emisorAvatar)"
               width="40" height="40"
               :alt="`Avatar usuario ${m.esMio ? m.receptorId : m.emisorId}`"
             />
@@ -262,7 +267,7 @@ onMounted(() => {
           <!-- Cabecera -->
           <div class="d-flex align-items-start gap-3 mb-3">
             <img
-              :src="avatarUrl(mensajeSeleccionado.esMio ? mensajeSeleccionado.receptorId : mensajeSeleccionado.emisorId)"
+              :src="avatarUrl(mensajeSeleccionado.esMio ? mensajeSeleccionado.receptorAvatar : mensajeSeleccionado.emisorAvatar)"
               class="rounded-circle flex-shrink-0"
               width="48" height="48"
             />
@@ -305,9 +310,9 @@ onMounted(() => {
               v-if="!mensajeSeleccionado.esMio"
               class="btn btn-primary btn-sm ms-auto"
               @click="() => {
-                nuevoMensaje.receptorId = String(mensajeSeleccionado!.emisorId)
-                nuevoMensaje.titulo = 'Re: ' + (mensajeSeleccionado!.titulo || '')
-                modalNuevoMensaje = true
+                nuevoMensaje.value.receptorNombre = mensajeSeleccionado!.emisorNombre
+                nuevoMensaje.value.titulo = 'Re: ' + (mensajeSeleccionado!.titulo || '')
+                modalNuevoMensaje.value = true
               }"
             >
               <i class="bi bi-reply me-1"></i>Responder
@@ -326,12 +331,12 @@ onMounted(() => {
         <button class="btn-close" @click="modalNuevoMensaje = false"></button>
       </div>
       <div class="mb-3">
-        <label class="form-label">ID del destinatario</label>
+        <label class="form-label">Nombre del destinatario</label>
         <input
-          v-model="nuevoMensaje.receptorId"
-          type="number"
+          v-model="nuevoMensaje.receptorNombre"
+          type="text"
           class="form-control"
-          placeholder="Ej: 42"
+          placeholder="Nombre del usuario"
         />
       </div>
       <div class="mb-3">
@@ -359,7 +364,7 @@ onMounted(() => {
         <button class="btn btn-outline-secondary" @click="modalNuevoMensaje = false">Cancelar</button>
         <button
           class="btn btn-primary"
-          :disabled="enviando || !nuevoMensaje.receptorId || !nuevoMensaje.contenido"
+          :disabled="enviando || !nuevoMensaje.receptorNombre || !nuevoMensaje.contenido"
           @click="enviarNuevoMensaje"
         >
           <span v-if="enviando" class="spinner-border spinner-border-sm me-1"></span>
