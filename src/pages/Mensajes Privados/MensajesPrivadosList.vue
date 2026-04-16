@@ -33,7 +33,6 @@ const error = ref<string | null>(null)
 const modalNuevoMensaje = ref(false)
 const nuevoMensaje = ref({ receptorNombre: '', titulo: '', contenido: '' })
 const enviando = ref(false)
-const mensajePapelera = ref<number[]>([]) // IDs eliminados localmente (papelera visual)
 
 const userId = computed(() => userStore.usuario.value?.id)
 
@@ -66,15 +65,11 @@ async function cargarMensajes() {
     } else if (pestanaActiva.value === 'archivados') {
       url = `/mensajes/archivados/${userId.value}`
     } else if (pestanaActiva.value === 'papelera') {
-      // Papelera: mensajes marcados localmente como eliminados
-      // Aquí mostramos los que el usuario ha borrado en esta sesión
-      mensajes.value = []
-      cargando.value = false
-      return
+      url = `/mensajes/papelera/${userId.value}`
     }
     const { data } = await axios.get<MensajePrivadoDTO[]>(url)
     // Excluir los que están en papelera local
-    mensajes.value = data.filter(m => !mensajePapelera.value.includes(m.id))
+    mensajes.value = data
   } catch (e) {
     error.value = 'Error al cargar los mensajes. Inténtalo de nuevo.'
   } finally {
@@ -110,8 +105,13 @@ async function eliminarMensaje(m: MensajePrivadoDTO) {
   if (!userId.value) return
   if (!confirm('¿Seguro que quieres eliminar este mensaje?')) return
   try {
-    await axios.delete(`/mensajes/${m.id}/${userId.value}`)
-    mensajePapelera.value.push(m.id)
+    if (pestanaActiva.value === 'papelera') {
+      // Borrado definitivo
+      await axios.delete(`/mensajes/definitivo/${m.id}/${userId.value}`)
+    } else {
+      // Mover a papelera
+      await axios.delete(`/mensajes/${m.id}/${userId.value}`)
+    }
     mensajes.value = mensajes.value.filter(msg => msg.id !== m.id)
     if (mensajeSeleccionado.value?.id === m.id) mensajeSeleccionado.value = null
   } catch (_) {
@@ -310,9 +310,9 @@ onMounted(() => {
               v-if="!mensajeSeleccionado.esMio"
               class="btn btn-primary btn-sm ms-auto"
               @click="() => {
-                nuevoMensaje.value.receptorNombre = mensajeSeleccionado!.emisorNombre
-                nuevoMensaje.value.titulo = 'Re: ' + (mensajeSeleccionado!.titulo || '')
-                modalNuevoMensaje.value = true
+              nuevoMensaje.receptorNombre = mensajeSeleccionado!.emisorNombre
+              nuevoMensaje.titulo = 'Re: ' + (mensajeSeleccionado!.titulo || '')
+              modalNuevoMensaje = true
               }"
             >
               <i class="bi bi-reply me-1"></i>Responder

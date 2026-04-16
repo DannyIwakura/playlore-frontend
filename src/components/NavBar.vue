@@ -1,22 +1,49 @@
 <script setup lang="ts">
 import { useRoute, useRouter } from 'vue-router'
 import { userStore } from '../store/userStore'
+import { ref, onMounted, onUnmounted } from 'vue'
+import axios from '../services/api'
 
 const BASE_URL = 'http://localhost:8080/api'
 
 const route = useRoute()
 const router = useRouter()
 
+//constantes para manejar el dropdown del usuario
+const dropdownAbierto = ref(false)
+const dropdownRef = ref<HTMLElement | null>(null)
+
 //extraemos el ref para mantener reactividad
 const usuario = userStore.usuario
 
+//inciamos el contador de mensajes no leidos
+const mensajesNoLeidos = ref(0)
+
 const props = defineProps<{ logeado: boolean }>()
+
+const handleClickFuera = (e: MouseEvent) => {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+    dropdownAbierto.value = false
+  }
+}
+
+onMounted(() => document.addEventListener('click', handleClickFuera))
+onUnmounted(() => document.removeEventListener('click', handleClickFuera))
 
 const logout = () => {
   localStorage.removeItem('token')
   userStore.setUsuario(null)
   router.push('/login')
 }
+
+onMounted(async () => {
+  if (props.logeado && usuario.value?.id) {
+    try {
+      const { data } = await axios.get(`/mensajes/recibidos/${usuario.value.id}/count-no-leidos`)
+      mensajesNoLeidos.value = data
+    } catch (_) {}
+  }
+})
 </script>
 
 <template>
@@ -55,7 +82,15 @@ const logout = () => {
           </li>
 
           <li class="nav-item">
-            <router-link to="/mensajes" class="nav-link">Mensajes Privados</router-link>
+            <router-link to="/mensajes" class="nav-link">
+              Mensajes Privados
+              <span
+              v-if="mensajesNoLeidos > 0"
+              class="badge bg-danger rounded-pill"
+              style="font-size: 0.7rem">
+                {{ mensajesNoLeidos }}
+              </span>
+            </router-link>
           </li>
 
           <li class="nav-item" v-if="usuario?.role === 'ADMIN'">
@@ -69,16 +104,36 @@ const logout = () => {
 
           <!-- AVATAR + USER -->
           <template v-if="usuario">
-            <img
-              :src="BASE_URL + usuario.avatar"
-              class="avatar-navbar"
-              alt="avatar"
-            />
+  <div class="user-dropdown" ref="dropdownRef">
+    <img
+      :src="BASE_URL + usuario.avatar"
+      class="avatar-navbar"
+      alt="avatar"
+    />
 
-            <span class="text-white me-2">
-              Hola, {{ usuario.username }}
-            </span>
-          </template>
+    <button class="user-trigger" @click.stop="dropdownAbierto = !dropdownAbierto">
+      Hola, {{ usuario.username }}
+      <span class="caret" :class="{ open: dropdownAbierto }">▼</span>
+    </button>
+
+    <div class="dropdown-menu" v-if="dropdownAbierto">
+        <router-link
+          :to="`/perfil/${usuario.id}`"
+          class="dropdown-item"
+          @click="dropdownAbierto = false"
+        >
+          Mi perfil
+        </router-link>
+        <router-link
+          to="/editar-perfil"
+          class="dropdown-item"
+          @click="dropdownAbierto = false"
+        >
+          Editar datos
+        </router-link>
+            </div>
+          </div>
+      </template>
 
           <!-- BOTONES -->
           <button
@@ -109,5 +164,67 @@ const logout = () => {
   height: 34px;
   border-radius: 50%;
   object-fit: cover;
+}
+
+.user-dropdown {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.user-trigger {
+  background: none;
+  border: none;
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.user-trigger:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.caret {
+  font-size: 0.6rem;
+  opacity: 0.6;
+  transition: transform 0.2s;
+}
+
+.caret.open {
+  transform: rotate(180deg);
+}
+
+.dropdown-menu {
+  display: block;
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  background: white;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 8px;
+  min-width: 170px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  z-index: 1000;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  padding: 10px 16px;
+  color: #212529;
+  text-decoration: none;
+  font-size: 0.875rem;
+  transition: background 0.12s;
+}
+
+.dropdown-item:hover {
+  background: #f8f9fa;
 }
 </style>
