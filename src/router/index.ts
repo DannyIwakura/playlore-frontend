@@ -12,6 +12,7 @@ import AdminPanel from '../pages/Admin/AdminPanel.vue';
 import { userStore } from '../store/userStore';
 import MensajesPrivadosList from '../pages/Mensajes Privados/MensajesPrivadosList.vue';
 import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
+import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
 
 const routes = [
   //rutas públicas
@@ -26,6 +27,7 @@ const routes = [
   { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
   { path: '/mensajes', component: MensajesPrivadosList, meta: { requiresAuth: true } },
   { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
+  { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },
   //rutas protegidas por roles
   { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },

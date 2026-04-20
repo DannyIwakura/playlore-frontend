@@ -2,8 +2,12 @@
 import { ref, computed, onMounted } from 'vue'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
+import { useRouter, useRoute } from 'vue-router'
 import { userStore } from '../../store/userStore'
 import axios from '../../services/api'
+
+const router = useRouter()
+const route = useRoute()
 
 // --- Tipos ---
 interface MensajePrivadoDTO {
@@ -152,12 +156,22 @@ async function enviarNuevoMensaje() {
 
 // --- Cambio de pestaña ---
 function cambiarPestana(p: typeof pestanaActiva.value) {
-  pestanaActiva.value = p
+
+  // 1. Actualiza el estado de la pestaña
+  pestanaActiva.value = p; 
+
+  // 2. Limpia lógica del query (si es necesario)
+  const destinatario = route.query.destinatario as string | undefined
+  if (destinatario) {
+    router.replace({ query: {} })
+  }
+
+  // 3. Ahora que pestanaActiva está actualizada, cargamos
   cargarMensajes()
 }
 
 onMounted(() => {
-  userStore.cargarDesdeToken()  // ← añade esta línea
+  userStore.cargarDesdeToken()
   cargarMensajes()
 })
 </script>
