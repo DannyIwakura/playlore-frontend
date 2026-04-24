@@ -10,9 +10,11 @@ import CategoriaNueva from '../pages/Admin/Categorias/CategoriaNueva.vue';
 import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
 import AdminPanel from '../pages/Admin/AdminPanel.vue';
 import { userStore } from '../store/userStore';
+import EditarFormulario from '../pages/Usuarios/EditarFormulario.vue';
 import MensajesPrivadosList from '../pages/Mensajes Privados/MensajesPrivadosList.vue';
 import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
 import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
+import AmigosList from '../pages/Usuarios/AmigosList.vue';
 
 const routes = [
   //rutas públicas
@@ -21,6 +23,7 @@ const routes = [
   { path: '/registro', component: Registro },
   //rutas protegidas
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
+  { path: '/usuario/editar/:id', component: EditarFormulario, meta: { requiresAuth: true } },
   { path: '/personajes', component: PersonajesList, meta: { requiresAuth: true } },
   { path: '/personajes/crear', component: NuevoPErsonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
@@ -28,6 +31,7 @@ const routes = [
   { path: '/mensajes', component: MensajesPrivadosList, meta: { requiresAuth: true } },
   { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
   { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },
+  { path: '/amigos/', component: AmigosList, meta: { requiresAuth: true } },
   //rutas protegidas por roles
   { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },
@@ -52,15 +56,14 @@ router.beforeEach((to, from, next) => {
   // Rutas protegidas
   if (to.meta.requiresAuth && !token) {
     next('/login');
-  } else {
-    next();
+    return;
   }
 
   // Comprobación de rol ADMIN
   if (to.meta.requiresAdmin) {
     userStore.cargarDesdeToken();
     if (userStore.usuario.value?.role !== 'ADMIN') {
-      next('/dashboard'); // o una página de "acceso denegado"
+      next('/dashboard');
       return;
     }
   }

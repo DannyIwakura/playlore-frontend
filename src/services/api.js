@@ -1,4 +1,5 @@
 import axios from 'axios'
+import router from '../router'
 
 const api = axios.create({
   // tomamos de base la ruta /api indicando que vamos a recibir datos en formato json usando axios

@@ -51,10 +51,6 @@ onMounted(async () => {
     <div class="container px-4">
 
       <!-- LOGO -->
-      <a class="navbar-brand" href="/" v-if="!props.logeado">
-        <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
-      </a>
-
       <a class="navbar-brand" href="/dashboard" v-if="props.logeado">
         <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
       </a>
@@ -69,6 +65,18 @@ onMounted(async () => {
       </button>
 
       <div class="collapse navbar-collapse" id="navbarText">
+        <!-- MENÚ INVITADO -->
+        <ul class="navbar-nav me-auto" v-if="!props.logeado">
+          <li class="nav-item">
+            <a href="#carouselHero" class="nav-link">Inicio</a>
+          </li>
+          <li class="nav-item">
+            <a href="#sobre" class="nav-link">Sobre nosotros</a>
+          </li>
+          <li class="nav-item">
+            <a href="#join" class="nav-link">Únete</a>
+          </li>
+        </ul>
 
         <!-- MENÚ LOGUEADO -->
         <ul class="navbar-nav me-auto" v-if="props.logeado">
@@ -91,6 +99,10 @@ onMounted(async () => {
                 {{ mensajesNoLeidos }}
               </span>
             </router-link>
+          </li>
+
+          <li class="nav-item">
+            <router-link to="/amigos" class="nav-link">Amigos</router-link>
           </li>
 
           <li class="nav-item" v-if="usuario?.role === 'ADMIN'">
@@ -125,7 +137,7 @@ onMounted(async () => {
           Mi perfil
         </router-link>
         <router-link
-          to="/editar-perfil"
+          :to="`/usuario/editar/${usuario.id}`"
           class="dropdown-item"
           @click="dropdownAbierto = false"
         >
