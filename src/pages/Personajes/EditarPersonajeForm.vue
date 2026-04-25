@@ -48,27 +48,41 @@ function handleAvatarUpload(event: Event) {
 }
 
 async function actualizarPersonaje() {
-  const formData = new FormData()
-  // Recogemos los datos de los inputs
-  formData.append(
-    "personaje",
-    new Blob([JSON.stringify({
-      nombre: personaje.nombre,
-      genero: personaje.genero_personaje,
-      edadPersonaje: personaje.edad_personaje,
-      trasfondo: personaje.trasfondo,
-      raza: personaje.raza,
-      clase: personaje.clase
-    })], { type: "application/json" })
-  )
-  if (personaje.avatar) {
-    formData.append("avatarFile", personaje.avatar)
+  // Limpiar mensajes de errores de validación
+  Object.keys(errores).forEach(key => delete errores[key])
+
+  try {
+    const formData = new FormData()
+    // Recogemos los datos de los inputs
+    formData.append(
+      "personaje",
+      new Blob([JSON.stringify({
+        nombre: personaje.nombre,
+        genero: personaje.genero_personaje,
+        edadPersonaje: personaje.edad_personaje,
+        trasfondo: personaje.trasfondo,
+        raza: personaje.raza,
+        clase: personaje.clase
+      })], { type: "application/json" })
+    )
+
+    if (personaje.avatar) {
+      formData.append("avatarFile", personaje.avatar)
+    }
+    // Hacemos POST al backend
+    await api.put(`/personajes/${personajeId}`, formData, {
+      headers: { "Content-Type": "multipart/form-data" }
+    })
+
+    router.push('/personajes')
+
+  } catch (error: any) {
+    if (error.response?.status === 400) {
+      Object.assign(errores, error.response.data)
+    } else {
+      console.error(error)
+    }
   }
-  // Hacemos PUT al back para actualizar
-  await api.put(`/personajes/${personajeId}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" }
-  })
-  router.push('/personajes')
 }
 </script>
 
@@ -80,6 +94,9 @@ async function actualizarPersonaje() {
       <div class="mb-3">
         <label class="form-label">Nombre del personaje</label>
         <input v-model="personaje.nombre" type="text" class="form-control" required />
+        <div v-if="errores.nombre" class="text-danger">
+          {{ errores.nombre }}
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Género</label>
@@ -87,10 +104,16 @@ async function actualizarPersonaje() {
           <option value="Masculino">Masculino</option>
           <option value="Femenino">Femenino</option>
         </select>
+        <div v-if="errores.genero" class="text-danger">
+          {{ errores.genero }}
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Edad</label>
         <input v-model="personaje.edad_personaje" type="number" class="form-control" />
+        <div v-if="errores.edadPersonaje" class="text-danger">
+          {{ errores.edadPersonaje }}
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Avatar actual</label>
@@ -100,10 +123,16 @@ async function actualizarPersonaje() {
       <div class="mb-3">
         <label class="form-label">Raza</label>
         <input v-model="personaje.raza" type="text" class="form-control" />
+        <div v-if="errores.raza" class="text-danger">
+          {{ errores.raza }}
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label">Clase</label>
         <input v-model="personaje.clase" type="text" class="form-control" />
+        <div v-if="errores.clase" class="text-danger">
+          {{ errores.clase }}
+        </div>
       </div>
       <div class="mb-3">
         <label class="form-label d-block">Trasfondo</label>
