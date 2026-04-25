@@ -9,7 +9,7 @@ import axios from '../../services/api'
 const router = useRouter()
 const route = useRoute()
 
-// --- Tipos ---
+// Inbterfaz que se mapeara al DTO
 interface MensajePrivadoDTO {
   id: number
   emisorId: number
@@ -26,12 +26,13 @@ interface MensajePrivadoDTO {
   esMio: boolean
 }
 
-// --- Estado ---
+// //Estados
 const pestanaActiva = ref<'recibidos' | 'enviados' | 'archivados' | 'papelera'>('recibidos')
 const mensajes = ref<MensajePrivadoDTO[]>([])
 const mensajeSeleccionado = ref<MensajePrivadoDTO | null>(null)
 const cargando = ref(false)
 const error = ref<string | null>(null)
+const erroresModal = ref<Record<string, string>>({})
 
 // Modal nuevo mensaje
 const modalNuevoMensaje = ref(false)
@@ -40,21 +41,20 @@ const enviando = ref(false)
 
 const userId = computed(() => userStore.usuario.value?.id)
 
-// --- Avatar placeholder por ID ---
 const BASE_URL = 'http://localhost:8080/api'
 
 function avatarUrl(avatar: string | null | undefined): string {
   if (avatar) return BASE_URL + avatar
   return `http://localhost:8080/api/images/AVATAR.png`
 }
-// --- Formato de fecha ---
+// Conversión a fecha local
 function formatFecha(fecha: string): string {
   if (!fecha) return ''
   const d = new Date(fecha)
   return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
-// --- Carga de mensajes según pestaña ---
+// Carga de mensajes según pestaña
 async function cargarMensajes() {
   if (!userId.value) return
   cargando.value = true
@@ -81,18 +81,18 @@ async function cargarMensajes() {
   }
 }
 
-// --- Seleccionar mensaje y marcar como leído ---
+//Seleccionar mensaje y marcar como leído
 async function seleccionarMensaje(m: MensajePrivadoDTO) {
   mensajeSeleccionado.value = m
   if (!m.leido && !m.esMio && userId.value) {
     try {
       await axios.put(`/mensajes/marcar-leido/${m.id}/${userId.value}`)
       m.leido = true
-    } catch (_) { /* silencioso */ }
+    } catch (_) { }
   }
 }
 
-// --- Archivar mensaje ---
+// Archivar mensaje
 async function archivarMensaje(m: MensajePrivadoDTO) {
   if (!userId.value) return
   try {
@@ -104,7 +104,7 @@ async function archivarMensaje(m: MensajePrivadoDTO) {
   }
 }
 
-// --- Mover a papelera (eliminación local + API) ---
+// Mover a papelera
 async function eliminarMensaje(m: MensajePrivadoDTO) {
   if (!userId.value) return
   if (!confirm('¿Seguro que quieres eliminar este mensaje?')) return
@@ -123,15 +123,18 @@ async function eliminarMensaje(m: MensajePrivadoDTO) {
   }
 }
 
-// --- Enviar nuevo mensaje ---
+// Enviar nuevo mensaje
 async function enviarNuevoMensaje() {
   if (!userId.value) return
   enviando.value = true
+  // Limpiar mensajes
+  erroresModal.value = {}
   try {
+    //Buscamos primero si el usuario existe
     const respuesta = await axios.get('/usuarios/buscar', {
       params: { nombre: nuevoMensaje.value.receptorNombre }
     })
-
+    // Rellenamos el playload con los datos de los inpouts
     const payload = {
       emisorId: userId.value,
       receptorId: respuesta.data.userId,
@@ -144,10 +147,14 @@ async function enviarNuevoMensaje() {
     nuevoMensaje.value = { receptorNombre: '', titulo: '', contenido: '' }
     if (pestanaActiva.value === 'enviados') await cargarMensajes()
   } catch (error: any) {
+    // Si no existe el susario receptor
     if (error.response?.status === 404) {
-      alert('No se encontró ningún usuario con ese nombre.')
+      erroresModal.value.receptorNombre = 'No se encontró ningún usuario con ese nombre.'
+    } else if (error.response?.status === 400) {
+      Object.assign(erroresModal.value, error.response.data)
+      // Cualquier otro error
     } else {
-      alert('Error al enviar el mensaje.')
+      erroresModal.value._general = 'Error al enviar el mensaje.'
     }
   } finally {
     enviando.value = false
@@ -352,6 +359,7 @@ onMounted(() => {
           class="form-control"
           placeholder="Nombre del usuario"
         />
+        <div v-if="erroresModal.receptorNombre" class="text-danger small mt-1">{{ erroresModal.receptorNombre }}</div>
       </div>
       <div class="mb-3">
         <label class="form-label">Asunto</label>
@@ -362,6 +370,7 @@ onMounted(() => {
           maxlength="150"
           placeholder="Asunto del mensaje"
         />
+        <div v-if="erroresModal.titulo" class="text-danger small mt-1">{{ erroresModal.titulo }}</div>
       </div>
       <div class="mb-4">
         <label class="form-label">Mensaje</label>
@@ -373,7 +382,9 @@ onMounted(() => {
           placeholder="Escribe tu mensaje aquí..."
         ></textarea>
         <div class="text-end text-muted small mt-1">{{ nuevoMensaje.contenido.length }}/2000</div>
+        <div v-if="erroresModal.contenido" class="text-danger small mt-1">{{ erroresModal.contenido }}</div>
       </div>
+      <div v-if="erroresModal._general" class="alert alert-danger py-2">{{ erroresModal._general }}</div>
       <div class="d-flex justify-content-end gap-2">
         <button class="btn btn-outline-secondary" @click="modalNuevoMensaje = false">Cancelar</button>
         <button
