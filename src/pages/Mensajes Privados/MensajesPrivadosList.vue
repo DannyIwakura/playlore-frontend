@@ -42,10 +42,18 @@ const enviando = ref(false)
 const userId = computed(() => userStore.usuario.value?.id)
 
 const BASE_URL = 'http://localhost:8080/api'
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
 
 function avatarUrl(avatar: string | null | undefined): string {
-  if (avatar) return BASE_URL + avatar
-  return `http://localhost:8080/api/images/AVATAR.png`
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return BASE_URL + avatar
 }
 // Conversión a fecha local
 function formatFecha(fecha: string): string {
