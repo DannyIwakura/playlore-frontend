@@ -103,7 +103,8 @@ const registrarUsuario = async () => {
               class="form-control"
               id="username"
               v-model="nombre"
-              placeholder="Ingresa tu nombre de usuario">
+              placeholder="Ingresa tu nombre de usuario"
+              required>
               <div v-if="errores.nombre" class="text-danger">
               {{ errores.nombre }}
               </div>
@@ -116,7 +117,8 @@ const registrarUsuario = async () => {
               class="form-control"
               id="email"
               v-model="email"
-              placeholder="Ingresa tu correo electrónico">
+              placeholder="Ingresa tu correo electrónico"
+              required>
               <div v-if="errores.email" class="text-danger">
               {{ errores.email }}
               </div>
@@ -130,6 +132,7 @@ const registrarUsuario = async () => {
                 accept="image/*"
                 @change="onFileChange"
               />
+              <small class="text-muted d-block mt-1">JPG, PNG o WEBP Máx. 2 MB. 200x200 px</small>
               <div v-if="avatarPreview" class="mt-2">
                 <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail" />
               </div>
@@ -145,7 +148,8 @@ const registrarUsuario = async () => {
               class="form-control"
               id="password"
               v-model="password"
-              placeholder="Ingresa tu contraseña">
+              placeholder="Ingresa tu contraseña"
+              required>
               <div v-if="errores.password" class="text-danger">
               {{ errores.password }}
               </div>

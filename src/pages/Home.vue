@@ -111,10 +111,12 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
       <p class="lead mb-4">
         Forma parte de nuestra comunidad y disfruta de escribiendo junto a otros roleplayers. No esperes más para empezar tu aventura.
       </p>
-      <button class="btn btn-dark btn-lg">Únete ahora</button>
+      <router-link to="/registro" class="btn btn-dark btn-lg">
+        Únete ahora
+      </router-link>
     </div>
   </section>
-  <Footer />
+  <Footer :logeado="false"/>
 
 </template>
 

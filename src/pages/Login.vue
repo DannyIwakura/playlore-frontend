@@ -34,6 +34,9 @@ const iniciarSesion = async () => {
   errorLogin.value = ''
 
   try {
+    // Si se obtiene un error limpiar campos
+    nombre.value = nombre.value.replace(/\s/g, '')
+    password.value = password.value.replace(/\s/g, '')
     // Enviamos los datos al backend
     const response = await api.post('/usuarios/login', {
       nombre: nombre.value,
@@ -86,12 +89,28 @@ const iniciarSesion = async () => {
           <form @submit.prevent="iniciarSesion">
             <div class="mb-3">
               <label for="nombre" class="form-label">Nombre de Usuario</label>
-              <input v-model="nombre" type="text" class="form-control" id="nombre" placeholder="Ingresa tu nombre de usuario" required>
+              <input
+                v-model="nombre"
+                @input="nombre = nombre.replace(/\s/g, '')"
+                type="text"
+                class="form-control"
+                id="nombre"
+                placeholder="Ingresa tu nombre de usuario"
+                required
+              />
             </div>
 
             <div class="mb-3">
               <label for="password" class="form-label">Contraseña</label>
-              <input v-model="password" type="password" class="form-control" id="password" placeholder="Ingresa tu contraseña" required>
+              <input
+              v-model="password"
+              @input="password = password.replace(/\s/g, '')"
+              type="password"
+              class="form-control"
+              id="password"
+              placeholder="Ingresa tu contraseña"
+              required
+              />
             </div>
             <div v-if="errorLogin" class="text-danger mt-2">
                 {{ errorLogin }}

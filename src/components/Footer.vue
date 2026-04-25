@@ -1,3 +1,11 @@
+<script setup lang="ts">
+
+const props = defineProps<{ logeado: boolean }>()
+console.log('logeado en footer:', props.logeado)
+
+</script>
+
+
 <template>
   <footer class="bg-dark text-white pt-4 pb-3">
     <div class="container">
@@ -23,7 +31,7 @@
 
         <!-- Enlaces a la derecha -->
         <div class="col-md-6 d-flex justify-content-md-end">
-          <ul class="list-unstyled mb-0">
+          <ul class="list-unstyled mb-0" v-if="!props.logeado">
             <li class="ms-3"><a href="#" class="text-white text-decoration-none mb-2">Inicio</a></li>
             <li class="ms-3"><a href="#" class="text-white text-decoration-none mb-2">Qué es PlayLore</a></li>
             <li class="ms-3"><a href="#" class="text-white text-decoration-none">Cómo entrar</a></li>

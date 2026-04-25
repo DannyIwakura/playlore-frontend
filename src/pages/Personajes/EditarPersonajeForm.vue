@@ -10,6 +10,7 @@ const BASE_URL = 'http://localhost:8080/api'
 const route = useRoute()
 const router = useRouter()
 const personajeId = route.params.id
+const errores = reactive<Record<string, string>>({})
 
 const personaje = reactive({
   nombre: "",
@@ -24,6 +25,7 @@ const personaje = reactive({
 
 onMounted(async () => {
   try {
+    // Recuperamos los datos del personaje para rellenar inputs
     const res = await api.get(`/personajes/${personajeId}`)
     const data = res.data
     personaje.nombre = data.nombre
@@ -47,6 +49,7 @@ function handleAvatarUpload(event: Event) {
 
 async function actualizarPersonaje() {
   const formData = new FormData()
+  // Recogemos los datos de los inputs
   formData.append(
     "personaje",
     new Blob([JSON.stringify({
@@ -61,6 +64,7 @@ async function actualizarPersonaje() {
   if (personaje.avatar) {
     formData.append("avatarFile", personaje.avatar)
   }
+  // Hacemos PUT al back para actualizar
   await api.put(`/personajes/${personajeId}`, formData, {
     headers: { "Content-Type": "multipart/form-data" }
   })

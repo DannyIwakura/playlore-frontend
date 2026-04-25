@@ -7,6 +7,7 @@ import { userStore } from '../../store/userStore'
 import axios from '../../services/api'
 
 const BASE_URL = 'http://localhost:8080/api'
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
 
 interface UsuarioDTO {
   userId: number
@@ -30,15 +31,23 @@ const modalMensaje = ref(false)
 const mensaje = ref({ titulo: '', contenido: '' })
 const enviandoMensaje = ref(false)
 
-// Solicitud amistad
+// Manejo de solicitud amistad
 const solicitudEnviada = ref(false)
+const esAmigo = ref(false)
 const enviandoSolicitud = ref(false)
 
 const userId = () => userStore.usuario.value?.id
 
-function avatarUrl(avatar: string | null | undefined, id: number): string {
-  if (avatar) return BASE_URL + avatar
-  return `https://api.dicebear.com/7.x/thumbs/svg?seed=${id}`
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return BASE_URL + avatar
 }
 
 function formatFecha(fecha: string): string {
@@ -57,10 +66,18 @@ async function cargarPerfil() {
     // Comprobar si ya existe solicitud pendiente
     const miId = userId()
     if (miId && data.userId !== miId) {
-      const { data: existe } = await axios.get<boolean>(
-        `/amistades/comprobar-existencia/${miId}/${data.userId}`
+      const receptorId = data.userId
+
+      const [resSolicitud, resAmigos] = await Promise.all([
+        axios.get<boolean>(`/amistades/comprobar-existencia/${miId}/${receptorId}`),
+        axios.get<any[]>(`/usuarios/${miId}/amigos`)
+      ])
+
+      solicitudEnviada.value = resSolicitud.data
+
+      esAmigo.value = resAmigos.data.some(
+        (a: any) => a.id === receptorId
       )
-      solicitudEnviada.value = existe
     }
   } catch {
     error.value = 'No se pudo cargar el perfil.'
@@ -149,6 +166,7 @@ onMounted(() => {
               <i class="bi bi-envelope me-1"></i> Enviar mensaje
             </button>
             <button
+              v-if="!esAmigo"
               class="btn btn-outline-secondary btn-sm"
               :disabled="solicitudEnviada || enviandoSolicitud"
               @click="enviarSolicitudAmistad"
@@ -158,6 +176,10 @@ onMounted(() => {
               <i v-else class="bi bi-person-plus me-1"></i>
               {{ solicitudEnviada ? 'Solicitud enviada' : 'Solicitud de amistad' }}
             </button>
+
+            <span v-else class="badge bg-success px-3 py-2">
+              <i class="bi bi-shield-check me-1"></i>Amigo
+            </span>
           </div>
         </div>
       </div>

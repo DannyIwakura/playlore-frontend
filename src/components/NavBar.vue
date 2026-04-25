@@ -5,6 +5,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import axios from '../services/api'
 
 const BASE_URL = 'http://localhost:8080/api'
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
 
 const route = useRoute()
 const router = useRouter()
@@ -51,9 +52,12 @@ onMounted(async () => {
     <div class="container px-4">
 
       <!-- LOGO -->
-      <a class="navbar-brand" href="/dashboard" v-if="props.logeado">
+      <router-link
+        class="navbar-brand"
+        :to="props.logeado ? '/dashboard' : '/'"
+      >
         <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
-      </a>
+      </router-link>
 
       <button
         class="navbar-toggler"
@@ -68,7 +72,7 @@ onMounted(async () => {
         <!-- MENÚ INVITADO -->
         <ul class="navbar-nav me-auto" v-if="!props.logeado">
           <li class="nav-item">
-            <a href="#carouselHero" class="nav-link">Inicio</a>
+            <a href="/" class="nav-link">Inicio</a>
           </li>
           <li class="nav-item">
             <a href="#sobre" class="nav-link">Sobre nosotros</a>
@@ -118,10 +122,18 @@ onMounted(async () => {
           <template v-if="usuario">
   <div class="user-dropdown" ref="dropdownRef">
     <img
+      v-if="usuario.avatar === AVATAR_DEFECTO"
+      :src="AVATAR_DEFECTO"
+      class="avatar-navbar"
+      alt="avatar"
+    />
+    <img
+      v-else
       :src="BASE_URL + usuario.avatar"
       class="avatar-navbar"
       alt="avatar"
     />
+
 
     <button class="user-trigger" @click.stop="dropdownAbierto = !dropdownAbierto">
       Hola, {{ usuario.username }}

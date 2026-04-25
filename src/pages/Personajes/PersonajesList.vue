@@ -9,6 +9,8 @@ import { userStore } from '../../store/userStore'
 import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
 
 const BASE_URL = 'http://localhost:8080/api'
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+
 
 const router = useRouter()
 const route = useRoute()
@@ -63,6 +65,18 @@ const recargarDatos = async () => {
   personajes.value = response.data
 }
 
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return BASE_URL + avatar
+}
+
 </script>
 
 <template>
@@ -81,8 +95,13 @@ const recargarDatos = async () => {
     <div v-if="mensajePersonajeCreado" class="alert alert-success">
       {{ mensajePersonajeCreado }}
     </div>
+    <div v-if="personajes.length === 0" class="alert alert-info text-center">
+      No tienes personajes creados todavía.
+      <br />
+      ¡Empieza creando uno!
+    </div>
 
-    <div class="row">
+    <div v-else class="row">
       <div
         class="col-md-4 mb-4"
         v-for="personaje in personajes"
@@ -92,10 +111,9 @@ const recargarDatos = async () => {
 
           <!-- AVATAR -->
           <img
-          :src="BASE_URL + personaje.avatar"
-          class="card-img-top"
-          alt="Avatar personaje"
-          loading="lazy"
+            :src="avatarUrl(personaje.avatar)"
+            class="card-img-top"
+            alt="Avatar personaje"
           />
           <div class="card-body">
 

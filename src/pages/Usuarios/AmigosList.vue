@@ -5,6 +5,8 @@ import Footer from '../../components/Footer.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+
 const miId = computed(() => userStore.usuario.value?.id)
 
 const tabActiva = ref<'amigos' | 'recibidas' | 'enviadas'>('amigos')
@@ -26,13 +28,25 @@ const yaEsAmigo = ref(false)
 
 const BASE_URL = 'http://localhost:8080/api'
 
+// Controlar que se esté intentado buscar a sí mismo
 const esSiMismo = computed(() => 
   resultadoBusqueda.value?.userId === miId.value
 )
 
 function avatarUrl(avatar: string | null | undefined, id?: number): string {
-  if (avatar) return BASE_URL + avatar
-  return `https://api.dicebear.com/7.x/adventurer/svg?seed=${id ?? 0}`
+  if (
+    !avatar ||
+    avatar.includes('AVATAR.png') ||
+    avatar.includes('default.png')
+  ) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return BASE_URL + avatar
 }
 
 async function cargarAmigos() {
@@ -175,33 +189,38 @@ async function eliminarAmigo() {
             {{ cargandoBusqueda ? 'Buscando...' : 'Buscar' }}
           </button>
         </div>
-    </div>    
 
-        <div v-if="resultadoBusqueda" class="d-flex align-items-center gap-3 p-3 border rounded">
-            <img
-                :src="avatarUrl(resultadoBusqueda.avatar, resultadoBusqueda.userId)"
-                class="rounded-circle"
-                width="42" height="42"
-                alt="Avatar"
-            />
-            <span class="fw-semibold flex-grow-1">{{ resultadoBusqueda.nombre }}</span>
-
-            <span v-if="esSiMismo" class="text-muted small fst-italic">
-                Eres tú
-            </span>
-            <span v-else-if="yaEsAmigo" class="badge bg-success px-3 py-2">
-                <i class="bi bi-shield-check me-1"></i>Amigo
-            </span>
-            <button
-                v-else
-                class="btn btn-success btn-sm"
-                @click="enviarSolicitud(resultadoBusqueda.userId)"
-                :disabled="solicitudEnviada"
-            >
-                <i v-if="solicitudEnviada" class="bi bi-check-lg me-1"></i>
-                {{ solicitudEnviada ? 'Solicitud enviada' : 'Enviar solicitud' }}
-            </button>
+        <!-- Error -->
+        <div v-if="errorBusqueda" class="alert alert-warning mb-0">
+          {{ errorBusqueda }}
         </div>
+
+        <!-- Resultado -->
+        <div v-if="resultadoBusqueda" class="d-flex align-items-center gap-3 p-3 border rounded">
+          <img
+            :src="avatarUrl(resultadoBusqueda.avatar, resultadoBusqueda.userId)"
+            class="rounded-circle"
+            width="42" height="42"
+            alt="Avatar"
+          />
+          <span class="fw-semibold flex-grow-1">{{ resultadoBusqueda.nombre }}</span>
+
+          <span v-if="esSiMismo" class="text-muted small fst-italic">Eres tú</span>
+          <span v-else-if="yaEsAmigo" class="badge bg-success px-3 py-2">
+            <i class="bi bi-shield-check me-1"></i>Amigo
+          </span>
+          <button
+            v-else
+            class="btn btn-success btn-sm"
+            @click="enviarSolicitud(resultadoBusqueda.userId)"
+            :disabled="solicitudEnviada"
+          >
+            <i v-if="solicitudEnviada" class="bi bi-check-lg me-1"></i>
+            {{ solicitudEnviada ? 'Solicitud enviada' : 'Enviar solicitud' }}
+          </button>
+        </div>
+
+      </div>
     </div>
   </section>
 
