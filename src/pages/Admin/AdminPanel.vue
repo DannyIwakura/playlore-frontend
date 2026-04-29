@@ -39,13 +39,6 @@ const pestanaActiva = ref('categorias')
           >
             Gestión de usuarios
           </button>
-          <button
-            class="list-group-item list-group-item-action"
-            :class="{ active: pestanaActiva === 'noticias' }"
-            @click="pestanaActiva = 'noticias'"
-          >
-            Gestión de noticias
-          </button>
         </div>
       </div>
 
@@ -66,13 +59,6 @@ const pestanaActiva = ref('categorias')
         <h2 class="mb-3">Gestión de usuarios</h2>
         <UsuariosLista />
         </div>
-
-        <!-- Noticias -->
-        <div v-if="pestanaActiva === 'noticias'">
-          <h2 class="mb-4">Gestión de noticias</h2>
-          <p class="text-muted">Próximamente...</p>
-        </div>
-
       </div>
     </div>
   </section>

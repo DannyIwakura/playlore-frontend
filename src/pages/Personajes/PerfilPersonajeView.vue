@@ -23,6 +23,7 @@ interface PerfilPersonajeDTO {
   clase: string
   fechaCreacion: string
   fechaModificacion: string
+  estadoPersonaje?: 'ACTIVO' | 'INACTIVO' | 'DESACTIVADO'
   userId: number
 }
 
@@ -53,6 +54,23 @@ const enviandoMensaje = ref(false)
 
 const miId = computed(() => userStore.usuario.value?.id)
 const esMiPersonaje = computed(() => personaje.value?.userId === miId.value)
+const puedeModerarPersonaje = computed(() => {
+  const rol = userStore.usuario.value?.role
+  return rol === 'ADMIN' || rol === 'MOD'
+})
+
+async function cambiarEstadoPersonaje(nuevoEstado: 'ACTIVO' | 'DESACTIVADO') {
+  if (!personaje.value) return
+  try {
+    await api.put(`/personajes/admin/${personaje.value.idPersonaje}/estado`, {
+      estado: nuevoEstado
+    })
+    personaje.value = { ...personaje.value, estadoPersonaje: nuevoEstado }
+    alert(`Personaje ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'} correctamente.`)
+  } catch {
+    alert('Error al cambiar el estado del personaje.')
+  }
+}
 
 // --- Helpers ---
 function avatarPersonajeUrl(avatar: string | null | undefined): string {
@@ -192,6 +210,18 @@ onMounted(() => {
     <div class="alert alert-danger">{{ error }}</div>
   </div>
 
+  <!-- PERFIL DESACTIVADO (usuarios sin permisos) -->
+  <div v-else-if="personaje?.estadoPersonaje === 'DESACTIVADO' && !puedeModerarPersonaje"
+    class="container mt-5">
+    <div class="alert alert-warning d-flex align-items-center gap-3">
+      <i class="bi bi-slash-circle fs-4"></i>
+      <div>
+        <strong>Perfil desactivado</strong><br>
+        Este perfil ha sido desactivado por no cumplir las normas de contenido.
+      </div>
+    </div>
+  </div>
+
   <!-- CONTENIDO -->
   <main v-else-if="personaje" class="perfil-personaje-bg py-5">
     <div class="container">
@@ -269,6 +299,27 @@ onMounted(() => {
                 <button class="btn-accion btn-accion--outline" @click="modalMensaje = true">
                   <i class="bi bi-envelope-fill me-2"></i>Enviar mensaje
                 </button>
+                <template v-if="puedeModerarPersonaje">
+                    <div
+                      v-if="personaje.estadoPersonaje === 'DESACTIVADO'"
+                      class="alerta-desactivado mb-2"
+                    >
+                      <i class="bi bi-slash-circle me-2"></i>
+                      Perfil desactivado · Solo visible para moderadores
+                    </div>
+                  <button
+                    v-if="personaje.estadoPersonaje !== 'DESACTIVADO'"
+                    class="btn-accion btn-accion--danger"
+                    @click="cambiarEstadoPersonaje('DESACTIVADO')">
+                    <i class="bi bi-slash-circle me-2"></i>Desactivar perfil
+                  </button>
+                  <button
+                    v-else
+                    class="btn-accion btn-accion--success"
+                    @click="cambiarEstadoPersonaje('ACTIVO')">
+                    <i class="bi bi-check-circle me-2"></i>Activar perfil
+                  </button>
+                </template>
                 <button class="btn-accion btn-accion--ghost" @click="enviarAmistad">
                   <i class="bi bi-person-plus-fill me-2"></i>Petición de amistad
                 </button>
@@ -597,5 +648,37 @@ onMounted(() => {
   width: 100%;
   max-width: 520px;
   margin: 1rem;
+}
+
+.btn-accion--danger {
+  background: transparent;
+  color: #dc2626;
+  border-color: #dc2626;
+}
+
+.btn-accion--danger:hover {
+  background: #fef2f2;
+}
+
+.btn-accion--success {
+  background: transparent;
+  color: #16a34a;
+  border-color: #16a34a;
+}
+
+.btn-accion--success:hover {
+  background: #f0fdf4;
+
+}
+
+.alerta-desactivado {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #b45309;
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  padding: 0.45rem 0.75rem;
+  text-align: center;
 }
 </style>
