@@ -7,6 +7,7 @@ import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
+import PaginadorComponent from '../../components/PaginadorComponent.vue'
 
 const BASE_URL = 'http://localhost:8080/api'
 const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
@@ -17,21 +18,28 @@ const route = useRoute()
 
 const mensajePersonajeCreado = ref<string | null>(null)
 const personajes = ref<any[]>([])
+const paginaActual = ref(0)
+const totalPaginas = ref(0)
+const TAMANIO_PAGINA = 6
 
-onMounted(async () => {
-  if (route.query.creacion === 'ok') {
-    mensajePersonajeCreado.value = "Personaje creado correctamente."
-    router.replace({ query: {} })
-  }
-
+const cargarPersonajes = async (pagina = 0) => {
   try {
     const userId = userStore.usuario.value?.id
-    const response = await api.get(`/personajes/usuario/${userId}`)
-    personajes.value = response.data
+    const response = await api.get(`/personajes/usuario/${userId}`, {
+      params: { page: pagina, size: TAMANIO_PAGINA }
+    })
+    // Si quieres paginar también los de un usuario, usa el endpoint paginado general
+    // o adapta el endpoint /usuario/{id} del mismo modo
+    personajes.value = response.data.content
+    totalPaginas.value = response.data.totalPages
+    paginaActual.value = pagina
   } catch (error) {
-    console.error("Error cargando personajes:", error)
+    console.error('Error cargando personajes:', error)
   }
-})
+}
+
+onMounted(() => cargarPersonajes())
+
 //función para eliminar un personaje
 const eliminarPersonaje = async (idPersonaje: number) => {
   const confirmacion = confirm("¿Seguro que quieres eliminar este personaje?")
@@ -170,6 +178,11 @@ function avatarUrl(avatar: string | null | undefined): string {
       </div>
     </div>
 
+      <PaginadorComponent
+      :paginaActual="paginaActual"
+      :totalPaginas="totalPaginas"
+      @cambiar="cargarPersonajes"
+      />
   </div>
 
   <Footer />

@@ -12,7 +12,11 @@ interface Usuario {
   ultimaConexion: string
 }
 
+const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
 const usuarios = ref<Usuario[]>([])
+const paginaActual = ref(0)
+const totalPaginas = ref(0)
+const TAMANIO_PAGINA = 15
 const error = ref('')
 const cargando = ref(false)
 
@@ -24,6 +28,18 @@ const rolOpciones = [
   { value: 'ADMIN', label: 'Administrador' },
   { value: 'MOD', label: 'Moderador' },
 ]
+
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return BASE_URL + avatar
+}
 
 const formatFecha = (fecha: string) => {
   if (!fecha) return '—'
@@ -38,22 +54,24 @@ const authHeader = () => ({
 
 const BASE_URL = 'http://localhost:8080/api'
 
-const cargarUsuarios = async () => {
+const cargarUsuarios = async (pagina = 0) => {
   cargando.value = true
   error.value = ''
   try {
     const response = await axios.get(`${BASE_URL}/usuarios`, {
-      headers: authHeader()
+      headers: authHeader(),
+      params: { page: pagina, size: TAMANIO_PAGINA }
     })
-    usuarios.value = response.data
-  } catch (e) {
+    usuarios.value = response.data.content
+    totalPaginas.value = response.data.totalPages
+    paginaActual.value = pagina
+  } catch {
     error.value = 'Error al cargar los usuarios.'
   } finally {
     cargando.value = false
   }
 }
 
-// --- EDITAR ---
 const abrirEditar = async (usuario: Usuario) => {
   usuarioEditando.value = { ...usuario }
   const { Modal } = await import('bootstrap')
@@ -136,7 +154,7 @@ onMounted(cargarUsuarios)
           <td>{{ usr.userId }}</td>
           <td>
             <img
-              :src="BASE_URL + usr.avatar"
+              :src="avatarUrl(usr.avatar)"
               :alt="usr.nombre"
               style="width: 36px; height: 36px; border-radius: 50%; object-fit: cover;"
             />
@@ -161,11 +179,15 @@ onMounted(cargarUsuarios)
         </tr>
       </tbody>
     </table>
-
+    
     <p v-if="!cargando && !usuarios.length" class="text-muted">
       No hay usuarios registrados todavía.
     </p>
-
+    <PaginadorComponent
+      :paginaActual="paginaActual"
+      :totalPaginas="totalPaginas"
+      @cambiar="cargarUsuarios"
+    />
     <!-- Modal Editar -->
     <div class="modal fade" id="modalEditarUsuario" tabindex="-1" aria-hidden="true">
       <div class="modal-dialog">
