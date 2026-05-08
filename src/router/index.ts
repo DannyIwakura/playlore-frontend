@@ -15,6 +15,7 @@ import MensajesPrivadosList from '../pages/Mensajes Privados/MensajesPrivadosLis
 import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
 import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
 import AmigosList from '../pages/Usuarios/AmigosList.vue';
+import BuscarPersonaje from '../pages/Personajes/BuscarPersonajes.vue';
 
 const routes = [
   //rutas públicas
@@ -28,6 +29,7 @@ const routes = [
   { path: '/personajes/crear', component: NuevoPErsonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
+  { path: '/personajes/buscar',component: BuscarPersonaje, meta: { requiresAuth: true } },
   { path: '/mensajes', component: MensajesPrivadosList, meta: { requiresAuth: true } },
   { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
   { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },

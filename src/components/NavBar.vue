@@ -22,10 +22,15 @@ const mensajesNoLeidos = ref(0)
 
 const props = defineProps<{ logeado: boolean }>()
 
+const dropdownPersonajesAbierto = ref(false)
+const dropdownPersonajesRef = ref<HTMLElement | null>(null)
+
+// Actualiza handleClickFuera para cerrar ambos dropdowns:
 const handleClickFuera = (e: MouseEvent) => {
-  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node)) {
+  if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node))
     dropdownAbierto.value = false
-  }
+  if (dropdownPersonajesRef.value && !dropdownPersonajesRef.value.contains(e.target as Node))
+    dropdownPersonajesAbierto.value = false
 }
 
 onMounted(() => document.addEventListener('click', handleClickFuera))
@@ -45,6 +50,7 @@ onMounted(async () => {
     } catch (_) {}
   }
 })
+
 </script>
 
 <template>
@@ -89,8 +95,24 @@ onMounted(async () => {
             <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
           </li>
 
-          <li class="nav-item">
-            <router-link to="/personajes" class="nav-link">Personajes</router-link>
+          <li class="nav-item dropdown-personajes" ref="dropdownPersonajesRef">
+            <button
+              class="nav-link btn-nav-dropdown"
+              @click.stop="dropdownPersonajesAbierto = !dropdownPersonajesAbierto"
+            >
+              Personajes
+              <span class="caret" :class="{ open: dropdownPersonajesAbierto }">▼</span>
+            </button>
+            <div class="dropdown-menu dropdown-personajes-menu" v-if="dropdownPersonajesAbierto">
+              <router-link to="/personajes" class="dropdown-item"
+                @click="dropdownPersonajesAbierto = false">
+                <i class="bi bi-person-lines-fill me-2"></i>Mis personajes
+              </router-link>
+              <router-link to="/personajes/buscar" class="dropdown-item"
+                @click="dropdownPersonajesAbierto = false">
+                <i class="bi bi-search me-2"></i>Buscar personajes
+              </router-link>
+            </div>
           </li>
 
           <li class="nav-item">
@@ -250,5 +272,22 @@ onMounted(async () => {
 
 .dropdown-item:hover {
   background: #f8f9fa;
+}
+
+.dropdown-personajes { position: relative; }
+
+.btn-nav-dropdown {
+  background: none; border: none; color: rgba(255,255,255,.55);
+  cursor: pointer; display: flex; align-items: center; gap: 5px;
+  padding: 0.5rem 1rem; font-size: 1rem; transition: color .15s;
+}
+.btn-nav-dropdown:hover { color: #fff; }
+
+.dropdown-personajes-menu {
+  display: block; position: absolute;
+  top: calc(100% + 4px); left: 0;
+  background: white; border: 1px solid rgba(0,0,0,.15);
+  border-radius: 8px; min-width: 190px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15); z-index: 1000; overflow: hidden;
 }
 </style>
