@@ -92,7 +92,9 @@ onMounted(async () => {
         <ul class="navbar-nav me-auto" v-if="props.logeado">
 
           <li class="nav-item">
-            <router-link to="/dashboard" class="nav-link">Dashboard</router-link>
+            <router-link to="/dashboard" class="nav-link">
+            <i class="bi bi-speedometer2 me-2"></i>Dashboard
+            </router-link>
           </li>
 
           <li class="nav-item dropdown-personajes" ref="dropdownPersonajesRef">
@@ -100,7 +102,7 @@ onMounted(async () => {
               class="nav-link btn-nav-dropdown"
               @click.stop="dropdownPersonajesAbierto = !dropdownPersonajesAbierto"
             >
-              Personajes
+              <i class="bi bi-people-fill me-2"></i>Personajes
               <span class="caret" :class="{ open: dropdownPersonajesAbierto }">▼</span>
             </button>
             <div class="dropdown-menu dropdown-personajes-menu" v-if="dropdownPersonajesAbierto">
@@ -117,7 +119,7 @@ onMounted(async () => {
 
           <li class="nav-item">
             <router-link to="/mensajes" class="nav-link">
-              Mensajes Privados
+              <i class="bi bi-envelope-fill me-2"></i>Mensajes Privados
               <span
               v-if="mensajesNoLeidos > 0"
               class="badge bg-danger rounded-pill"
@@ -128,11 +130,15 @@ onMounted(async () => {
           </li>
 
           <li class="nav-item">
-            <router-link to="/amigos" class="nav-link">Amigos</router-link>
+            <router-link to="/amigos" class="nav-link">
+              <i class="bi bi-person-heart me-2"></i>Amigos
+            </router-link>
           </li>
 
           <li class="nav-item" v-if="usuario?.role === 'ADMIN'">
-          <router-link to="/admin" class="nav-link">Panel de Administración</router-link>
+          <router-link to="/admin" class="nav-link">
+          <i class="bi bi-shield-lock-fill me-2"></i>Panel de Administración
+          </router-link>
           </li>
 
         </ul>
