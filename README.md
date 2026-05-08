@@ -38,3 +38,7 @@ npm run dev
 ```
 
 Luego abre la URL que se muestra en consola (por defecto `http://localhost:5173`).
+
+
+    PlayRole  © 2026 by Daniel is licensed under CC BY-SA 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-sa/4.0/
+
