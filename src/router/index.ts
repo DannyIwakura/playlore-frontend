@@ -4,7 +4,7 @@ import Login from '../pages/Login.vue';
 import Registro from '../pages/Registro.vue';
 import Dashboard from '../pages/Dashboard.vue';
 import PersonajesList from '../pages/Personajes/PersonajesList.vue';
-import NuevoPErsonajeForm from '../pages/Personajes/NuevoPersonajeForm.vue';
+import NuevoPersonajeForm from '../pages/Personajes/NuevoPersonajeForm.vue';
 import EditarPersonajeForm from '../pages/Personajes/EditarPersonajeForm.vue';
 import CategoriaNueva from '../pages/Admin/Categorias/CategoriaNueva.vue';
 import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
@@ -26,7 +26,7 @@ const routes = [
   { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/usuario/editar/:id', component: EditarFormulario, meta: { requiresAuth: true } },
   { path: '/personajes', component: PersonajesList, meta: { requiresAuth: true } },
-  { path: '/personajes/crear', component: NuevoPErsonajeForm, meta: { requiresAuth: true } },
+  { path: '/personajes/crear', component: NuevoPersonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
   { path: '/personajes/buscar',component: BuscarPersonaje, meta: { requiresAuth: true } },
