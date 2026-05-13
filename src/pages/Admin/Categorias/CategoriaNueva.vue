@@ -21,7 +21,7 @@ const crearCategoria = async () => {
   error.value = ''
   cargando.value = true
   try {
-    const response = await axios.post('http://localhost:8080/api/categorias', {
+    const response = await axios.post('${import.meta.env.VITE_API_URL}/categorias', {
       nombre: nombre.value,
       descripcion: descripcion.value,
       tipo: tipo.value
