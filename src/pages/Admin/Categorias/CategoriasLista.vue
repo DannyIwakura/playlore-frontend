@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 import { computed } from 'vue'
+import { Modal } from 'bootstrap'
 
 interface Categoria {
   idCategoria: number
@@ -10,7 +11,7 @@ interface Categoria {
   descripcion: string
   tipo: string
 }
-const hayCategorias = computed(() => categorias.value.length > 0)
+const hayCategorias = computed(() => Array.isArray(categorias.value) && categorias.value.length > 0)
 const categorias = ref<Categoria[]>([])
 const error = ref('')
 const cargando = ref(false)
@@ -54,6 +55,15 @@ const cargarCategorias = async (pagina = 0) => {
         }
       }
     )
+    
+    const data = response.data;
+    if (data && Array.isArray(data.content)) {
+        categorias.value = [...data.content]; // Usa el spread operator para asegurar una nueva referencia
+        totalPaginas.value = data.totalPages;
+        paginaActual.value = data.number;
+      } else {
+        categorias.value = [];
+    }
     console.log('RESPUESTA RAW:', response.data)
     categorias.value = response.data?.content ?? []
     totalPaginas.value = response.data?.totalPages ?? 0
@@ -71,9 +81,11 @@ const cargarCategorias = async (pagina = 0) => {
 // --- EDITAR ---
 const abrirEditar = async (categoria: Categoria) => {
   categoriaEditando.value = { ...categoria }
-  const { Modal } = await import('bootstrap')
-  const modal = new Modal(document.getElementById('modalEditarCategoria')!)
-  modal.show()
+  const modalEl = document.getElementById('modalEditarCategoria')
+  if (modalEl) {
+    const modal = new Modal(modalEl)
+    modal.show()
+  }
 }
 
 const guardarEdicion = async () => {
