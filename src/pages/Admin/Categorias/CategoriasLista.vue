@@ -141,7 +141,10 @@ onMounted(cargarCategorias)
   <div>
     <div v-if="error" class="alert alert-danger">{{ error }}</div>
     <div v-if="cargando" class="text-muted">Cargando categorías...</div>
-
+    <pre class="alert alert-info">
+    DEBUG: Hay {{ categorias.length }} categorías. 
+    ¿Es Array?: {{ Array.isArray(categorias) }}
+  </pre>
     <!-- Tabla -->
     <table v-if="!cargando && hayCategorias"  class="table table-striped align-middle">
       <thead class="table-dark">
