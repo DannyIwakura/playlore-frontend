@@ -43,48 +43,33 @@ const authHeader = () => ({
 const cargarCategorias = async (pagina = 0) => {
   cargando.value = true
   error.value = ''
-
   try {
     const response = await axios.get(
       `${import.meta.env.VITE_API_URL}/categorias`,
       {
         headers: authHeader(),
-        params: {
-          page: pagina,
-          size: TAMANIO_PAGINA
-        }
+        params: { page: pagina, size: TAMANIO_PAGINA }
       }
     )
-    
-    const data = response.data;
-    if (data && Array.isArray(data.content)) {
-        categorias.value = [...data.content]; // Usa el spread operator para asegurar una nueva referencia
-        totalPaginas.value = data.totalPages;
-        paginaActual.value = data.number;
-      } else {
-        categorias.value = [];
-    }
-    console.log('RESPUESTA RAW:', response.data)
-    categorias.value = response.data?.content ?? []
-    totalPaginas.value = response.data?.totalPages ?? 0
-    paginaActual.value = response.data?.number ?? 0
-    
+    // Asignación directa y segura
+    categorias.value = response.data?.content || []
+    totalPaginas.value = response.data?.totalPages || 0
+    paginaActual.value = response.data?.number || 0
   } catch (e) {
     console.error(e)
     error.value = 'Error al cargar las categorías.'
-
+    categorias.value = []
   } finally {
     cargando.value = false
   }
 }
 
 // --- EDITAR ---
-const abrirEditar = async (categoria: Categoria) => {
+const abrirEditar = (categoria: Categoria) => {
   categoriaEditando.value = { ...categoria }
   const modalEl = document.getElementById('modalEditarCategoria')
   if (modalEl) {
-    const modal = new Modal(modalEl)
-    modal.show()
+    Modal.getOrCreateInstance(modalEl).show()
   }
 }
 
@@ -93,17 +78,14 @@ const guardarEdicion = async () => {
   try {
     await axios.put(
       `${import.meta.env.VITE_API_URL}/categorias/${categoriaEditando.value.idCategoria}`,
-      {
-        nombre: categoriaEditando.value.nombre,
-        descripcion: categoriaEditando.value.descripcion,
-        tipo: categoriaEditando.value.tipo
-      },
+      categoriaEditando.value,
       { headers: authHeader() }
     )
-    const { Modal } = await import('bootstrap')
-    const modalEl = document.getElementById('modalEditarCategoria')!
-    Modal.getInstance(modalEl)?.hide()
-    await cargarCategorias()
+    const modalEl = document.getElementById('modalEditarCategoria')
+    if (modalEl) {
+      Modal.getOrCreateInstance(modalEl).hide()
+    }
+    await cargarCategorias(paginaActual.value)
   } catch (e) {
     error.value = 'Error al editar la categoría.'
   }
@@ -141,12 +123,8 @@ onMounted(cargarCategorias)
   <div>
     <div v-if="error" class="alert alert-danger">{{ error }}</div>
     <div v-if="cargando" class="text-muted">Cargando categorías...</div>
-    <pre class="alert alert-info">
-    DEBUG: Hay {{ categorias.length }} categorías. 
-    ¿Es Array?: {{ Array.isArray(categorias) }}
-  </pre>
     <!-- Tabla -->
-    <table v-if="!cargando && hayCategorias"  class="table table-striped align-middle">
+    <table v-if="!cargando && categorias && categorias.length" class="table table-striped align-middle">
       <thead class="table-dark">
         <tr>
           <th>#</th>
@@ -178,7 +156,7 @@ onMounted(cargarCategorias)
       :totalPaginas="totalPaginas"
       @cambiar="cargarCategorias"
     />
-    <p v-if="!cargando && !hayCategorias" class="text-muted">
+    <p v-if="!cargando && !categorias?.length" class="text-muted">
       No hay categorías creadas todavía.
     </p>
 
