@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { Modal } from 'bootstrap'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
 interface Categoria {
@@ -53,11 +54,11 @@ const cargarCategorias = async (pagina = 0) => {
         }
       }
     )
-
-    categorias.value = response.data.content
+    console.log('RESPUESTA RAW:', response.data)
+    categorias.value = response.data?.content ?? []
     totalPaginas.value = response.data.totalPages
     paginaActual.value = response.data.number
-
+    
   } catch (e) {
     console.error(e)
     error.value = 'Error al cargar las categorías.'
@@ -130,7 +131,7 @@ onMounted(cargarCategorias)
     <div v-if="cargando" class="text-muted">Cargando categorías...</div>
 
     <!-- Tabla -->
-    <table v-if="!cargando && categorias.length" class="table table-striped align-middle">
+    <table v-if="!cargando && categorias?.length" class="table table-striped align-middle">
       <thead class="table-dark">
         <tr>
           <th>#</th>

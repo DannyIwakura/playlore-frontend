@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { Modal } from 'bootstrap'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
 interface Usuario {
@@ -86,10 +87,12 @@ const cargarUsuarios = async (pagina = 0) => {
 
 const guardarEdicion = async () => {
   if (!usuarioEditando.value) return
+
   try {
-    await axios.put(
-      `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEditando.value.userId}`,
-      {
+    const formData = new FormData()
+
+    const usuarioBlob = new Blob(
+      [JSON.stringify({
         userId: usuarioEditando.value.userId,
         nombre: usuarioEditando.value.nombre,
         email: usuarioEditando.value.email,
@@ -97,15 +100,41 @@ const guardarEdicion = async () => {
         avatar: usuarioEditando.value.avatar,
         fechaRegistro: usuarioEditando.value.fechaRegistro,
         ultimaConexion: usuarioEditando.value.ultimaConexion
-      },
-      { headers: authHeader() }
+      })],
+      { type: 'application/json' }
     )
-    const { Modal } = await import('bootstrap')
-    Modal.getInstance(document.getElementById('modalEditarUsuario')!)?.hide()
+
+    formData.append('usuario', usuarioBlob)
+
+    await axios.put(
+      `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEditando.value.userId}`,
+      formData,
+      {
+        headers: {
+          ...authHeader(),
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+    )
+
+    const modalEl = document.getElementById('modalEditarUsuario')
+    if (modalEl) {
+      Modal.getOrCreateInstance(modalEl).hide()
+    }
+
     await cargarUsuarios()
   } catch (e) {
     error.value = 'Error al editar el usuario.'
   }
+}
+const abrirEditar = async (usuario: Usuario) => {
+  usuarioEditando.value = { ...usuario }
+
+  const modalEl = document.getElementById('modalEditarUsuario')
+  if (!modalEl) return
+
+  const modal = Modal.getOrCreateInstance(modalEl)
+  modal.show()
 }
 
 // --- ELIMINAR ---
