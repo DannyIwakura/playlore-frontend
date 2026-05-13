@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { userStore } from '../store/userStore'
 import { ref, onMounted, onUnmounted } from 'vue'
 import axios from '../services/api'
@@ -7,7 +7,6 @@ import axios from '../services/api'
 const BASE_URL = 'http://localhost:8080/api'
 const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
 
-const route = useRoute()
 const router = useRouter()
 
 //constantes para manejar el dropdown del usuario

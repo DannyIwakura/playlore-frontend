@@ -16,7 +16,7 @@ const pestanaActiva = ref('categorias')
 
   <section class="container mt-5">
     <h1>Panel de Administrador</h1>
-    <p>Bienvenido, {{ userStore.usuario?.username }}. Gestiona el contenido de la plataforma.</p>
+    <p>Bienvenido, {{ userStore.usuario.value?.username }}. Gestiona el contenido de la plataforma.</p>
   </section>
 
   <section class="container mt-4 mb-5">

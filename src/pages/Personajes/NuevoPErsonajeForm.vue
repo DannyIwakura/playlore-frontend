@@ -22,9 +22,10 @@ const personaje = reactive({
 
 function onFileChange(event: Event) {
   const target = event.target as HTMLInputElement
-  if (target.files && target.files.length > 0) {
-    personaje.avatar = target.files[0]
-  }
+  const file = target.files?.[0]
+  if (!file) return
+
+  personaje.avatar = file
 }
 
 async function crearPersonaje() {

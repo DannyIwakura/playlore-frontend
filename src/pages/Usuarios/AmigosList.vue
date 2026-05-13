@@ -33,7 +33,10 @@ const esSiMismo = computed(() =>
   resultadoBusqueda.value?.userId === miId.value
 )
 
-function avatarUrl(avatar: string | null | undefined, id?: number): string {
+function avatarUrl(
+  avatar: string | null | undefined,
+  _id?: number
+): string {
   if (
     !avatar ||
     avatar.includes('AVATAR.png') ||

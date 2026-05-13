@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
-import { useRouter } from 'vue-router'
 import { onMounted, ref } from 'vue'
-import { useRoute } from 'vue-router'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
@@ -11,10 +9,6 @@ import PaginadorComponent from '../../components/PaginadorComponent.vue'
 
 const BASE_URL = 'http://localhost:8080/api'
 const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
-
-
-const router = useRouter()
-const route = useRoute()
 
 const mensajePersonajeCreado = ref<string | null>(null)
 const personajes = ref<any[]>([])

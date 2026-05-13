@@ -5,7 +5,6 @@ import { useRouter, useRoute  } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
-import { jwtDecode } from 'jwt-decode';
 
 const router = useRouter()
 // Para mostrar el mensaje de registro exitoso

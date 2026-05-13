@@ -46,7 +46,7 @@ const router = createRouter({
 });
 
 //verifica token antes de entrar a rutas protegidas
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   const token = localStorage.getItem('token');
 
   // Si el usuario está logueado y va a la raíz, redirige al dashboard

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, onMounted, ref } from 'vue'
+import { reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
@@ -42,9 +42,11 @@ onMounted(async () => {
 
 function handleAvatarUpload(event: Event) {
   const input = event.target as HTMLInputElement
-  if (input.files?.length) {
-    personaje.avatar = input.files[0]
-  }
+
+  const file = input.files?.[0]
+  if (!file) return
+
+  personaje.avatar = file
 }
 
 async function actualizarPersonaje() {

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRoute } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import { userStore } from '../../store/userStore'
@@ -20,8 +20,6 @@ interface UsuarioDTO {
 }
 
 const route = useRoute()
-const router = useRouter()
-
 const perfil = ref<UsuarioDTO | null>(null)
 const cargando = ref(true)
 const error = ref<string | null>(null)
@@ -38,7 +36,7 @@ const enviandoSolicitud = ref(false)
 
 const userId = () => userStore.usuario.value?.id
 
-function avatarUrl(avatar: string | null | undefined): string {
+function avatarUrl(avatar: string | null | undefined, _id?: number): string {
   if (!avatar || avatar.includes('AVATAR.png')) {
     return AVATAR_DEFECTO
   }

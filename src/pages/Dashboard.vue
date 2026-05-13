@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import Footer from '../components/Footer.vue';
 import NavBar from '../components/NavBar.vue';
 import api from '../services/api'
@@ -11,8 +10,6 @@ const amigos = ref<AmigoDTO[]>([])
 const cargandoAmigos = ref(false)
 
 const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = `${BASE_URL}/images/AVATAR.png`
-const router = useRouter()
 const destinatarioFijo = ref(false)
 
 const miId = computed(() => userStore.usuario.value?.id)
@@ -73,7 +70,6 @@ async function cargarAmigos() {
 const modalMensaje = ref(false)
 const mensaje = ref({ receptorNombre: '', titulo: '', contenido: '' })
 const enviandoMensaje = ref(false)
-const destinatario = ref<AmigoDTO | null>(null)
 
 function abrirModalMensaje(nombreDestinatario = '') {
   mensaje.value = { receptorNombre: nombreDestinatario, titulo: '', contenido: '' }
