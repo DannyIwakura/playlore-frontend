@@ -6,8 +6,8 @@ import Footer from '../../components/Footer.vue'
 import PaginadorComponent from '../../components/PaginadorComponent.vue'
 import api from '../../services/api'
 
-const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const API_URL = import.meta.env.VITE_API_URL
+const AVATAR_DEFECTO = `${API_URL}/images/AVATAR.png`
 const router = useRouter()
 
 const filtros = ref({
@@ -84,11 +84,16 @@ const limpiarFiltros = () => {
 }
 
 function avatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
-  if (avatar.startsWith('http')) return avatar
-  return BASE_URL + avatar
-}
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
 
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return `${API_URL}${avatar}`
+}
 const verPerfil = (id: number) => router.push(`/personaje/${id}`)
 </script>
 

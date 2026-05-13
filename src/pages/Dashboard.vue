@@ -9,7 +9,7 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 const amigos = ref<AmigoDTO[]>([])
 const cargandoAmigos = ref(false)
 
-const BASE_URL = 'http://localhost:8080/api'
+const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
 const destinatarioFijo = ref(false)
 
 const miId = computed(() => userStore.usuario.value?.id)
@@ -22,10 +22,16 @@ interface AmigoDTO {
   ultimaConexion: string | null
 }
 
-function avatarUrl(avatar: string | null | undefined, id?: number): string {
-  if (!avatar) return `https://api.dicebear.com/7.x/adventurer/svg?seed=${id ?? 0}`
-  if (avatar.startsWith('http')) return avatar
-  return BASE_URL + avatar
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png') || avatar.includes('default.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
 }
 
 // Ordena por ultimaConexion desc y toma los 6 más recientes

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
 interface Usuario {
   userId: number
@@ -12,7 +13,7 @@ interface Usuario {
   ultimaConexion: string
 }
 
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
 const usuarios = ref<Usuario[]>([])
 const paginaActual = ref(0)
 const totalPaginas = ref(0)
@@ -30,15 +31,12 @@ const rolOpciones = [
 ]
 
 function avatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar.includes('AVATAR.png')) {
-    return AVATAR_DEFECTO
-  }
+  const def = AVATAR_DEFECTO
 
-  if (avatar.startsWith('http')) {
-    return avatar
-  }
+  if (!avatar || avatar.includes('AVATAR.png')) return def
+  if (avatar.startsWith('http')) return avatar
 
-  return BASE_URL + avatar
+  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
 }
 
 const formatFecha = (fecha: string) => {
@@ -57,33 +55,40 @@ const BASE_URL = 'http://localhost:8080/api'
 const cargarUsuarios = async (pagina = 0) => {
   cargando.value = true
   error.value = ''
+
   try {
-    const response = await axios.get(`${BASE_URL}/usuarios`, {
-      headers: authHeader(),
-      params: { page: pagina, size: TAMANIO_PAGINA }
-    })
-    usuarios.value = response.data.content
-    totalPaginas.value = response.data.totalPages
-    paginaActual.value = pagina
-  } catch {
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_URL}/usuarios`,
+      {
+        headers: authHeader(),
+        params: {
+          page: pagina,
+          size: TAMANIO_PAGINA
+        }
+      }
+    )
+
+    console.log(response.data)
+
+    usuarios.value = response.data.content || []
+    totalPaginas.value = response.data.totalPages || 0
+    paginaActual.value = response.data.number || 0
+
+  } catch (e) {
+    console.error(e)
+    usuarios.value = []
     error.value = 'Error al cargar los usuarios.'
+
   } finally {
     cargando.value = false
   }
-}
-
-const abrirEditar = async (usuario: Usuario) => {
-  usuarioEditando.value = { ...usuario }
-  const { Modal } = await import('bootstrap')
-  const modal = new Modal(document.getElementById('modalEditarUsuario')!)
-  modal.show()
 }
 
 const guardarEdicion = async () => {
   if (!usuarioEditando.value) return
   try {
     await axios.put(
-      `${BASE_URL}/usuarios/${usuarioEditando.value.userId}`,
+      `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEditando.value.userId}`,
       {
         userId: usuarioEditando.value.userId,
         nombre: usuarioEditando.value.nombre,
@@ -115,7 +120,7 @@ const confirmarEliminar = async () => {
   if (!usuarioEliminando.value) return
   try {
     await axios.delete(
-      `${BASE_URL}/usuarios/${usuarioEliminando.value.userId}`,
+      `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEliminando.value.userId}`,
       { headers: authHeader() }
     )
     const { Modal } = await import('bootstrap')
@@ -136,7 +141,7 @@ onMounted(cargarUsuarios)
     <div v-if="cargando" class="text-muted">Cargando usuarios...</div>
 
     <!-- Tabla -->
-    <table v-if="!cargando && usuarios.length" class="table table-striped align-middle">
+    <table v-if="!cargando && usuarios && usuarios.length" class="table table-striped align-middle">
       <thead class="table-dark">
         <tr>
           <th>#</th>
@@ -195,7 +200,7 @@ onMounted(cargarUsuarios)
       </tbody>
     </table>
     
-    <p v-if="!cargando && !usuarios.length" class="text-muted">
+    <p v-if="!cargando && !usuarios?.length" class="text-muted">
       No hay usuarios registrados todavía.
     </p>
     <PaginadorComponent

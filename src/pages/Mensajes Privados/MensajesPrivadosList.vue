@@ -41,8 +41,8 @@ const enviando = ref(false)
 
 const userId = computed(() => userStore.usuario.value?.id)
 
-const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const API_URL = import.meta.env.VITE_API_URL
+const AVATAR_DEFECTO = `${API_URL}/images/AVATAR.png`
 
 function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png')) {
@@ -53,7 +53,7 @@ function avatarUrl(avatar: string | null | undefined): string {
     return avatar
   }
 
-  return BASE_URL + avatar
+  return `${API_URL}${avatar}`
 }
 // Conversión a fecha local
 function formatFecha(fecha: string): string {

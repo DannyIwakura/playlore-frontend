@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
 interface Categoria {
   idCategoria: number
@@ -12,6 +13,9 @@ interface Categoria {
 const categorias = ref<Categoria[]>([])
 const error = ref('')
 const cargando = ref(false)
+const paginaActual = ref(0)
+const totalPaginas = ref(0)
+const TAMANIO_PAGINA = 15
 
 // Estado editar
 const categoriaEditando = ref<Categoria | null>(null)
@@ -34,17 +38,30 @@ const authHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`
 })
 
-const cargarCategorias = async () => {
+const cargarCategorias = async (pagina = 0) => {
   cargando.value = true
   error.value = ''
+
   try {
-    const response = await axios.get(`${import.meta.env.VITE_API_URL}/categorias`, {
-      headers: authHeader()
-    })
-    console.log(response.data)
-    categorias.value = response.data
+    const response = await axios.get(
+      `${import.meta.env.VITE_API_URL}/categorias`,
+      {
+        headers: authHeader(),
+        params: {
+          page: pagina,
+          size: TAMANIO_PAGINA
+        }
+      }
+    )
+
+    categorias.value = response.data.content
+    totalPaginas.value = response.data.totalPages
+    paginaActual.value = response.data.number
+
   } catch (e) {
+    console.error(e)
     error.value = 'Error al cargar las categorías.'
+
   } finally {
     cargando.value = false
   }
@@ -140,7 +157,11 @@ onMounted(cargarCategorias)
         </tr>
       </tbody>
     </table>
-
+    <PaginadorComponent
+      :paginaActual="paginaActual"
+      :totalPaginas="totalPaginas"
+      @cambiar="cargarCategorias"
+    />
     <p v-if="!cargando && !categorias.length" class="text-muted">
       No hay categorías creadas todavía.
     </p>

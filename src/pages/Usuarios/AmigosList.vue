@@ -5,7 +5,9 @@ import Footer from '../../components/Footer.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const ASSET_URL = import.meta.env.VITE_ASSET_URL
+
+const AVATAR_DEFECTO = `${ASSET_URL}/api/images/AVATAR.png`
 
 const miId = computed(() => userStore.usuario.value?.id)
 
@@ -33,15 +35,8 @@ const esSiMismo = computed(() =>
   resultadoBusqueda.value?.userId === miId.value
 )
 
-function avatarUrl(
-  avatar: string | null | undefined,
-  _id?: number
-): string {
-  if (
-    !avatar ||
-    avatar.includes('AVATAR.png') ||
-    avatar.includes('default.png')
-  ) {
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) {
     return AVATAR_DEFECTO
   }
 

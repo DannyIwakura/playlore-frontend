@@ -6,8 +6,7 @@ import Footer from '../../components/Footer.vue'
 import { userStore } from '../../store/userStore'
 import axios from '../../services/api'
 
-const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
 
 interface UsuarioDTO {
   userId: number
@@ -36,8 +35,8 @@ const enviandoSolicitud = ref(false)
 
 const userId = () => userStore.usuario.value?.id
 
-function avatarUrl(avatar: string | null | undefined, _id?: number): string {
-  if (!avatar || avatar.includes('AVATAR.png')) {
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png') || avatar.includes('default.png')) {
     return AVATAR_DEFECTO
   }
 
@@ -45,7 +44,7 @@ function avatarUrl(avatar: string | null | undefined, _id?: number): string {
     return avatar
   }
 
-  return BASE_URL + avatar
+  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
 }
 
 function formatFecha(fecha: string): string {

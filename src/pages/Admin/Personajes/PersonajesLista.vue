@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from '../../../services/api'
+import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
-const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = 'http://localhost:8080/api/images/AVATAR.png'
+const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
 
 interface Personaje {
   idPersonaje: number
@@ -80,8 +80,19 @@ const cambiarEstado = async (id: number, estadoActual: string | null) => {
   }
 }
 
-const avatarUrl = (avatar: string | null) =>
-  !avatar || avatar === AVATAR_DEFECTO ? AVATAR_DEFECTO : BASE_URL + avatar
+const avatarUrl = (avatar: string | null) => {
+  const def = AVATAR_DEFECTO
+
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return def
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+}
 
 onMounted(() => cargarPersonajes())
 </script>
@@ -185,6 +196,11 @@ onMounted(() => cargarPersonajes())
             </tr>
           </tbody>
         </table>
+           <PaginadorComponent
+              :paginaActual="paginaActual"
+              :totalPaginas="totalPaginas"
+              @cambiar="cargarPersonajes"
+            />
       </div>
 
       <!-- Paginación -->
