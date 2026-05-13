@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
+import { computed } from 'vue'
 
 interface Categoria {
   idCategoria: number
@@ -9,7 +10,7 @@ interface Categoria {
   descripcion: string
   tipo: string
 }
-
+const hayCategorias = computed(() => categorias.value.length > 0)
 const categorias = ref<Categoria[]>([])
 const error = ref('')
 const cargando = ref(false)
@@ -130,7 +131,7 @@ onMounted(cargarCategorias)
     <div v-if="cargando" class="text-muted">Cargando categorías...</div>
 
     <!-- Tabla -->
-    <table v-if="!cargando && categorias?.length" class="table table-striped align-middle">
+    <table v-if="!cargando && hayCategorias"  class="table table-striped align-middle">
       <thead class="table-dark">
         <tr>
           <th>#</th>
@@ -162,7 +163,7 @@ onMounted(cargarCategorias)
       :totalPaginas="totalPaginas"
       @cambiar="cargarCategorias"
     />
-    <p v-if="!cargando && (!categorias || categorias.length === 0)" class="text-muted">
+    <p v-if="!cargando && !hayCategorias" class="text-muted">
       No hay categorías creadas todavía.
     </p>
 
