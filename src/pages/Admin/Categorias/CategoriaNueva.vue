@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { Modal } from 'bootstrap'
 import axios from 'axios'
 
 const emit = defineEmits(['creada'])
@@ -21,26 +22,25 @@ const crearCategoria = async () => {
   error.value = ''
   cargando.value = true
   try {
-    const response = await axios.post('${import.meta.env.VITE_API_URL}/categorias', {
+    await axios.post(`${import.meta.env.VITE_API_URL}/categorias`, {
       nombre: nombre.value,
       descripcion: descripcion.value,
       tipo: tipo.value
     }, {
-      headers: {
-        Authorization: `Bearer ${localStorage.getItem('token')}`
-      }
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
     })
-    console.log('Status:', response.status)
-    console.log('Data:', response.data)
+
     resetForm()
-    // cierra el modal
-    const { Modal } = await import('bootstrap')
-    const modalEl = document.getElementById('modalNuevaCategoria')!
-    const bsModal = Modal.getInstance(modalEl) ?? new Modal(modalEl)
-    bsModal.hide()
+    //Cerrar modal forzado
+    const modalEl = document.getElementById('modalNuevaCategoria')
+    if (modalEl) {
+      const bsModal = Modal.getOrCreateInstance(modalEl)
+      bsModal.hide()
+    }
+
     emit('creada')
   } catch (e) {
-    error.value = 'Error al crear la categoría. Inténtalo de nuevo.'
+    error.value = 'Error al crear la categoría.'
   } finally {
     cargando.value = false
   }
