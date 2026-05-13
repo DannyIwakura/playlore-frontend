@@ -2,7 +2,6 @@
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
-import { computed } from 'vue'
 import { Modal } from 'bootstrap'
 
 interface Categoria {
@@ -11,7 +10,7 @@ interface Categoria {
   descripcion: string
   tipo: string
 }
-const hayCategorias = computed(() => Array.isArray(categorias.value) && categorias.value.length > 0)
+
 const categorias = ref<Categoria[]>([])
 const error = ref('')
 const cargando = ref(false)
@@ -151,14 +150,14 @@ onMounted(cargarCategorias)
         </tr>
       </tbody>
     </table>
+    <p v-if="!cargando && !categorias?.length" class="text-muted">
+      No hay categorías creadas todavía.
+    </p>
     <PaginadorComponent
       :paginaActual="paginaActual"
       :totalPaginas="totalPaginas"
       @cambiar="cargarCategorias"
     />
-    <p v-if="!cargando && !categorias?.length" class="text-muted">
-      No hay categorías creadas todavía.
-    </p>
 
     <!-- Modal Editar -->
     <div class="modal fade" id="modalEditarCategoria" tabindex="-1" aria-hidden="true">
