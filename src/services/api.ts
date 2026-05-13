@@ -3,7 +3,7 @@ import router from '../router'
 
 const api = axios.create({
   // tomamos de base la ruta /api indicando que vamos a recibir datos en formato json usando axios
-  baseURL: 'http://localhost:8080/api',
+  baseURL: import.meta.env.VITE_API_URL,
   headers: {
     'Content-Type': 'application/json'
   }
