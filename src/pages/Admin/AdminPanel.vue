@@ -6,9 +6,14 @@ import CategoriasLista from '../Admin/Categorias/CategoriasLista.vue'
 import CategoriaNueva from '../Admin/Categorias/CategoriaNueva.vue'
 import { userStore } from '../../store/userStore'
 import UsuariosLista from '../Admin/Usuarios/UsuariosLista.vue'
+import PersonajesLista from '../Admin/Personajes/PersonajesLista.vue'
 
+const usuario = userStore.usuario
+const esAdmin = usuario.value?.role === 'ADMIN'
+const esModerador = usuario.value?.role === 'MODERADOR'
 
-const pestanaActiva = ref('categorias')
+// Si es moderador, la pestaña inicial será personajes
+const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
 </script>
 
 <template>
@@ -26,6 +31,7 @@ const pestanaActiva = ref('categorias')
       <div class="col-md-3">
         <div class="list-group">
           <button
+            v-if="esAdmin"
             class="list-group-item list-group-item-action"
             :class="{ active: pestanaActiva === 'categorias' }"
             @click="pestanaActiva = 'categorias'"
@@ -33,11 +39,20 @@ const pestanaActiva = ref('categorias')
             Gestión de categorías
           </button>
           <button
+            v-if="esAdmin"
             class="list-group-item list-group-item-action"
             :class="{ active: pestanaActiva === 'usuarios' }"
             @click="pestanaActiva = 'usuarios'"
           >
             Gestión de usuarios
+          </button>
+          <button
+            v-if="esAdmin || esModerador"
+            class="list-group-item list-group-item-action"
+            :class="{ active: pestanaActiva === 'personajes' }"
+            @click="pestanaActiva = 'personajes'"
+          >
+            Gestión de personajes
           </button>
         </div>
       </div>
@@ -58,6 +73,10 @@ const pestanaActiva = ref('categorias')
         <div v-if="pestanaActiva === 'usuarios'">
         <h2 class="mb-3">Gestión de usuarios</h2>
         <UsuariosLista />
+        </div>
+          <div v-if="pestanaActiva === 'personajes' && (esAdmin || esModerador)">
+          <h2 class="mb-3">Gestión de personajes</h2>
+          <PersonajesLista />
         </div>
       </div>
     </div>

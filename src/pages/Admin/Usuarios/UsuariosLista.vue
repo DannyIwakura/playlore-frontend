@@ -162,11 +162,26 @@ onMounted(cargarUsuarios)
           <td>{{ usr.nombre }}</td>
           <td>{{ usr.email }}</td>
           <td>
-            <span class="badge" :class="usr.rol === 'ADMIN' ? 'bg-danger' : 'bg-secondary'">
-              {{ usr.rol === 'ADMIN' ? 'Administrador' : 'Usuario' }}
+            <span
+              class="badge"
+              :class="
+                usr.rol === 'ADMIN'
+                  ? 'bg-danger'
+                  : usr.rol === 'MOD'
+                    ? 'bg-warning text-dark'
+                    : 'bg-secondary'
+              "
+            >
+              {{
+                usr.rol === 'ADMIN'
+                  ? 'Administrador'
+                  : usr.rol === 'MOD'
+                    ? 'Moderador'
+                    : 'Usuario'
+              }}
             </span>
           </td>
-          <td>{{ formatFecha(usr.fechaRegistro) }}</td>
+                    <td>{{ formatFecha(usr.fechaRegistro) }}</td>
           <td>{{ formatFecha(usr.ultimaConexion) }}</td>
           <td class="d-flex gap-2">
             <button class="btn btn-sm btn-outline-primary" @click="abrirEditar(usr)">

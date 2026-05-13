@@ -38,9 +38,10 @@ const cargarCategorias = async () => {
   cargando.value = true
   error.value = ''
   try {
-    const response = await axios.get('http://localhost:8080/api/categorias', {
+    const response = await axios.get(`${import.meta.env.VITE_API_URL}/categorias`, {
       headers: authHeader()
     })
+    console.log(response.data)
     categorias.value = response.data
   } catch (e) {
     error.value = 'Error al cargar las categorías.'
@@ -61,7 +62,7 @@ const guardarEdicion = async () => {
   if (!categoriaEditando.value) return
   try {
     await axios.put(
-      `http://localhost:8080/api/categorias/${categoriaEditando.value.idCategoria}`,
+      `${import.meta.env.VITE_API_URL}/categorias/${categoriaEditando.value.idCategoria}`,
       {
         nombre: categoriaEditando.value.nombre,
         descripcion: categoriaEditando.value.descripcion,
@@ -90,7 +91,7 @@ const confirmarEliminar = async () => {
   if (!categoriaEliminando.value) return
   try {
     await axios.delete(
-      `http://localhost:8080/api/categorias/${categoriaEliminando.value.idCategoria}`,
+      `${import.meta.env.VITE_API_URL}/categorias/${categoriaEliminando.value.idCategoria}`,
       { headers: authHeader() }
     )
     const { Modal } = await import('bootstrap')

@@ -61,15 +61,15 @@ router.beforeEach((to, _from, next) => {
     return;
   }
 
-  // Comprobación de rol ADMIN
+  // Comprobación de rol ADMIN y MOD
   if (to.meta.requiresAdmin) {
-    userStore.cargarDesdeToken();
-    if (userStore.usuario.value?.role !== 'ADMIN') {
+  userStore.cargarDesdeToken();
+    const role = userStore.usuario.value?.role
+    if (role !== 'ADMIN' && role !== 'MODERADOR') {
       next('/dashboard');
       return;
     }
   }
-
   next();
 });
 
