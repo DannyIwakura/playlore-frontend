@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
-import { Modal } from 'bootstrap'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
 interface Categoria {
@@ -56,8 +55,8 @@ const cargarCategorias = async (pagina = 0) => {
     )
     console.log('RESPUESTA RAW:', response.data)
     categorias.value = response.data?.content ?? []
-    totalPaginas.value = response.data.totalPages
-    paginaActual.value = response.data.number
+    totalPaginas.value = response.data?.totalPages ?? 0
+    paginaActual.value = response.data?.number ?? 0
     
   } catch (e) {
     console.error(e)
@@ -163,7 +162,7 @@ onMounted(cargarCategorias)
       :totalPaginas="totalPaginas"
       @cambiar="cargarCategorias"
     />
-    <p v-if="!cargando && !categorias.length" class="text-muted">
+    <p v-if="!cargando && (!categorias || categorias.length === 0)" class="text-muted">
       No hay categorías creadas todavía.
     </p>
 

@@ -4,7 +4,7 @@ import { userStore } from '../store/userStore'
 import { ref, onMounted, onUnmounted } from 'vue'
 import axios from '../services/api'
 
-const BASE_URL = 'http://localhost:8080/api'
+const BASE_URL = import.meta.env.VITE_API_URL
 const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
 
 const router = useRouter()
@@ -24,6 +24,17 @@ const props = defineProps<{ logeado: boolean }>()
 const dropdownPersonajesAbierto = ref(false)
 const dropdownPersonajesRef = ref<HTMLElement | null>(null)
 
+  function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) {
+    return AVATAR_DEFECTO
+  }
+
+  if (avatar.startsWith('http')) {
+    return avatar
+  }
+
+  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+}
 // Actualiza handleClickFuera para cerrar ambos dropdowns:
 const handleClickFuera = (e: MouseEvent) => {
   if (dropdownRef.value && !dropdownRef.value.contains(e.target as Node))
@@ -149,14 +160,7 @@ onMounted(async () => {
           <template v-if="usuario">
   <div class="user-dropdown" ref="dropdownRef">
     <img
-      v-if="usuario.avatar === AVATAR_DEFECTO"
-      :src="AVATAR_DEFECTO"
-      class="avatar-navbar"
-      alt="avatar"
-    />
-    <img
-      v-else
-      :src="BASE_URL + usuario.avatar"
+      :src="avatarUrl(usuario.avatar)"
       class="avatar-navbar"
       alt="avatar"
     />
