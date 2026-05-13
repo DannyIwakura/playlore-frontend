@@ -36,6 +36,13 @@ const crearCategoria = async () => {
     if (modalEl) {
       const bsModal = Modal.getOrCreateInstance(modalEl)
       bsModal.hide()
+      
+      // Limpieza manual de seguridad por si Bootstrap falla en eliminar el backdrop
+      setTimeout(() => {
+        document.querySelectorAll('.modal-backdrop').forEach(el => el.remove())
+        document.body.style.overflow = 'auto'
+        document.body.style.paddingRight = '0'
+      }, 300)
     }
 
     emit('creada')
