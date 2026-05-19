@@ -43,7 +43,7 @@ console.log('logeado en footer:', props.logeado)
       <!-- Línea inferior con derechos -->
       <div class="row mt-3">
         <div class="col text-center">
-          <small>© {{ new Date().getFullYear() }} Todo los derechos reservados.</small>
+          <small>© {{ new Date().getFullYear() }} Todoss los derechos reservados.</small>
         </div>
       </div>
     </div>

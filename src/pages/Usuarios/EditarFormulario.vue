@@ -74,49 +74,42 @@ async function guardar() {
 
   try {
     const formData = new FormData()
-
-    // El backend espera la parte "usuario" como JSON
     const usuarioBlob = new Blob([JSON.stringify({
       userId: miId.value,
       nombre: nombre.value,
       email:  email.value,
       avatar: avatarActual.value,
-      // rol y fechas los ignora el servicio pero el DTO los necesita no nulos
-      rol: userStore.usuario.value?.role ?? 'USER',
       fechaRegistro: null,
       ultimaConexion: null
     })], { type: 'application/json' })
 
     formData.append('usuario', usuarioBlob)
+    if (avatarFile.value) formData.append('avatarFile', avatarFile.value)
 
-    if (avatarFile.value) {
-      formData.append('avatarFile', avatarFile.value)
-    }
+    const res = await api.put(`/usuarios/${miId.value}`, formData)
+    console.log('Respuesta PUT:', res.status, res.data)
 
-    await api.put(`/usuarios/${miId.value}`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' }
-    })
-
-    exito.value = true
-    avatarFile.value = null
-    avatarPreview.value = null
     await cargarDatos()
 
-    // Recargamos el token si el backend lo renueva; si no, al menos actualizamos
-    // la vista del store con el nombre nuevo
-  } catch (e: any) {
-    if (e.response?.status === 400 || e.response?.status === 409) {
-      error.value = e.response.data ?? 'El email ya está en uso.'
-    } else {
-      error.value = 'Error al guardar los cambios.'
+    //debemos actualizar el store para que el cambio se refleje en toda la app
+    if (userStore.usuario.value) {
+    userStore.usuario.value = {
+      ...userStore.usuario.value,
+      username: nombre.value,
+      avatar: avatarActual.value ?? userStore.usuario.value.avatar
     }
+}
+  } catch (e: any) {
+    console.error('Error status:', e.response?.status)
+    console.error('Error data:', e.response?.data)
+    console.error('Error completo:', e)
   } finally {
     guardando.value = false
   }
 }
 
-onMounted(() => {
-  userStore.cargarDesdeToken()
+onMounted(async () => {
+  await userStore.cargarDesdeToken()
   cargarDatos()
 })
 </script>

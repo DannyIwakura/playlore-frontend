@@ -54,9 +54,7 @@ async function crearPersonaje() {
       formData.append("avatarFile", personaje.avatar)
     }
     // Hacemos POST hacia el back
-    await api.post('/personajes', formData, {
-      headers: { "Content-Type": "multipart/form-data" }
-    })
+    await api.post('/personajes', formData)
     router.push({ path: '/personajes', query: { creacion: 'ok' } })
   } catch (error: any) {
     if (error.response?.status === 400) {

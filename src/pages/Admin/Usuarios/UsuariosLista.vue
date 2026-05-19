@@ -89,40 +89,40 @@ const guardarEdicion = async () => {
   if (!usuarioEditando.value) return
 
   try {
+    // 1. Guarda nombre y email (sin rol)
     const formData = new FormData()
-
     const usuarioBlob = new Blob(
       [JSON.stringify({
         userId: usuarioEditando.value.userId,
         nombre: usuarioEditando.value.nombre,
-        email: usuarioEditando.value.email,
-        rol: usuarioEditando.value.rol,
+        email:  usuarioEditando.value.email,
         avatar: usuarioEditando.value.avatar,
         fechaRegistro: usuarioEditando.value.fechaRegistro,
         ultimaConexion: usuarioEditando.value.ultimaConexion
       })],
       { type: 'application/json' }
     )
-
     formData.append('usuario', usuarioBlob)
 
     await axios.put(
       `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEditando.value.userId}`,
       formData,
+      { headers: { ...authHeader(), 'Content-Type': 'multipart/form-data' } }
+    )
+
+    // 2. Cambia el rol por separado
+    await axios.put(
+      `${import.meta.env.VITE_API_URL}/usuarios/${usuarioEditando.value.userId}/rol`,
+      null,
       {
-        headers: {
-          ...authHeader(),
-          'Content-Type': 'multipart/form-data'
-        }
+        headers: authHeader(),
+        params: { rol: usuarioEditando.value.rol }
       }
     )
 
-    const modalEl = document.getElementById('modalEditarUsuario')
-    if (modalEl) {
-      Modal.getOrCreateInstance(modalEl).hide()
-    }
-
+    Modal.getOrCreateInstance(document.getElementById('modalEditarUsuario')!).hide()
     await cargarUsuarios()
+
   } catch (e) {
     error.value = 'Error al editar el usuario.'
   }

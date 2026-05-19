@@ -53,11 +53,7 @@ const registrarUsuario = async () => {
       formData.append("avatarFile", avatarFile.value)
     }
 
-    const response = await api.post('/usuarios', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data'
-      }
-    })
+    const response = await api.post('/usuarios', formData)
 
     console.log("Usuario creado", response.data)
 

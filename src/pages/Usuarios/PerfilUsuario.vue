@@ -40,11 +40,9 @@ function avatarUrl(avatar: string | null | undefined): string {
     return AVATAR_DEFECTO
   }
 
-  if (avatar.startsWith('http')) {
-    return avatar
-  }
+  if (avatar.startsWith('http')) return avatar
 
-  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+  return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
 function formatFecha(fecha: string): string {
@@ -125,8 +123,8 @@ async function enviarMensajePrivado() {
 // No mostrar botones si es el propio usuario
 const esPropioUsuario = () => userId() === perfil.value?.userId
 
-onMounted(() => {
-  userStore.cargarDesdeToken()
+onMounted(async () => {
+  await userStore.cargarDesdeToken()
   cargarPerfil()
 })
 </script>

@@ -24,16 +24,12 @@ const props = defineProps<{ logeado: boolean }>()
 const dropdownPersonajesAbierto = ref(false)
 const dropdownPersonajesRef = ref<HTMLElement | null>(null)
 
-  function avatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar.includes('AVATAR.png')) {
-    return AVATAR_DEFECTO
-  }
+function avatarUrl(avatar: string | null | undefined): string {
+  if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
+  if (avatar.startsWith('http')) return avatar
 
-  if (avatar.startsWith('http')) {
-    return avatar
-  }
-
-  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+  return `${import.meta.env.VITE_API_URL}${avatar}`
+  // → http://localhost:8080/api/uploads/avatars/xxx.jpg  ✅
 }
 // Actualiza handleClickFuera para cerrar ambos dropdowns:
 const handleClickFuera = (e: MouseEvent) => {
@@ -53,6 +49,7 @@ const logout = () => {
 }
 
 onMounted(async () => {
+  console.log('avatar en store:', usuario.value?.avatar)
   if (props.logeado && usuario.value?.id) {
     try {
       const { data } = await axios.get(`/mensajes/recibidos/${usuario.value.id}/count-no-leidos`)

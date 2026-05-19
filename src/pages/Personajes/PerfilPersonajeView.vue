@@ -189,8 +189,8 @@ async function enviarAmistad() {
   }
 }
 
-onMounted(() => {
-  userStore.cargarDesdeToken()
+onMounted(async () => {
+  await userStore.cargarDesdeToken()
   cargar()
 })
 </script>

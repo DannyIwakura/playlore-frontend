@@ -27,11 +27,9 @@ function avatarUrl(avatar: string | null | undefined): string {
     return AVATAR_DEFECTO
   }
 
-  if (avatar.startsWith('http')) {
-    return avatar
-  }
+  if (avatar.startsWith('http')) return avatar
 
-  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+  return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
 // Ordena por ultimaConexion desc y toma los 6 más recientes
@@ -109,8 +107,8 @@ async function enviarMensajePrivado() {
   }
 }
 
-onMounted(() => {
-  userStore.cargarDesdeToken()
+onMounted(async () => {
+  await userStore.cargarDesdeToken()
   cargarAmigos()
 })
 
@@ -181,7 +179,7 @@ onMounted(() => {
         <div class="card">
           <div class="card-body d-flex align-items-center gap-3">
             <img
-              :src="avatarUrl(amigo.avatar, amigo.id)"
+              :src="avatarUrl(amigo.avatar)"
               class="rounded-circle flex-shrink-0"
               width="48" height="48"
               style="object-fit: cover;"

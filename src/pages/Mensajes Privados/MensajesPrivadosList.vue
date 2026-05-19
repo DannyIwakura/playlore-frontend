@@ -185,8 +185,8 @@ function cambiarPestana(p: typeof pestanaActiva.value) {
   cargarMensajes()
 }
 
-onMounted(() => {
-  userStore.cargarDesdeToken()
+onMounted(async () => {
+  await userStore.cargarDesdeToken()
   cargarMensajes()
 })
 </script>
