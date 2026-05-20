@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
@@ -39,6 +39,7 @@ interface CategoriaDTO {
   idCategoria: number
   nombre: string
   color?: string
+  descripcion?: string
 }
 
 // --- Estado ---
@@ -126,8 +127,9 @@ async function cargar() {
     try {
         const { data: cats } = await api.get<any[]>(`/personaje-categorias/personaje/${id}`)
         categorias.value = cats.map(pc => ({
-        idCategoria: pc.idCategoria,
-        nombre: pc.nombreCategoria
+          idCategoria: pc.idCategoria,
+          nombre: pc.nombreCategoria,
+          descripcion: pc.descripcionCategoria ?? ''
         }))
     } catch {
         categorias.value = []
@@ -369,7 +371,9 @@ onMounted(async () => {
                 v-for="cat in categorias"
                 :key="cat.idCategoria"
                 class="categoria-badge"
+                :class="{ 'has-tooltip': cat.descripcion }"
                 :style="cat.color ? { backgroundColor: cat.color + '22', borderColor: cat.color, color: cat.color } : {}"
+                :data-tooltip="cat.descripcion || ''"
               >
                 {{ cat.nombre }}
               </span>
@@ -680,5 +684,53 @@ onMounted(async () => {
   border-radius: 8px;
   padding: 0.45rem 0.75rem;
   text-align: center;
+}
+
+/* ---- Tooltip CSS en categorías ---- */
+.categoria-badge.has-tooltip {
+  position: relative;
+  cursor: default;
+}
+
+.categoria-badge.has-tooltip::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e1b4b;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 400;
+  padding: 0.4em 0.75em;
+  border-radius: 6px;
+  white-space: nowrap;
+  max-width: 220px;
+  white-space: normal;
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 100;
+  line-height: 1.4;
+}
+
+.categoria-badge.has-tooltip::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: #1e1b4b;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  z-index: 100;
+}
+
+.categoria-badge.has-tooltip:hover::after,
+.categoria-badge.has-tooltip:hover::before {
+  opacity: 1;
 }
 </style>

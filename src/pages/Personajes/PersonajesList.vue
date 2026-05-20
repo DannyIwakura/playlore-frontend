@@ -62,9 +62,7 @@ const abrirModalCategorias = (id: number) => {
 
 const recargarDatos = async () => {
   // Función para refrescar la lista si el modal hizo cambios
-  const userId = userStore.usuario.value?.id
-  const response = await api.get(`/personajes/usuario/${userId}`)
-  personajes.value = response.data
+  cargarPersonajes(paginaActual.value)
 }
 
 function avatarUrl(avatar: string | null | undefined): string {
@@ -153,13 +151,6 @@ function avatarUrl(avatar: string | null | undefined): string {
             Gestionar Categorías
             </button>
 
-            <AnadirCategoriaForm 
-            v-if="mostrarModal" 
-            :idPersonaje="personajeSeleccionadoId!" 
-            @close="mostrarModal = false"
-            @success="recargarDatos"
-            />
-
             <button
               class="btn btn-danger w-100"
               @click="eliminarPersonaje(personaje.idPersonaje)"
@@ -171,6 +162,12 @@ function avatarUrl(avatar: string | null | undefined): string {
         </div>
       </div>
     </div>
+      <AnadirCategoriaForm 
+      v-if="mostrarModal" 
+      :idPersonaje="personajeSeleccionadoId!" 
+      @close="mostrarModal = false"
+      @success="recargarDatos"
+      />
 
       <PaginadorComponent
       :paginaActual="paginaActual"

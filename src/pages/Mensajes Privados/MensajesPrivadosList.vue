@@ -26,7 +26,11 @@ interface MensajePrivadoDTO {
   esMio: boolean
 }
 
-// //Estados
+// Modal confirmación eliminar
+const modalConfirmarEliminar = ref(false)
+const mensajePendienteEliminar = ref<MensajePrivadoDTO | null>(null)
+
+// Estados
 const pestanaActiva = ref<'recibidos' | 'enviados' | 'archivados' | 'papelera'>('recibidos')
 const mensajes = ref<MensajePrivadoDTO[]>([])
 const mensajeSeleccionado = ref<MensajePrivadoDTO | null>(null)
@@ -100,6 +104,35 @@ async function seleccionarMensaje(m: MensajePrivadoDTO) {
   }
 }
 
+function pedirConfirmacionEliminar(m: MensajePrivadoDTO) {
+  mensajePendienteEliminar.value = m
+  modalConfirmarEliminar.value = true
+}
+
+async function confirmarEliminar() {
+  const m = mensajePendienteEliminar.value
+  if (!m || !userId.value) return
+  try {
+    if (pestanaActiva.value === 'papelera') {
+      await axios.delete(`/mensajes/definitivo/${m.id}/${userId.value}`)
+    } else {
+      await axios.delete(`/mensajes/${m.id}/${userId.value}`)
+    }
+    mensajes.value = mensajes.value.filter(msg => msg.id !== m.id)
+    if (mensajeSeleccionado.value?.id === m.id) mensajeSeleccionado.value = null
+  } catch (_) {
+    alert('No se pudo eliminar el mensaje.')
+  } finally {
+    modalConfirmarEliminar.value = false
+    mensajePendienteEliminar.value = null
+  }
+}
+
+function cancelarEliminar() {
+  modalConfirmarEliminar.value = false
+  mensajePendienteEliminar.value = null
+}
+
 // Archivar mensaje
 async function archivarMensaje(m: MensajePrivadoDTO) {
   if (!userId.value) return
@@ -111,26 +144,6 @@ async function archivarMensaje(m: MensajePrivadoDTO) {
     alert('No se pudo archivar el mensaje.')
   }
 }
-
-// Mover a papelera
-async function eliminarMensaje(m: MensajePrivadoDTO) {
-  if (!userId.value) return
-  if (!confirm('¿Seguro que quieres eliminar este mensaje?')) return
-  try {
-    if (pestanaActiva.value === 'papelera') {
-      // Borrado definitivo
-      await axios.delete(`/mensajes/definitivo/${m.id}/${userId.value}`)
-    } else {
-      // Mover a papelera
-      await axios.delete(`/mensajes/${m.id}/${userId.value}`)
-    }
-    mensajes.value = mensajes.value.filter(msg => msg.id !== m.id)
-    if (mensajeSeleccionado.value?.id === m.id) mensajeSeleccionado.value = null
-  } catch (_) {
-    alert('No se pudo eliminar el mensaje.')
-  }
-}
-
 // Enviar nuevo mensaje
 async function enviarNuevoMensaje() {
   if (!userId.value) return
@@ -330,7 +343,7 @@ onMounted(async () => {
             </button>
             <button
               class="btn btn-outline-danger btn-sm"
-              @click="eliminarMensaje(mensajeSeleccionado)"
+              @click="pedirConfirmacionEliminar(mensajeSeleccionado)"
               title="Eliminar"
             >
               <i class="bi bi-trash3 me-1"></i>Eliminar
@@ -409,6 +422,37 @@ onMounted(async () => {
   </div>
 
   <Footer />
+
+  <!-- MODAL -->
+<div v-if="modalConfirmarEliminar" class="modal-backdrop-custom" @click.self="cancelarEliminar">
+  <div class="modal-dialog-custom shadow-lg rounded-3 p-4" style="max-width: 420px;">
+    <div class="d-flex align-items-center gap-2 mb-3">
+      <i class="bi bi-exclamation-triangle-fill text-danger fs-4"></i>
+      <h5 class="mb-0">
+        {{ pestanaActiva === 'papelera' ? 'Eliminar definitivamente' : 'Mover a papelera' }}
+      </h5>
+    </div>
+    <p class="text-muted mb-4">
+      <template v-if="pestanaActiva === 'papelera'">
+        Este mensaje se eliminará de forma <strong>permanente</strong> y no podrás recuperarlo.
+      </template>
+      <template v-else>
+        El mensaje se moverá a la <strong>papelera</strong>. Podrás eliminarlo definitivamente desde allí.
+      </template>
+    </p>
+    <div class="d-flex justify-content-end gap-2">
+      <button class="btn btn-outline-secondary" @click="cancelarEliminar">Cancelar</button>
+      <button
+        class="btn"
+        :class="pestanaActiva === 'papelera' ? 'btn-danger' : 'btn-warning text-dark'"
+        @click="confirmarEliminar"
+      >
+        <i class="bi" :class="pestanaActiva === 'papelera' ? 'bi-trash3-fill' : 'bi-trash3'"></i>
+        {{ pestanaActiva === 'papelera' ? 'Eliminar definitivamente' : 'Mover a papelera' }}
+      </button>
+    </div>
+  </div>
+</div>
 </template>
 
 <style scoped>

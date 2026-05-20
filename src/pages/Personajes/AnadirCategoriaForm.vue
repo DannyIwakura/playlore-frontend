@@ -12,8 +12,8 @@ const categoriaSeleccionada = ref('');
 // Cargamos los datos al abrir el modal
 onMounted(async () => {
     try {
-        const resGlobal = await api.get('/categorias');
-        todasLasCategorias.value = resGlobal.data;
+        const resGlobal = await api.get('/categorias', { params: { page: 0, size: 100 } });
+        todasLasCategorias.value = resGlobal.data.content;
 
         const resRelacion = await api.get(`/personaje-categorias/personaje/${props.idPersonaje}`);
         
@@ -62,8 +62,6 @@ const guardarCategorias = async () => {
 };
 
 const eliminarCategoria = async (idRelacion: number) => {
-    if (!confirm("¿Seguro que quieres quitar esta categoría?")) return;
-
     try {
         await api.delete(`/personaje-categorias/${idRelacion}`);
         

@@ -28,6 +28,8 @@ export default defineConfig({
 
   // configuracion necesaria para no tener que usar la ruta completa del back
   server: {
+    host: '0.0.0.0',
+    port: 5173,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
