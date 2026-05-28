@@ -19,6 +19,12 @@ const usuario = userStore.usuario
 //inciamos el contador de mensajes no leidos
 const mensajesNoLeidos = ref(0)
 
+//contador de solicitudes de amistad pendientes
+const solicitudesPendientes = ref(0)
+
+//heartbeat para actualizar ultima conexion
+let heartbeatInterval: ReturnType<typeof setInterval> | undefined
+
 const props = defineProps<{ logeado: boolean }>()
 
 const dropdownPersonajesAbierto = ref(false)
@@ -55,7 +61,22 @@ onMounted(async () => {
       const { data } = await axios.get(`/mensajes/recibidos/${usuario.value.id}/count-no-leidos`)
       mensajesNoLeidos.value = data
     } catch (_) {}
+    try {
+      const { data } = await axios.get(`/amistades/pendientes-recibidas/${usuario.value.id}`)
+      solicitudesPendientes.value = data.length
+    } catch (_) {}
+    //heartbeat: actualizar ultima conexion cada 60 segundos
+    await axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`)
+    heartbeatInterval = setInterval(() => {
+      if (usuario.value?.id) {
+        axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`).catch(() => {})
+      }
+    }, 60000)
   }
+})
+
+onUnmounted(() => {
+  if (heartbeatInterval) clearInterval(heartbeatInterval)
 })
 
 </script>
@@ -139,6 +160,12 @@ onMounted(async () => {
           <li class="nav-item">
             <router-link to="/amigos" class="nav-link">
               <i class="bi bi-person-heart me-2"></i>Amigos
+              <span
+                v-if="solicitudesPendientes > 0"
+                class="badge bg-danger rounded-pill"
+                style="font-size: 0.7rem">
+                {{ solicitudesPendientes }}
+              </span>
             </router-link>
           </li>
 

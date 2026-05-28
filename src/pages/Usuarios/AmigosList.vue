@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import api from '../../services/api'
@@ -83,6 +83,12 @@ watch(tabActiva, (nueva) => {
   if (nueva === 'recibidas') cargarRecibidas()
   if (nueva === 'enviadas')  cargarEnviadas()
 }, { immediate: true })
+
+onMounted(() => {
+  if (tabActiva.value !== 'recibidas') {
+    cargarRecibidas()
+  }
+})
 
 async function buscarUsuario() {
   errorBusqueda.value = ''
@@ -323,7 +329,7 @@ async function eliminarAmigo() {
               />
               <div class="flex-grow-1">
                 <p class="mb-0 fw-semibold">{{ sol.emisorNombre }}</p>
-                <small class="text-muted">Quiere unirse a tu grupo</small>
+                <small class="text-muted">Quiere ser tu amigo</small>
               </div>
               <div class="d-flex gap-2">
                 <button class="btn btn-success btn-sm" @click="aceptarSolicitud(sol.id)">

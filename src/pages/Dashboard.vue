@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import Footer from '../components/Footer.vue';
 import NavBar from '../components/NavBar.vue';
 import api from '../services/api'
@@ -8,6 +8,8 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 0
 const amigos = ref<AmigoDTO[]>([])
 const cargandoAmigos = ref(false)
+
+let refreshInterval: ReturnType<typeof setInterval> | undefined
 
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 const destinatarioFijo = ref(false)
@@ -110,6 +112,14 @@ async function enviarMensajePrivado() {
 onMounted(async () => {
   await userStore.cargarDesdeToken()
   cargarAmigos()
+  //refrescar amigos cada 60s para actualizar ultimaConexion
+  refreshInterval = setInterval(() => {
+    cargarAmigos()
+  }, 60000)
+})
+
+onUnmounted(() => {
+  if (refreshInterval) clearInterval(refreshInterval)
 })
 
 </script>

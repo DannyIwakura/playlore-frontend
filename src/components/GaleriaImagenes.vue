@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import api from '../services/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL
@@ -24,7 +24,7 @@ const imagenes = ref<ImagenDTO[]>([])
 const cargando = ref(true)
 const subiendo = ref(false)
 const dragOver = ref(false)
-const imagenPreview = ref<ImagenDTO | null>(null)
+const indiceActual = ref<number | null>(null)
 const eliminarConfirm = ref<number | null>(null)
 
 const MAX_IMAGENES = 30
@@ -48,6 +48,53 @@ function formatFecha(fecha: string): string {
     minute: '2-digit'
   })
 }
+
+const imagenActual = computed(() =>
+  indiceActual.value !== null ? imagenes.value[indiceActual.value] : null
+)
+
+const totalImagenes = computed(() => imagenes.value.length)
+
+function abrirCarousel(indice: number) {
+  indiceActual.value = indice
+}
+
+function cerrarCarousel() {
+  indiceActual.value = null
+}
+
+function irAnterior() {
+  if (indiceActual.value === null || totalImagenes.value === 0) return
+  indiceActual.value = (indiceActual.value - 1 + totalImagenes.value) % totalImagenes.value
+}
+
+function irSiguiente() {
+  if (indiceActual.value === null || totalImagenes.value === 0) return
+  indiceActual.value = (indiceActual.value + 1) % totalImagenes.value
+}
+
+function irAIndice(indice: number) {
+  indiceActual.value = indice
+}
+
+function manejarTecla(e: KeyboardEvent) {
+  if (indiceActual.value === null) return
+  if (e.key === 'Escape') cerrarCarousel()
+  if (e.key === 'ArrowLeft') irAnterior()
+  if (e.key === 'ArrowRight') irSiguiente()
+}
+
+watch(indiceActual, (nuevo) => {
+  if (nuevo !== null) {
+    document.addEventListener('keydown', manejarTecla)
+  } else {
+    document.removeEventListener('keydown', manejarTecla)
+  }
+})
+
+onUnmounted(() => {
+  document.removeEventListener('keydown', manejarTecla)
+})
 
 async function cargarImagenes() {
   cargando.value = true
@@ -197,7 +244,7 @@ onMounted(cargarImagenes)
 
     <div v-else class="imagenes-grid">
       <div
-        v-for="img in imagenes"
+        v-for="(img, index) in imagenes"
         :key="img.idImagen"
         class="imagen-item"
       >
@@ -205,7 +252,7 @@ onMounted(cargarImagenes)
           :src="imagenUrl(img.url)"
           :alt="img.nombreOriginal || 'Imagen de galería'"
           class="imagen-thumb"
-          @click="imagenPreview = img"
+          @click="abrirCarousel(index)"
         />
 
         <!-- Botón eliminar -->
@@ -239,26 +286,64 @@ onMounted(cargarImagenes)
       </div>
     </div>
 
-    <!-- Lightbox / Preview modal -->
+    <!-- Carrusel / Lightbox -->
     <Teleport to="body">
       <div
-        v-if="imagenPreview"
-        class="preview-backdrop"
-        @click.self="imagenPreview = null"
+        v-if="indiceActual !== null && imagenActual"
+        class="carousel-backdrop"
+        @click.self="cerrarCarousel"
       >
-        <div class="preview-container">
-          <button class="preview-close" @click="imagenPreview = null">
-            <i class="bi bi-x-lg"></i>
+        <button class="carousel-close" @click="cerrarCarousel" title="Cerrar">
+          <i class="bi bi-x-lg"></i>
+        </button>
+
+        <!-- Imagen principal -->
+        <div class="carousel-main" @click="cerrarCarousel">
+          <button
+            class="carousel-nav carousel-nav--prev"
+            @click.stop="irAnterior"
+            title="Anterior"
+          >
+            <i class="bi bi-chevron-left"></i>
           </button>
+
           <img
-            :src="imagenUrl(imagenPreview.url)"
-            :alt="imagenPreview.nombreOriginal || 'Imagen de galería'"
-            class="preview-image"
+            :src="imagenUrl(imagenActual.url)"
+            :alt="imagenActual.nombreOriginal || 'Imagen de galería'"
+            class="carousel-image"
+            @click="cerrarCarousel"
           />
-          <div class="preview-info">
-            <span>{{ imagenPreview.nombreOriginal || 'Sin nombre' }}</span>
-            <span class="preview-date">{{ formatFecha(imagenPreview.fechaSubida) }}</span>
-          </div>
+
+          <button
+            class="carousel-nav carousel-nav--next"
+            @click.stop="irSiguiente"
+            title="Siguiente"
+          >
+            <i class="bi bi-chevron-right"></i>
+          </button>
+        </div>
+
+        <!-- Información -->
+        <div class="carousel-info">
+          <span>{{ imagenActual.nombreOriginal || 'Sin nombre' }}</span>
+          <span class="carousel-date">{{ formatFecha(imagenActual.fechaSubida) }}</span>
+          <span class="carousel-counter">{{ indiceActual! + 1 }} / {{ totalImagenes }}</span>
+        </div>
+
+        <!-- Miniaturas -->
+        <div class="carousel-thumbnails">
+          <button
+            v-for="(img, index) in imagenes"
+            :key="img.idImagen"
+            class="carousel-thumb"
+            :class="{ 'carousel-thumb--active': index === indiceActual }"
+            @click="irAIndice(index)"
+          >
+            <img
+              :src="imagenUrl(img.url)"
+              :alt="img.nombreOriginal || 'Miniatura'"
+            />
+          </button>
         </div>
       </div>
     </Teleport>
@@ -398,62 +483,154 @@ onMounted(cargarImagenes)
   max-width: 180px;
 }
 
-/* Preview / Lightbox */
-.preview-backdrop {
+/* Carrusel / Lightbox */
+.carousel-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.88);
   z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-.preview-container {
-  position: relative;
-  max-width: 90vw;
-  max-height: 90vh;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  user-select: none;
 }
 
-.preview-close {
-  position: absolute;
-  top: -40px;
-  right: 0;
-  background: none;
+.carousel-close {
+  position: fixed;
+  top: 1rem;
+  right: 1.5rem;
+  background: rgba(255, 255, 255, 0.1);
   border: none;
   color: #fff;
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   cursor: pointer;
-  padding: 0.5rem;
-  opacity: 0.8;
-  transition: opacity 0.18s ease;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+  transition: all 0.18s ease;
+  z-index: 10;
 }
 
-.preview-close:hover {
+.carousel-close:hover {
   opacity: 1;
+  background: rgba(255, 255, 255, 0.2);
 }
 
-.preview-image {
+.carousel-main {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 85vw;
+  max-height: 65vh;
+  flex: 1;
+}
+
+.carousel-image {
   max-width: 100%;
-  max-height: 80vh;
-  border-radius: 8px;
+  max-height: 65vh;
+  border-radius: 10px;
   object-fit: contain;
+  cursor: pointer;
+  box-shadow: 0 4px 40px rgba(0, 0, 0, 0.5);
 }
 
-.preview-info {
+.carousel-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.18s ease;
+  z-index: 5;
+}
+
+.carousel-nav:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.carousel-nav--prev {
+  left: -56px;
+}
+
+.carousel-nav--next {
+  right: -56px;
+}
+
+.carousel-info {
   margin-top: 0.75rem;
   color: #d1d5db;
   font-size: 0.85rem;
   display: flex;
-  gap: 1rem;
+  gap: 1.25rem;
   align-items: center;
 }
 
-.preview-date {
+.carousel-date {
   color: #9ca3af;
+}
+
+.carousel-counter {
+  color: #a5b4fc;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.carousel-thumbnails {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  max-width: 85vw;
+  overflow-x: auto;
+  padding: 0.5rem;
+  justify-content: center;
+}
+
+.carousel-thumb {
+  flex-shrink: 0;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 2px solid transparent;
+  background: #1f2937;
+  cursor: pointer;
+  padding: 0;
+  transition: all 0.18s ease;
+  opacity: 0.5;
+}
+
+.carousel-thumb:hover {
+  opacity: 0.8;
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.carousel-thumb--active {
+  opacity: 1;
+  border-color: #a5b4fc;
+}
+
+.carousel-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 </style>
