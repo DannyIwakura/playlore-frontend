@@ -6,7 +6,7 @@ import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
 import api from '../../services/api'
 
-const BASE_URL = 'http://localhost:8080/api'
+const BASE_URL = import.meta.env.VITE_API_URL
 const route = useRoute()
 const router = useRouter()
 const personajeId = route.params.id

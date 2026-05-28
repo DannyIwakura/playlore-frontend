@@ -14,7 +14,7 @@ interface Usuario {
   ultimaConexion: string
 }
 
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 const usuarios = ref<Usuario[]>([])
 const paginaActual = ref(0)
 const totalPaginas = ref(0)
@@ -37,7 +37,7 @@ function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png')) return def
   if (avatar.startsWith('http')) return avatar
 
-  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+  return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
 const formatFecha = (fecha: string) => {
@@ -50,8 +50,6 @@ const formatFecha = (fecha: string) => {
 const authHeader = () => ({
   Authorization: `Bearer ${localStorage.getItem('token')}`
 })
-
-const BASE_URL = 'http://localhost:8080/api'
 
 const cargarUsuarios = async (pagina = 0) => {
   cargando.value = true

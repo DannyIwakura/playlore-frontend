@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from '../../../services/api'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
 interface Personaje {
   idPersonaje: number
@@ -71,7 +71,7 @@ const eliminarPersonaje = async (id: number) => {
 }
 
 const cambiarEstado = async (id: number, estadoActual: string | null) => {
-  const nuevoEstado = estadoActual === 'ACTIVO' ? 'SUSPENDIDO' : 'ACTIVO'
+  const nuevoEstado = estadoActual === 'ACTIVO' ? 'DESACTIVADO' : 'ACTIVO'
   try {
     await axios.put(`/personajes/admin/${id}/estado`, { estado: nuevoEstado })
     await cargarPersonajes(paginaActual.value)
@@ -91,7 +91,7 @@ const avatarUrl = (avatar: string | null) => {
     return avatar
   }
 
-  return `${import.meta.env.VITE_ASSET_URL}${avatar}`
+  return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
 onMounted(() => cargarPersonajes())

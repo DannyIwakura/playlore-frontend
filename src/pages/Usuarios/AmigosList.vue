@@ -5,9 +5,9 @@ import Footer from '../../components/Footer.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 
-const ASSET_URL = import.meta.env.VITE_ASSET_URL
+const API_URL = import.meta.env.VITE_API_URL
 
-const AVATAR_DEFECTO = `${ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${API_URL}/images/AVATAR.png`
 
 const miId = computed(() => userStore.usuario.value?.id)
 
@@ -28,7 +28,7 @@ const solicitudEnviada  = ref(false)
 const amigoAEliminar = ref<any>(null)
 const yaEsAmigo = ref(false)
 
-const BASE_URL = 'http://localhost:8080/api'
+const BASE_URL = import.meta.env.VITE_API_URL
 
 // Controlar que se esté intentado buscar a sí mismo
 const esSiMismo = computed(() => 

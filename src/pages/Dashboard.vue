@@ -9,7 +9,7 @@ import 'bootstrap-icons/font/bootstrap-icons.css'
 const amigos = ref<AmigoDTO[]>([])
 const cargandoAmigos = ref(false)
 
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 const destinatarioFijo = ref(false)
 
 const miId = computed(() => userStore.usuario.value?.id)

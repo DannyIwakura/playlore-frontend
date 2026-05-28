@@ -5,7 +5,7 @@ import { ref, onMounted, onUnmounted } from 'vue'
 import axios from '../services/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
 const router = useRouter()
 

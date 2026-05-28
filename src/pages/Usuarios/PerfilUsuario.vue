@@ -6,7 +6,7 @@ import Footer from '../../components/Footer.vue'
 import { userStore } from '../../store/userStore'
 import axios from '../../services/api'
 
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
 interface UsuarioDTO {
   userId: number

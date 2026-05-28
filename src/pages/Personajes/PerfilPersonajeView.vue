@@ -6,7 +6,7 @@ import Footer from '../../components/Footer.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 
-const BASE_URL = 'http://localhost:8080/api'
+const BASE_URL = import.meta.env.VITE_API_URL
 
 const route = useRoute()
 const router = useRouter()

@@ -7,8 +7,8 @@ import { userStore } from '../../store/userStore'
 import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
 import PaginadorComponent from '../../components/PaginadorComponent.vue'
 
-const BASE_URL = 'http://localhost:8080/api'
-const AVATAR_DEFECTO = `${import.meta.env.VITE_ASSET_URL}/api/images/AVATAR.png`
+const BASE_URL = import.meta.env.VITE_API_URL
+const AVATAR_DEFECTO = `${BASE_URL}/images/AVATAR.png`
 
 const mensajePersonajeCreado = ref<string | null>(null)
 const personajes = ref<any[]>([])
