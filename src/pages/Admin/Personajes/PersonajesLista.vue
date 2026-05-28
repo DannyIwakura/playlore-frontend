@@ -202,30 +202,6 @@ onMounted(() => cargarPersonajes())
               @cambiar="cargarPersonajes"
             />
       </div>
-
-      <!-- Paginación -->
-      <nav v-if="totalPaginas > 1">
-        <ul class="pagination pagination-sm justify-content-center">
-          <li class="page-item" :class="{ disabled: paginaActual === 0 }">
-            <button class="page-link" @click="cargarPersonajes(paginaActual - 1)">
-              <i class="bi bi-chevron-left"></i>
-            </button>
-          </li>
-          <li
-            v-for="p in totalPaginas"
-            :key="p"
-            class="page-item"
-            :class="{ active: paginaActual === p - 1 }"
-          >
-            <button class="page-link" @click="cargarPersonajes(p - 1)">{{ p }}</button>
-          </li>
-          <li class="page-item" :class="{ disabled: paginaActual === totalPaginas - 1 }">
-            <button class="page-link" @click="cargarPersonajes(paginaActual + 1)">
-              <i class="bi bi-chevron-right"></i>
-            </button>
-          </li>
-        </ul>
-      </nav>
     </div>
 
   </div>
