@@ -1,67 +1,62 @@
 <script setup lang="ts">
 import Footer from '../components/Footer.vue'
 import NavBar from '../components/NavBar.vue'
+import ReCaptcha from '../components/ReCaptcha.vue'
 import { useRouter, useRoute  } from 'vue-router'
 import { ref, onMounted } from 'vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
 
 const router = useRouter()
-// Para mostrar el mensaje de registro exitoso
 const route = useRoute()
 
 const mensajeRegistro = ref('')
 
 onMounted(() => {
-  // Si venimos del registro, mostramos el mensaje de éxito
   if (route.query.registro === 'ok') {
     mensajeRegistro.value = "Usuario creado correctamente. Ya puedes iniciar sesión."
-    // Limpiamos la query para que el mensaje no aparezca al recargar la página
     router.replace({ query: {} })
   }
 })
 
-//recogemos los datos del formaario
 const nombre = ref('')
 const password = ref('')
-//recogemos errres si los hay
 const errorLogin = ref('')
 
-// Metodo para el login
-const iniciarSesion = async () => {
+const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
 
+const iniciarSesion = async () => {
   errorLogin.value = ''
 
   try {
-    // Si se obtiene un error limpiar campos
     nombre.value = nombre.value.replace(/\s/g, '')
     password.value = password.value.replace(/\s/g, '')
-    // Enviamos los datos al backend
+
+    const captchaToken = await captchaRef.value?.getToken()
+
     const response = await api.post('/usuarios/login', {
       nombre: nombre.value,
-      password: password.value
+      password: password.value,
+      captchaToken
     })
 
-    //guardammos el token de sesion
     localStorage.setItem("token", response.data)
-
-    //cargamops el token
     userStore.cargarDesdeToken()
-
-    //debug
-    console.log(response.data)
-    //si el login es correcto, dirigimos al dashboard
     router.push('/dashboard')
 
   } catch (error: any) {
+    captchaRef.value?.reset()
 
-    if (error.response && error.response.status === 401) {
+    if (error === 'Por favor, completa el CAPTCHA') {
+      errorLogin.value = error
+    } else if (error.response?.status === 401) {
       errorLogin.value = "Usuario o contraseña incorrectos"
+    } else if (error.response?.data?.error) {
+      errorLogin.value = error.response.data.error
     } else {
       errorLogin.value = "Error al iniciar sesión"
     }
   }
-
 }
 </script>
 
@@ -111,6 +106,7 @@ const iniciarSesion = async () => {
               required
               />
             </div>
+            <ReCaptcha ref="captchaRef" />
             <div v-if="errorLogin" class="text-danger mt-2">
                 {{ errorLogin }}
               </div>

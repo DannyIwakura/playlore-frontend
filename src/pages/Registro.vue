@@ -1,26 +1,24 @@
 <script setup lang="ts">
 import Footer from '../components/Footer.vue'
 import NavBar from '../components/NavBar.vue'
+import ReCaptcha from '../components/ReCaptcha.vue'
 import { ref } from 'vue'
 import api from '../services/api'
 import { useRouter } from 'vue-router'
 
-//router para refrigir al usuario al rolgin
 const router = useRouter()
 
-//recogemos lo que escribe el usuario
 const nombre = ref('')
 const email = ref('')
 const password = ref('')
 
-//recpogemos los errores si los hay
 const errores = ref<Record<string, string>>({})
 
-//avatar del usuario
 const avatarFile = ref<File | null>(null)
-//mostrar el avatar seleccionado
 const avatarPreview = ref<string | null>(null)
-//funcion para subis el avatar
+
+const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
+
 const onFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
 
@@ -31,17 +29,18 @@ const onFileChange = (event: Event) => {
 }
 
 const registrarUsuario = async () => {
-  //array para guardar los errores
   errores.value = {}
 
   try {
+    const captchaToken = await captchaRef.value?.getToken()
 
     const formData = new FormData()
 
     const usuario = {
       nombre: nombre.value,
       email: email.value,
-      password: password.value
+      password: password.value,
+      captchaToken
     }
 
     formData.append(
@@ -53,9 +52,7 @@ const registrarUsuario = async () => {
       formData.append("avatarFile", avatarFile.value)
     }
 
-    const response = await api.post('/usuarios', formData)
-
-    console.log("Usuario creado", response.data)
+    await api.post('/usuarios', formData)
 
     router.push({
       path: '/login',
@@ -63,8 +60,11 @@ const registrarUsuario = async () => {
     })
 
   } catch (error: any) {
+    captchaRef.value?.reset()
 
-    if (error.response && error.response.status === 400) {
+    if (error === 'Por favor, completa el CAPTCHA') {
+      errores.value = { captcha: error }
+    } else if (error.response?.status === 400) {
       errores.value = error.response.data
     } else {
       console.error(error)
@@ -151,6 +151,8 @@ const registrarUsuario = async () => {
               </div>
             </div>
 
+            <ReCaptcha ref="captchaRef" />
+            <div v-if="errores.captcha" class="text-danger mb-2">{{ errores.captcha }}</div>
             <button type="submit" class="btn btn-primary w-100">
               Registrarse
             </button>
