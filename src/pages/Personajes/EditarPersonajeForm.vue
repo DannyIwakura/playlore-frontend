@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
+import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
 import api from '../../services/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL
@@ -145,6 +146,13 @@ async function actualizarPersonaje() {
         <router-link to="/personajes" class="btn btn-secondary">Cancelar</router-link>
       </div>
     </form>
+
+    <!-- Galería de imágenes -->
+    <hr class="my-4" />
+    <GaleriaImagenes
+      :personaje-id="Number(personajeId)"
+      :es-propietario="true"
+    />
   </div>
   <Footer />
 </template>

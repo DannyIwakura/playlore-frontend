@@ -1,10 +1,12 @@
 <script setup lang="ts">
-import { ref, onMounted, computed, nextTick } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
+import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
+import defaultAvatar from '../../assets/img/AVATAR.png'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -53,6 +55,8 @@ const modalMensaje = ref(false)
 const mensaje = ref({ titulo: '', contenido: '' })
 const enviandoMensaje = ref(false)
 
+const activeTab = ref<'trasfondo' | 'categorias' | 'galeria'>('trasfondo')
+
 const miId = computed(() => userStore.usuario.value?.id)
 const esMiPersonaje = computed(() => personaje.value?.userId === miId.value)
 const puedeModerarPersonaje = computed(() => {
@@ -75,13 +79,13 @@ async function cambiarEstadoPersonaje(nuevoEstado: 'ACTIVO' | 'DESACTIVADO') {
 
 // --- Helpers ---
 function avatarPersonajeUrl(avatar: string | null | undefined): string {
-  if (!avatar) return `${BASE_URL}/images/AVATAR.png`
+  if (!avatar || avatar.includes('AVATAR.png')) return defaultAvatar
   if (avatar.startsWith('http')) return avatar
   return BASE_URL + avatar
 }
 
 function avatarUsuarioUrl(avatar: string | null | undefined): string {
-  if (!avatar) return `${BASE_URL}/images/AVATAR.png`
+  if (!avatar || avatar.includes('AVATAR.png')) return defaultAvatar
   if (avatar.startsWith('http')) return avatar
   return BASE_URL + avatar
 }
@@ -344,28 +348,48 @@ onMounted(async () => {
         <!-- ===================== COLUMNA DERECHA ===================== -->
         <div class="col-12 col-lg-8 d-flex flex-column gap-4">
 
-          <!-- Trasfondo -->
-          <div class="perfil-card shadow-sm">
-            <div class="d-flex align-items-center gap-2 mb-3">
-              <span class="seccion-icono">📖</span>
-              <h3 class="seccion-titulo mb-0">Trasfondo</h3>
+          <!-- Tabs -->
+          <div class="perfil-card shadow-sm p-0">
+            <div class="tabs-nav">
+              <button
+                class="tab-btn"
+                :class="{ 'tab-btn--active': activeTab === 'trasfondo' }"
+                @click="activeTab = 'trasfondo'"
+              >
+                <span class="seccion-icono">📖</span>
+                Trasfondo
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'tab-btn--active': activeTab === 'categorias' }"
+                @click="activeTab = 'categorias'"
+              >
+                <span class="seccion-icono">🏷️</span>
+                Categorías
+              </button>
+              <button
+                class="tab-btn"
+                :class="{ 'tab-btn--active': activeTab === 'galeria' }"
+                @click="activeTab = 'galeria'"
+              >
+                <span class="seccion-icono">🖼️</span>
+                Galería
+              </button>
             </div>
+          </div>
 
+          <!-- Tab: Trasfondo -->
+          <div v-if="activeTab === 'trasfondo'" class="perfil-card shadow-sm">
             <div
               v-if="personaje.trasfondo"
               class="trasfondo-contenido"
               v-html="personaje.trasfondo"
             ></div>
-            <p v-else class="text-muted fst-italic">Este personaje aún no tiene trasfondo escrito.</p>
+            <p v-else class="text-muted fst-italic mb-0">Este personaje aún no tiene trasfondo escrito.</p>
           </div>
 
-          <!-- Categorías -->
-          <div class="perfil-card shadow-sm">
-            <div class="d-flex align-items-center gap-2 mb-3">
-              <span class="seccion-icono">🏷️</span>
-              <h3 class="seccion-titulo mb-0">Categorías</h3>
-            </div>
-
+          <!-- Tab: Categorías -->
+          <div v-if="activeTab === 'categorias'" class="perfil-card shadow-sm">
             <div v-if="categorias.length > 0" class="d-flex flex-wrap gap-2">
               <span
                 v-for="cat in categorias"
@@ -379,6 +403,14 @@ onMounted(async () => {
               </span>
             </div>
             <p v-else class="text-muted fst-italic mb-0">Sin categorías asignadas.</p>
+          </div>
+
+          <!-- Tab: Galería -->
+          <div v-if="activeTab === 'galeria'" class="perfil-card shadow-sm">
+            <GaleriaImagenes
+              :personaje-id="personaje.idPersonaje"
+              :es-propietario="esMiPersonaje"
+            />
           </div>
 
         </div>
@@ -732,5 +764,45 @@ onMounted(async () => {
 .categoria-badge.has-tooltip:hover::after,
 .categoria-badge.has-tooltip:hover::before {
   opacity: 1;
+}
+
+/* ---- Tabs de navegación ---- */
+.tabs-nav {
+  display: flex;
+  border-bottom: 1px solid #e8eaf0;
+  background: transparent;
+}
+
+.tab-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.85rem 1rem;
+  border: none;
+  background: transparent;
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+  color: #4f46e5;
+  background: #f9fafb;
+}
+
+.tab-btn--active {
+  color: #4f46e5;
+  border-bottom-color: #4f46e5;
+  background: transparent;
+}
+
+.tab-btn .seccion-icono {
+  font-size: 1rem;
 }
 </style>
