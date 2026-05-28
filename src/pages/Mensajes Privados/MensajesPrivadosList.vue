@@ -85,7 +85,7 @@ async function cargarMensajes() {
     }
     const { data } = await axios.get<MensajePrivadoDTO[]>(url)
     // Excluir los que están en papelera local
-    mensajes.value = data
+    mensajes.value = data.sort((a, b) => new Date(b.fechaEnvio).getTime() - new Date(a.fechaEnvio).getTime())
   } catch (e) {
     error.value = 'Error al cargar los mensajes. Inténtalo de nuevo.'
   } finally {
