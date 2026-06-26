@@ -6,13 +6,14 @@ const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL,
 })
 
-//interceptor para añadir token a todas las peticiones
+//interceptor para añadir token a todas las peticiones (solo si no hay ya uno)
 api.interceptors.request.use(config => {
 
-  const token = localStorage.getItem("token")
-
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (!config.headers.Authorization) {
+    const token = localStorage.getItem("token")
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
 
   return config
@@ -20,12 +21,14 @@ api.interceptors.request.use(config => {
 
 //interceptor para manejar errores globales
 api.interceptors.request.use(config => {
-  const token = localStorage.getItem("token")
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
+  if (!config.headers.Authorization) {
+    const token = localStorage.getItem("token")
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`
+    }
   }
 
-  // ✅ Solo pone JSON si no hay body FormData
+  // Solo pone JSON si no hay body FormData
   if (!(config.data instanceof FormData)) {
     config.headers['Content-Type'] = 'application/json'
   }

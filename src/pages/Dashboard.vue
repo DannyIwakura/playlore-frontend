@@ -5,13 +5,13 @@ import NavBar from '../components/NavBar.vue';
 import api from '../services/api'
 import { userStore } from '../store/userStore'
 import 'bootstrap-icons/font/bootstrap-icons.css'
-0
-const amigos = ref<AmigoDTO[]>([])
-const cargandoAmigos = ref(false)
 
 let refreshInterval: ReturnType<typeof setInterval> | undefined
 
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
+const chatUrl = `${window.location.origin}/chat`
+const amigos = ref<AmigoDTO[]>([])
+const cargandoAmigos = ref(false)
 const destinatarioFijo = ref(false)
 
 const miId = computed(() => userStore.usuario.value?.id)
@@ -112,7 +112,6 @@ async function enviarMensajePrivado() {
 onMounted(async () => {
   await userStore.cargarDesdeToken()
   cargarAmigos()
-  //refrescar amigos cada 60s para actualizar ultimaConexion
   refreshInterval = setInterval(() => {
     cargarAmigos()
   }, 60000)
@@ -164,8 +163,24 @@ onUnmounted(() => {
         </button>
       </div>
 
+      <div class="col-md-4 mb-3">
+        <a
+          :href="chatUrl"
+          target="_blank"
+          class="acceso-card text-decoration-none d-flex flex-column align-items-start p-4 rounded-3 border h-100"
+        >
+          <div class="acceso-icon mb-3">
+            <i class="bi bi-chat-dots-fill"></i>
+          </div>
+          <h5 class="fw-bold mb-1 text-body">Chat por canales</h5>
+          <p class="text-muted small mb-0">Únete a conversaciones por canales con otros personajes.</p>
+        </a>
+      </div>
+
     </div>
   </section>
+
+
 
   <!-- Amigos recientes -->
   <section class="container mt-4">

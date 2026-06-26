@@ -10,6 +10,15 @@ import defaultAvatar from '../../assets/img/AVATAR.png'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
+const props = defineProps<{
+  personajeId?: number
+  modoModal?: boolean
+}>()
+
+const emit = defineEmits<{
+  cerrar: []
+}>()
+
 const route = useRoute()
 const router = useRouter()
 
@@ -56,6 +65,8 @@ const mensaje = ref({ titulo: '', contenido: '' })
 const enviandoMensaje = ref(false)
 
 const activeTab = ref<'trasfondo' | 'categorias' | 'galeria'>('trasfondo')
+
+const modalScrollClass = computed(() => props.modoModal ? 'py-3' : 'py-5')
 
 const miId = computed(() => userStore.usuario.value?.id)
 const esMiPersonaje = computed(() => personaje.value?.userId === miId.value)
@@ -119,7 +130,7 @@ async function cargar() {
   cargando.value = true
   error.value = null
   try {
-    const id = route.params.id
+    const id = props.personajeId ?? Number(route.params.id)
     const { data } = await api.get<PerfilPersonajeDTO>(`/personajes/${id}`)
     personaje.value = data
 
@@ -202,40 +213,41 @@ onMounted(async () => {
 </script>
 
 <template>
-  <NavBar :logeado="true" />
+  <NavBar v-if="!modoModal" :logeado="true" />
 
-  <!-- CARGANDO -->
-  <div v-if="cargando" class="d-flex justify-content-center align-items-center" style="min-height:60vh">
-    <div class="spinner-border text-primary" role="status">
-      <span class="visually-hidden">Cargando...</span>
-    </div>
+  <div v-if="modoModal" class="modal-header-bar">
+    <h5 class="mb-0">Perfil del personaje</h5>
+    <button class="btn-close" @click="emit('cerrar')"></button>
   </div>
 
-  <!-- ERROR -->
-  <div v-else-if="error" class="container mt-5">
-    <div class="alert alert-danger">{{ error }}</div>
-  </div>
+  <div :class="{ 'modal-scrollable': modoModal }">
 
-  <!-- PERFIL DESACTIVADO (usuarios sin permisos) -->
-  <div v-else-if="personaje?.estadoPersonaje === 'DESACTIVADO' && !puedeModerarPersonaje"
-    class="container mt-5">
-    <div class="alert alert-warning d-flex align-items-center gap-3">
-      <i class="bi bi-slash-circle fs-4"></i>
-      <div>
-        <strong>Perfil desactivado</strong><br>
-        Este perfil ha sido desactivado por no cumplir las normas de contenido.
+    <div v-if="cargando" class="d-flex justify-content-center align-items-center" :style="{ minHeight: modoModal ? '40vh' : '60vh' }">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Cargando...</span>
       </div>
     </div>
-  </div>
 
-  <!-- CONTENIDO -->
-  <main v-else-if="personaje" class="perfil-personaje-bg py-5">
-    <div class="container">
-      <div class="row g-4">
+    <div v-else-if="error" :class="{ 'container mt-5': !modoModal, 'p-4': modoModal }">
+      <div class="alert alert-danger">{{ error }}</div>
+    </div>
 
-        <!-- ===================== COLUMNA IZQUIERDA ===================== -->
-        <div class="col-12 col-lg-4">
-          <div class="perfil-card shadow-sm h-100 d-flex flex-column gap-3">
+    <div v-else-if="personaje?.estadoPersonaje === 'DESACTIVADO' && !puedeModerarPersonaje"
+         :class="{ 'container mt-5': !modoModal, 'p-4': modoModal }">
+      <div class="alert alert-warning d-flex align-items-center gap-3">
+        <i class="bi bi-slash-circle fs-4"></i>
+        <div>
+          <strong>Perfil desactivado</strong><br>
+          Este perfil ha sido desactivado por no cumplir las normas de contenido.
+        </div>
+      </div>
+    </div>
+
+    <main v-else-if="personaje" class="perfil-personaje-bg" :class="modalScrollClass">
+      <div class="container">
+        <div class="row g-4">
+          <div class="col-12 col-lg-4">
+            <div class="perfil-card shadow-sm h-100 d-flex flex-column gap-3">
 
             <!-- Avatar del personaje -->
             <div class="text-center">
@@ -417,7 +429,8 @@ onMounted(async () => {
       </div>
     </div>
   </main>
-  <!-- Modal de mensqaje -->
+  </div>
+  <!-- Modal de mensaje -->
    <div v-if="modalMensaje" class="modal-backdrop-custom" @click.self="modalMensaje = false">
   <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -451,7 +464,7 @@ onMounted(async () => {
         </div>
     </div>
     </div>
-  <Footer />
+  <Footer v-if="!modoModal" />
 </template>
 
 <style scoped>
@@ -804,5 +817,21 @@ onMounted(async () => {
 
 .tab-btn .seccion-icono {
   font-size: 1rem;
+}
+
+/* ---- Modo modal ---- */
+.modal-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  background: #fff;
+  border-bottom: 1px solid #e8eaf0;
+  flex-shrink: 0;
+}
+.modal-scrollable {
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
 }
 </style>

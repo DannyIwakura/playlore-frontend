@@ -9,6 +9,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stomp/stompjs": "^7.3.0",
     "@tiptap/extension-color": "^3.22.3",
     "@tiptap/extension-image": "^3.22.3",
     "@tiptap/extension-link": "^3.22.3",
@@ -21,12 +22,15 @@
     "bootstrap-icons": "^1.13.1",
     "jwt-decode": "^4.0.0",
     "lucide-vue-next": "^1.0.0",
+    "sockjs-client": "^1.6.1",
     "vue": "^3.5.25",
+    "vue-advanced-chat": "^2.1.2",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
     "@types/bootstrap": "^5.2.10",
     "@types/node": "^24.10.1",
+    "@types/sockjs-client": "^1.5.4",
     "@vitejs/plugin-vue": "^6.0.2",
     "@vue/tsconfig": "^0.8.1",
     "typescript": "~5.9.3",

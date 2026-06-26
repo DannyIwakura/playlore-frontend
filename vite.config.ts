@@ -4,6 +4,10 @@ import vue from '@vitejs/plugin-vue'
 export default defineConfig({
   plugins: [vue()],
 
+  define: {
+    global: 'globalThis',
+  },
+
   // Evitar problemas de dependencias duplicadas con Vue y TipTap
   resolve: {
     dedupe: ['vue', '@tiptap/core', '@tiptap/pm'],
@@ -29,12 +33,14 @@ export default defineConfig({
   // configuracion necesaria para no tener que usar la ruta completa del back
   server: {
     host: '0.0.0.0',
+    allowedHosts: ['wgf4vn-ip-79-151-119-254.tunnelmole.net'],
     port: 5173,
     proxy: {
       '/api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        secure: false
+        secure: false,
+        ws: true
       }
     }
   }

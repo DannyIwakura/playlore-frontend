@@ -6,6 +6,7 @@ import axios from '../services/api'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
+const chatUrl = `${window.location.origin}/chat`
 
 const router = useRouter()
 
@@ -155,6 +156,12 @@ onUnmounted(() => {
                 {{ mensajesNoLeidos }}
               </span>
             </router-link>
+          </li>
+
+          <li class="nav-item">
+            <a :href="chatUrl" target="_blank" class="nav-link">
+              <i class="bi bi-chat-dots-fill me-2"></i>Chat
+            </a>
           </li>
 
           <li class="nav-item">
