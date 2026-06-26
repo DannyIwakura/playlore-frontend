@@ -74,6 +74,7 @@ const mensajeAEliminarId = ref<number | null>(null)
 const mostrarSelectorPersonajes = ref(false)
 
 const unreadCountMap = ref<Map<number, number>>(new Map())
+const channelLastSeenIds = ref<Record<number, number>>({})
 
 const mostrarListaMiembros = ref(false)
 const miembrosLista = ref<any[]>([])
@@ -227,6 +228,7 @@ async function conectarWebSocket() {
 interface SessionCacheEntry {
   canalActivo: any
   canalesUnidos: any[]
+  channelLastSeen: Record<number, number>
 }
 
 const sessionCache = new Map<number, SessionCacheEntry>()
@@ -237,6 +239,7 @@ function guardarEstadoSesion() {
   sessionCache.set(pid, {
     canalActivo: canalActivo.value,
     canalesUnidos: canalesUnidos.value,
+    channelLastSeen: { ...channelLastSeenIds.value },
   })
 }
 
@@ -247,9 +250,11 @@ function restaurarEstadoSesion() {
   if (cached) {
     canalActivo.value = cached.canalActivo
     canalesUnidos.value = cached.canalesUnidos
+    channelLastSeenIds.value = cached.channelLastSeen ?? {}
   } else {
     canalActivo.value = null
     canalesUnidos.value = []
+    channelLastSeenIds.value = {}
   }
   mensajes.value = []
   pagina.value = 0
@@ -272,6 +277,9 @@ function suscribirCanales() {
           mensajes.value.push(msg)
           if (!usuarioScrolledUp.value) scrollAlFinal()
         }
+        if (msg.id > (channelLastSeenIds.value[canal.id] ?? 0)) {
+          channelLastSeenIds.value[canal.id] = msg.id
+        }
       } else {
         const current = unreadCountMap.value.get(canal.id) || 0
         unreadCountMap.value.set(canal.id, current + 1)
@@ -282,12 +290,32 @@ function suscribirCanales() {
   }
 }
 
+async function actualizarNoLeidos() {
+  const activoId = canalActivo.value?.id ?? -1
+  const promises = canalesUnidos.value
+    .filter((c: any) => c.id !== activoId)
+    .map(async (c: any) => {
+      try {
+        const { data } = await chatApi.obtenerMensajesCanal(c.id, 0, 1)
+        const content: any[] = data.content || []
+        if (content.length > 0) {
+          const latestId = content[0].id
+          if (latestId > (channelLastSeenIds.value[c.id] ?? 0)) {
+            const current = unreadCountMap.value.get(c.id) || 0
+            unreadCountMap.value.set(c.id, current + 1)
+          }
+        }
+      } catch {}
+    })
+  await Promise.all(promises)
+  unreadCountMap.value = new Map(unreadCountMap.value)
+}
+
 async function reconectarSesion() {
   websocketService.disconnect()
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions = []
   await conectarWebSocket()
-  unreadCountMap.value = new Map()
   await cargarCanalesUnidos()
   suscribirCanales()
   if (canalActivo.value) {
@@ -299,6 +327,7 @@ async function reconectarSesion() {
       scrollAlFinal()
     } catch { mensajes.value = [] }
   }
+  await actualizarNoLeidos()
 }
 
 function cambiarSesion(index: number) {
@@ -331,6 +360,9 @@ async function seleccionarCanal(canal: any) {
     const content: any[] = data.content || []
     hayMasMensajes.value = !data.last
     mensajes.value = content.reverse()
+    if (content.length > 0) {
+      channelLastSeenIds.value[canal.id] = content[content.length - 1].id
+    }
   } catch (e: any) {
     if (e.response?.status === 403) errorMsg.value = 'No tienes acceso a este canal'
     else errorMsg.value = 'Error al cargar el canal'
