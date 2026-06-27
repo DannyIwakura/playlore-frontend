@@ -8,12 +8,14 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
+import { EMOJI_CATEGORIES, getRecentEmojis, addRecentEmoji } from './emojiData'
 
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
 const router = useRouter()
 
 const personajes = ref<any[]>([])
+const cargandoPersonajes = ref(true)
 const canalesUnidos = ref<any[]>([])
 const canalActivo = ref<any>(null)
 const mensajes = ref<any[]>([])
@@ -29,6 +31,18 @@ const mostrarConectados = ref(true)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const esMobile = () => window.innerWidth < 768
 const errorMsg = ref('')
+
+const editorRef = ref<HTMLElement | null>(null)
+
+const mostrarEmojiPicker = ref(false)
+const categoriaEmojiActiva = ref(0)
+const emojiCategories = computed(() => {
+  const recent = getRecentEmojis()
+  const cats = recent.length > 0
+    ? [{ name: 'Usados recientemente', emojis: recent }, ...EMOJI_CATEGORIES]
+    : EMOJI_CATEGORIES
+  return cats
+})
 
 const PAGE_SIZE = 15
 const pagina = ref(0)
@@ -91,6 +105,45 @@ function abrirContextMenu(e: MouseEvent, m: any) {
 
 function cerrarContextMenu() {
   contextMenuTarget.value = null
+}
+
+// Context menu for private conversations
+const conversacionCtxTarget = ref<any>(null)
+const conversacionCtxX = ref(0)
+const conversacionCtxY = ref(0)
+
+function abrirContextMenuConversacion(e: MouseEvent, conv: any) {
+  e.preventDefault()
+  conversacionCtxTarget.value = conv
+  const menuW = 200, menuH = 80
+  const maxX = window.innerWidth - menuW
+  const maxY = window.innerHeight - menuH
+  conversacionCtxX.value = Math.min(e.clientX, maxX)
+  conversacionCtxY.value = Math.min(e.clientY, maxY)
+}
+
+function cerrarContextMenuConversacion() {
+  conversacionCtxTarget.value = null
+}
+
+function eliminarConversacionPrivada() {
+  const conv = conversacionCtxTarget.value
+  if (!conv) return
+  eliminarConversacionDeLista(conv)
+  cerrarContextMenuConversacion()
+}
+
+function eliminarConversacionDirecta(conv: any) {
+  eliminarConversacionDeLista(conv)
+}
+
+function eliminarConversacionDeLista(conv: any) {
+  if (conversacionActiva.value?.personajeId === conv.personajeId) {
+    cerrarConversacion()
+  }
+  conversacionesPrivadas.value = conversacionesPrivadas.value.filter(
+    c => c.personajeId !== conv.personajeId
+  )
 }
 
 const miRolEnCanal = computed(() => canalActivo.value?.miRol)
@@ -202,9 +255,10 @@ function cerrarConversacion() {
 }
 
 function enviarMensajePrivadoWs() {
-  const texto = nuevoMensaje.value.trim()
+  const texto = obtenerContenidoEditor()
+  console.log('[DEBUG] enviarMensajePrivadoWs - texto:', JSON.stringify(texto))
   if (!texto || !conversacionActiva.value) return
-  nuevoMensaje.value = ''
+  limpiarEditor()
   const tempMsg: any = {
     id: Date.now(),
     emisorId: characterSessionStore.sesionActual.value?.personajeId,
@@ -218,14 +272,12 @@ function enviarMensajePrivadoWs() {
   nextTick(() => scrollAlFinal())
   const receptorId = conversacionActiva.value.personajeId
   websocketService.sendPrivateMessage(receptorId, texto)
-  // If recipient is another character in our session, notify locally
   if (characterSessionStore.sesiones.value.some(s => s.personajeId === receptorId)) {
     const charCount = noLeidosCharacter.value.get(receptorId) || 0
     noLeidosCharacter.value.set(receptorId, charCount + 1)
     noLeidosCharacter.value = new Map(noLeidosCharacter.value)
     reproducirSonidoPM()
   }
-  // Update sidebar preview
   const conv = conversacionesPrivadas.value.find(c => c.personajeId === receptorId)
   if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
 }
@@ -238,7 +290,10 @@ const mensajeAEliminarId = ref<number | null>(null)
 
 const mostrarSelectorPersonajes = ref(false)
 
+const mostrarAyudaEditor = ref(false)
+
 const unreadCountMap = ref<Map<number, number>>(new Map())
+const channelMentionedMap = ref<Map<number, boolean>>(new Map())
 const channelLastSeenIds = ref<Record<number, number>>({})
 
 const mostrarListaMiembros = ref(false)
@@ -300,12 +355,13 @@ function scrollAlFinalForzado() {
 
 async function cargarPersonajes() {
   if (!userStore.usuario.value?.id) return
+  cargandoPersonajes.value = true
   try {
     const { data } = await api.get(`/personajes/usuario/${userStore.usuario.value.id}`, {
       params: { page: 0, size: 50 }
     })
     personajes.value = data.content || data
-  } catch {}
+  } catch {} finally { cargandoPersonajes.value = false }
 }
 
 async function iniciarSesionPersonaje(personajeId: number) {
@@ -352,9 +408,14 @@ const personajeDesconectar = computed(() => {
 
 async function cerrarSesionPersonaje() {
   guardarEstadoSesion()
+  const closedPersonajeId = characterSessionStore.sesionActual.value?.personajeId
   await websocketService.disconnect()
   const idx = characterSessionStore.sesionActualIdx.value
   await characterSessionStore.cerrarSesionActual()
+  if (closedPersonajeId != null) {
+    onlineMap.value.set(closedPersonajeId, false)
+    onlineMap.value = new Map(onlineMap.value)
+  }
   canalActivo.value = null
   mensajes.value = []
   miembros.value = []
@@ -386,13 +447,14 @@ async function conectarWebSocket() {
         statusMap.value.set(data.personajeId, data.status)
         statusMap.value = new Map(statusMap.value)
       }
-      cargarMiembrosOnline()
+      cargarMiembrosOnline(true)
     })
     persistentSubscriptions.push(subPres)
     const charId = characterSessionStore.sesionActual.value?.personajeId
     if (charId == null) return
     const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
       const pid = characterSessionStore.sesionActual.value?.personajeId
+      data.esMio = data.emisorId === pid
       if (conversacionActiva.value?.personajeId === data.emisorId) {
         mensajesPrivados.value.push(data)
         nextTick(() => scrollAlFinal())
@@ -505,11 +567,15 @@ function suscribirCanales() {
   wsSubscriptions = []
   for (const canal of canalesUnidos.value) {
     const subMsgs = websocketService.subscribeToChannel(canal.id, (msg: any) => {
+      const pid = characterSessionStore.sesionActual.value?.personajeId
+      msg.esMio = msg.personajeId === pid
+      console.log('[DEBUG] received channel msg:', JSON.stringify({ id: msg.id, contenido: msg.contenido, esMio: msg.esMio }))
       if (canalActivo.value?.id === canal.id) {
         const idx = mensajes.value.findIndex((m: any) => m.id === msg.id)
         if (idx >= 0) {
           const existing = mensajes.value[idx]
           if (existing.eliminado) return
+          console.log('[DEBUG] replacing local msg with server msg')
           mensajes.value[idx] = msg
         } else {
           mensajes.value.push(msg)
@@ -522,6 +588,17 @@ function suscribirCanales() {
         const current = unreadCountMap.value.get(canal.id) || 0
         unreadCountMap.value.set(canal.id, current + 1)
         unreadCountMap.value = new Map(unreadCountMap.value)
+        const senderId = msg.personajeId
+        const content = (msg.contenido || '').replace(/&#64;/g, '@')
+        const anyMentioned = characterSessionStore.sesiones.value
+          .filter((s: any) => s.personajeId !== senderId)
+          .some((s: any) => content.includes(`@${s.personajeNombre}`))
+        if (anyMentioned) {
+          console.log('[DEBUG] mention detected in channel', canal.id, 'setting channelMentionedMap')
+          channelMentionedMap.value.set(canal.id, true)
+          channelMentionedMap.value = new Map(channelMentionedMap.value)
+          reproducirSonidoPM()
+        }
       }
     })
     wsSubscriptions.push(subMsgs)
@@ -586,6 +663,7 @@ function cambiarSesion(index: number) {
   if (index === characterSessionStore.sesionActualIdx.value) return
   guardarEstadoSesion()
   characterSessionStore.seleccionarSesion(index)
+  channelMentionedMap.value = new Map()
   restaurarEstadoSesion()
   reconectarSesion()
 }
@@ -602,6 +680,8 @@ async function seleccionarCanal(canal: any) {
   canalActivo.value = canal
   unreadCountMap.value.set(canal.id, 0)
   unreadCountMap.value = new Map(unreadCountMap.value)
+  channelMentionedMap.value.set(canal.id, false)
+  channelMentionedMap.value = new Map(channelMentionedMap.value)
   cargando.value = true
   errorMsg.value = ''
   pagina.value = 0
@@ -653,21 +733,420 @@ function resetTextareaHeight() {
   el.style.height = 'auto'
 }
 
+function handleMentionClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  const anchor = target.closest('a')
+  if (!anchor) return
+  const href = anchor.getAttribute('href') || ''
+  const match = href.match(/^profile:(\d+)$/)
+  if (match) {
+    e.preventDefault()
+    verPerfil(parseInt(match[1]))
+  }
+}
+
+function processDiceInMessage(html: string): string {
+  return html.replace(/🎲\s*(\d+)d(\d+)/g, (_match, count, sides) => {
+    const c = parseInt(count)
+    const s = parseInt(sides)
+    const rolls: number[] = []
+    for (let i = 0; i < c; i++) {
+      rolls.push(Math.floor(Math.random() * s) + 1)
+    }
+    const total = rolls.reduce((a, b) => a + b, 0)
+    if (c === 1) {
+      return `🎲 ${c}d${s} = ${total}`
+    }
+    return `🎲 ${c}d${s} = ${total} (${rolls.join('+')})`
+  })
+}
+
+function processMentionsInMessage(html: string): string {
+  const members = [...miembrosOnline.value]
+  if (conversacionActiva.value?.personajeId) {
+    members.push({
+      personajeId: conversacionActiva.value.personajeId,
+      personajeNombre: conversacionActiva.value.personajeNombre,
+    })
+  }
+  if (members.length === 0) return html
+  members.sort((a: any, b: any) => b.personajeNombre.length - a.personajeNombre.length)
+  let result = html
+  for (const m of members) {
+    const escapedName = m.personajeNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    const regex = new RegExp(`(^|>|\\s)@${escapedName}(?=([.,!?;:\\s<]|$))`, 'g')
+    result = result.replace(regex, `$1<a href="profile:${m.personajeId}">@${m.personajeNombre}</a>`)
+  }
+  return result
+}
+
+function obtenerContenidoEditor(): string {
+  const el = editorRef.value
+  if (!el) return ''
+  let html = el.innerHTML
+  html = html.replace(/<br>\s*$/, '')
+  html = processDiceInMessage(html)
+  html = processMentionsInMessage(html)
+  return html === '<br>' ? '' : html
+}
+
+function limpiarEditor() {
+  if (editorRef.value) editorRef.value.innerHTML = ''
+  nuevoMensaje.value = ''
+}
+
+const FORMAT_TAGS: Record<string, string> = {
+  bold: 'b',
+  italic: 'i',
+  strikeThrough: 's',
+  underline: 'u',
+  blockquote: 'blockquote',
+  h3: 'h3',
+  h4: 'h4',
+}
+
+function wrapSelection(tag: string) {
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return
+  const range = sel.getRangeAt(0)
+  const wrapper = document.createElement(tag)
+  try {
+    range.surroundContents(wrapper)
+  } catch {
+    const fragment = range.extractContents()
+    wrapper.appendChild(fragment)
+    range.insertNode(wrapper)
+  }
+  sel.removeAllRanges()
+}
+
+function execFormat(command: string) {
+  if (command === 'spoiler') {
+    const el = editorRef.value
+    if (!el) return
+    el.focus()
+    const sel = window.getSelection()
+    if (!sel || !sel.rangeCount || sel.isCollapsed) return
+    const range = sel.getRangeAt(0)
+    const details = document.createElement('details')
+    const summary = document.createElement('summary')
+    summary.textContent = 'Spoiler'
+    details.appendChild(summary)
+    try {
+      range.surroundContents(details)
+    } catch {
+      const fragment = range.extractContents()
+      details.appendChild(fragment)
+      range.insertNode(details)
+    }
+    sel.removeAllRanges()
+    return
+  }
+  const tag = FORMAT_TAGS[command]
+  if (!tag) return
+  wrapSelection(tag)
+}
+
+function clearFormat() {
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount || sel.isCollapsed) return
+  const range = sel.getRangeAt(0)
+  const text = range.extractContents()
+  const textNode = document.createTextNode(text.textContent || '')
+  range.insertNode(textNode)
+  sel.removeAllRanges()
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function insertLink() {
+  const sel = window.getSelection()
+  const selectedText = sel.toString().trim()
+  const url = prompt('URL:', 'https://')
+  if (!url) return
+  const linkText = selectedText || prompt('Texto del enlace:') || url
+  if (!linkText) return
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  const range = sel.getRangeAt(0)
+  range.deleteContents()
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.textContent = linkText
+  range.insertNode(anchor)
+  sel.removeAllRanges()
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const DICE_TYPES = [
+  { label: 'd4', max: 4, icon: 'd4' },
+  { label: 'd6', max: 6, icon: 'd6' },
+  { label: 'd8', max: 8, icon: 'd8' },
+  { label: 'd10', max: 10, icon: 'd10' },
+  { label: 'd12', max: 12, icon: 'd12' },
+  { label: 'd20', max: 20, icon: 'd20' },
+  { label: 'd100', max: 100, icon: 'd100' },
+]
+
+const mostrarDicePicker = ref(false)
+const diceCount = ref(1)
+const diceQuantityOptions = [1, 2, 3, 4, 5]
+
+function toggleDicePicker() {
+  mostrarDicePicker.value = !mostrarDicePicker.value
+  if (mostrarDicePicker.value) {
+    diceCount.value = 1
+    mostrarEmojiPicker.value = false
+    mostrarMentionPicker.value = false
+  }
+}
+
+function closeDicePicker() {
+  mostrarDicePicker.value = false
+}
+
+function rollDice(count: number, sides: number): { total: number; rolls: number[] } {
+  const rolls: number[] = []
+  for (let i = 0; i < count; i++) {
+    rolls.push(Math.floor(Math.random() * sides) + 1)
+  }
+  const total = rolls.reduce((a, b) => a + b, 0)
+  return { total, rolls }
+}
+
+function insertDice(diceType: typeof DICE_TYPES[0]) {
+  const notation = `${diceCount.value}${diceType.label}`
+  const text = ` 🎲 ${notation} `
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  document.execCommand('insertText', false, text)
+  mostrarDicePicker.value = false
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const mostrarMentionPicker = ref(false)
+const mentionSearch = ref('')
+const mentionHighlightIndex = ref(-1)
+
+const filteredMentions = computed(() => {
+  const list = miembrosOnline.value
+  if (!mentionSearch.value) return list
+  const s = mentionSearch.value.toLowerCase()
+  return list.filter((m: any) => m.personajeNombre.toLowerCase().includes(s))
+})
+
+function toggleMentionPicker() {
+  mostrarMentionPicker.value = !mostrarMentionPicker.value
+  if (mostrarMentionPicker.value) {
+    mentionSearch.value = ''
+    mentionHighlightIndex.value = 0
+    mostrarEmojiPicker.value = false
+    mostrarDicePicker.value = false
+  }
+}
+
+function closeMentionPicker() {
+  mostrarMentionPicker.value = false
+  mentionSearch.value = ''
+  mentionHighlightIndex.value = -1
+}
+
+function insertMention(nombre: string) {
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  const sel = window.getSelection()
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0)
+    const node = sel.focusNode
+    const offset = sel.focusOffset
+    if (node && node.textContent) {
+      const text = node.textContent
+      const beforeCursor = text.slice(0, offset)
+      const atIndex = beforeCursor.lastIndexOf('@')
+      if (atIndex !== -1) {
+        range.setStart(node, atIndex)
+        range.setEnd(node, offset)
+      }
+    }
+    range.deleteContents()
+    const textNode = document.createTextNode(`@${nombre} `)
+    range.insertNode(textNode)
+    range.setStartAfter(textNode)
+    sel.removeAllRanges()
+    sel.addRange(range)
+  } else {
+    document.execCommand('insertText', false, `@${nombre} `)
+  }
+  mostrarMentionPicker.value = false
+  mentionSearch.value = ''
+  mentionHighlightIndex.value = -1
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+const charsRestantes = computed(() => {
+  const len = nuevoMensaje.value?.length ?? 0
+  const max = 2000
+  return { usado: len, max, porcentaje: Math.min(100, (len / max) * 100) }
+})
+
+function toggleAyudaEditor() {
+  mostrarAyudaEditor.value = !mostrarAyudaEditor.value
+}
+function toggleEmojiPicker() {
+  mostrarEmojiPicker.value = !mostrarEmojiPicker.value
+  if (mostrarEmojiPicker.value) {
+    categoriaEmojiActiva.value = 0
+    mostrarDicePicker.value = false
+    mostrarMentionPicker.value = false
+  }
+}
+
+function closeEmojiPicker() {
+  mostrarEmojiPicker.value = false
+}
+
+function insertEmoji(emoji: string) {
+  const el = editorRef.value
+  if (!el) return
+  el.focus()
+  const sel = window.getSelection()
+  if (sel && sel.rangeCount > 0) {
+    const range = sel.getRangeAt(0)
+    if (!el.contains(range.commonAncestorContainer)) {
+      el.focus()
+      const newRange = document.createRange()
+      newRange.setStart(el, el.childNodes.length)
+      newRange.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(newRange)
+    }
+  }
+  document.execCommand('insertText', false, emoji)
+  addRecentEmoji(emoji)
+  closeEmojiPicker()
+  el.dispatchEvent(new Event('input', { bubbles: true }))
+}
+
+function getMentionSearch(): string {
+  const sel = window.getSelection()
+  if (!sel || !sel.rangeCount) return ''
+  const node = sel.focusNode
+  const offset = sel.focusOffset
+  if (!node) return ''
+  const text = node.textContent || ''
+  const beforeCursor = text.slice(0, offset)
+  const atIndex = beforeCursor.lastIndexOf('@')
+  if (atIndex === -1) return ''
+  return beforeCursor.slice(atIndex + 1)
+}
+
+function handleEditorKeydown(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    if (conversacionActiva.value) {
+      enviarMensajePrivadoWs()
+    } else {
+      enviarMensaje()
+    }
+    return
+  }
+  if (e.key === '@') {
+    setTimeout(() => {
+      mentionSearch.value = ''
+      mentionHighlightIndex.value = 0
+      mostrarMentionPicker.value = true
+      mostrarEmojiPicker.value = false
+      mostrarDicePicker.value = false
+    }, 0)
+    return
+  }
+  if (mostrarMentionPicker.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      const len = filteredMentions.value.length
+      if (len > 0) {
+        mentionHighlightIndex.value = (mentionHighlightIndex.value + 1) % len
+      }
+      return
+    }
+    if (e.key === 'ArrowUp') {
+      e.preventDefault()
+      const len = filteredMentions.value.length
+      if (len > 0) {
+        mentionHighlightIndex.value = (mentionHighlightIndex.value - 1 + len) % len
+      }
+      return
+    }
+    if (e.key === 'Enter' || e.key === 'Tab') {
+      e.preventDefault()
+      const idx = mentionHighlightIndex.value >= 0 ? mentionHighlightIndex.value : 0
+      if (idx < filteredMentions.value.length) {
+        insertMention(filteredMentions.value[idx].personajeNombre)
+      }
+      return
+    }
+    if (e.key === 'Escape') {
+      mostrarMentionPicker.value = false
+      mentionSearch.value = ''
+      return
+    }
+    if (e.key === 'Backspace') {
+      setTimeout(() => {
+        mentionSearch.value = getMentionSearch()
+        if (!mentionSearch.value && !getMentionSearch()) {
+          mostrarMentionPicker.value = false
+        }
+      }, 0)
+    }
+  }
+}
+
+function onEditorInput() {
+  const el = editorRef.value
+  if (!el) return
+  nuevoMensaje.value = el.innerText || ''
+  if (mostrarMentionPicker.value) {
+    mentionSearch.value = getMentionSearch()
+  }
+  const max = 2000
+  if (nuevoMensaje.value.length > max) {
+    el.innerText = nuevoMensaje.value.slice(0, max)
+    nuevoMensaje.value = nuevoMensaje.value.slice(0, max)
+    const range = document.createRange()
+    const sel = window.getSelection()
+    if (el.lastChild) {
+      range.setStartAfter(el.lastChild)
+      range.collapse(true)
+      sel?.removeAllRanges()
+      sel?.addRange(range)
+    }
+  }
+}
+
 async function enviarMensaje() {
-  const texto = nuevoMensaje.value.trim()
+  const texto = obtenerContenidoEditor()
+  console.log('[DEBUG] enviarMensaje - texto:', JSON.stringify(texto))
   if (!texto || enviando.value || !canalActivo.value) return
+  channelMentionedMap.value.set(canalActivo.value.id, false)
+  channelMentionedMap.value = new Map(channelMentionedMap.value)
   enviando.value = true
   const token = characterSessionStore.getToken()
   if (websocketService.connected.value && token) {
     websocketService.sendChannelMessage(canalActivo.value.id, texto)
-    nuevoMensaje.value = ''
-    resetTextareaHeight()
+    limpiarEditor()
     enviando.value = false
   } else {
     try {
       await chatApi.enviarMensajeCanal(canalActivo.value.id, texto)
-      nuevoMensaje.value = ''
-      resetTextareaHeight()
+      limpiarEditor()
       pagina.value = 0
       const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
       hayMasMensajes.value = !data.last
@@ -826,8 +1305,11 @@ async function cargarMasMiembros() {
   } catch {} finally { cargandoMiembros.value = false }
 }
 
-async function cargarMiembrosOnline() {
+const cargandoMiembrosOnline = ref(false)
+
+async function cargarMiembrosOnline(silent = false) {
   if (!canalActivo.value) return
+  if (!silent) cargandoMiembrosOnline.value = true
   try {
     const localActiveIds = new Set(characterSessionStore.sesiones.value.map(s => s.personajeId))
     const { data } = await chatApi.listarMiembros(canalActivo.value.id, 0, 100)
@@ -844,7 +1326,7 @@ async function cargarMiembrosOnline() {
     }
     onlineMap.value = new Map(onlineMap.value)
     statusMap.value = new Map(statusMap.value)
-  } catch {}
+  } catch {} finally { cargandoMiembrosOnline.value = false }
 }
 
 function handleBeforeUnload() {
@@ -880,7 +1362,7 @@ onMounted(async () => {
   window.addEventListener('beforeunload', handleBeforeUnload)
 
   pollingInterval = window.setInterval(() => {
-    cargarMiembrosOnline()
+    cargarMiembrosOnline(true)
   }, 5000)
 })
 
@@ -897,8 +1379,8 @@ onUnmounted(() => {
 
 <template>
   <!-- Sin sesiones activas: selección de personajes -->
-  <div v-if="characterSessionStore.sesiones.value.length === 0" class="chat-fullpage bg-gradient-selection d-flex align-items-center justify-content-center">
-    <div class="container" style="max-width: 720px;">
+  <div v-if="characterSessionStore.sesiones.value.length === 0" class="chat-fullpage bg-gradient-selection d-flex flex-column align-items-center" style="overflow-y: auto;" @contextmenu.prevent>
+    <div class="container my-auto" style="max-width: 720px;">
       <div class="text-center mb-4">
         <h1 class="fw-bold d-flex align-items-center justify-content-center gap-2">
           <img :src="logoUrl" height="100" alt="PlayLore" />
@@ -907,7 +1389,10 @@ onUnmounted(() => {
         </h1>
         <p v-if="personajes.length > 0" class="text-muted">Selecciona un personaje para iniciar sesión</p>
       </div>
-      <div v-if="personajes.length === 0" class="text-center py-5">
+      <div v-if="cargandoPersonajes" class="text-center py-5">
+        <div class="spinner-border text-primary" role="status"></div>
+      </div>
+      <div v-else-if="personajes.length === 0" class="text-center py-5">
         <p class="text-muted small mb-3">Crea un personaje para comenzar</p>
         <button class="btn btn-primary px-4" @click="router.push('/personajes/crear')">
           <i class="bi bi-plus-circle me-1"></i> Crear personaje
@@ -921,7 +1406,8 @@ onUnmounted(() => {
                  class="rounded-circle mx-auto mb-2"
                  width="64" height="64" style="object-fit: cover;" />
             <h6 class="mb-0 text-truncate">{{ p.nombre }}</h6>
-            <small class="text-muted">{{ p.raza || '—' }} {{ p.clase || '' }}</small>
+            <small class="text-muted d-block">{{ p.raza || '—' }}</small>
+            <small class="text-muted d-block">{{ p.clase || '' }}</small>
             <button class="btn btn-primary btn-sm mt-2 w-100"
                     :disabled="characterSessionStore.cargando.value"
                     @click="iniciarSesionPersonaje(p.idPersonaje ?? p.id)">
@@ -934,7 +1420,7 @@ onUnmounted(() => {
   </div>
 
   <!-- Con sesiones activas: chat completo -->
-  <div v-else class="chat-fullpage d-flex flex-column">
+  <div v-else class="chat-fullpage d-flex flex-column" @contextmenu.prevent>
     <!-- Barra de pestañas de personajes -->
     <div class="chat-tabs-bar d-flex align-items-center px-2 border-bottom bg-white flex-shrink-0">
       <button v-for="(sesion, idx) in characterSessionStore.sesiones.value"
@@ -996,9 +1482,14 @@ onUnmounted(() => {
             <small class="fw-bold text-muted text-uppercase" style="font-size:0.65rem;">Mensajes Privados</small>
           </div>
           <div v-for="conv in conversacionesPrivadas" :key="conv.personajeId"
-               class="channel-item d-flex align-items-center gap-3 px-3 py-2"
+               class="channel-item position-relative d-flex align-items-center gap-3 px-3 py-2"
                :class="{ active: conversacionActiva?.personajeId === conv.personajeId, 'channel-unread': (noLeidosPriv.get(conv.personajeId) ?? 0) > 0 }"
-               @click="seleccionarConversacion(conv)">
+               @click="seleccionarConversacion(conv)"
+               @contextmenu.prevent="abrirContextMenuConversacion($event, conv)">
+            <button class="conversation-close-btn btn border-0 p-0 position-absolute d-flex align-items-center justify-content-center"
+                    @click.stop="eliminarConversacionDirecta(conv)" title="Eliminar conversación">
+              <i class="bi bi-x" style="font-size:1.1rem;line-height:1;"></i>
+            </button>
             <div class="position-relative flex-shrink-0">
               <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" />
               <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot"></span>
@@ -1026,24 +1517,26 @@ onUnmounted(() => {
           <div v-if="canalesUnidos.length === 0" class="text-center text-muted p-3 small">
             No estás en ningún canal
           </div>
-          <div v-for="canal in canalesUnidos" :key="canal.id"
-               class="channel-item d-flex align-items-center gap-3 px-3 py-2"
-               :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0 }"
-               @click="seleccionarCanal(canal)">
-            <div class="position-relative flex-shrink-0">
-              <img :src="canalAvatar(canal.nombre)" class="rounded-circle" width="32" height="32" />
-              <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot"></span>
-            </div>
-            <div class="flex-grow-1 min-w-0">
-              <div class="d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-2">
-                  <small class="fw-medium text-truncate d-block">{{ canal.nombre }}</small>
-                  <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-count">{{ unreadCountMap.get(canal.id) }}</span>
+           <div v-for="canal in canalesUnidos" :key="canal.id"
+                class="channel-item d-flex align-items-center gap-3 px-3 py-2"
+                :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
+                @click="seleccionarCanal(canal)">
+             <div class="position-relative flex-shrink-0">
+               <img :src="canalAvatar(canal.nombre)" class="rounded-circle" width="32" height="32" />
+               <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot"></span>
+             </div>
+              <div class="flex-grow-1 min-w-0">
+                <div class="d-flex justify-content-between align-items-center">
+                  <div class="d-flex align-items-center gap-2">
+                    <small class="fw-medium text-truncate d-block">{{ canal.nombre }}</small>
+                  </div>
+                  <div class="d-flex align-items-center gap-1">
+                    <span v-if="channelMentionedMap.get(canal.id) ?? false" class="mention-badge">@</span>
+                    <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ canal.miRol }}</span>
+                  </div>
                 </div>
-                <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ canal.miRol }}</span>
+                <small class="text-muted" style="font-size:0.7rem;">{{ canal.miembroCount }} miembros</small>
               </div>
-              <small class="text-muted" style="font-size:0.7rem;">{{ canal.miembroCount }} miembros</small>
-            </div>
           </div>
         </div>
       </aside>
@@ -1090,7 +1583,8 @@ onUnmounted(() => {
 
           <!-- Mensajes -->
           <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto"
-               @scroll="handleScroll">
+               @scroll="handleScroll"
+               @click="handleMentionClick">
             <div v-if="cargando" class="text-center py-5">
               <div class="spinner-border text-primary spinner-border-sm"></div>
             </div>
@@ -1125,7 +1619,7 @@ onUnmounted(() => {
                   <p v-if="msg.eliminado" class="mb-0 mt-1 fst-italic text-muted" style="font-size:0.85rem;">
                     {{ msg.eliminadoPorModerador ? 'El mensaje fue eliminado por moderación' : (msg.esMio ? 'Eliminaste este mensaje' : 'El mensaje fue eliminado por el usuario') }}
                   </p>
-                  <p v-else class="mb-0 mt-1" style="white-space:pre-wrap;word-break:break-word;">{{ msg.contenido }}</p>
+                  <p v-else class="mb-0 mt-1" style="white-space:pre-wrap;word-break:break-word;" v-html="msg.contenido"></p>
                   <div v-if="!msg.eliminado && (msg.esMio || esAdminOrOwner())" class="mt-1">
                     <button class="btn btn-sm text-danger p-0" style="font-size:0.65rem;"
                             @click="eliminarMensaje(msg.id)">
@@ -1151,12 +1645,84 @@ onUnmounted(() => {
           </transition>
 
           <!-- Input -->
-          <div class="chat-input p-3 border-top bg-light">
-            <form @submit.prevent="enviarMensaje" class="d-flex gap-2 align-items-end">
-              <textarea ref="textareaRef" v-model="nuevoMensaje"
-                        class="form-control form-control-sm chat-textarea"
-                        placeholder="Escribe un mensaje..." maxlength="2000" rows="1"
-                        @keydown="handleKeydown" @input="autoResizeTextarea"></textarea>
+          <div class="chat-input p-3 border-top bg-light position-relative">
+            <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('italic')" title="Cursiva"><em>I</em></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('strikeThrough')" title="Tachado"><s>S</s></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('underline')" title="Subrayado"><u>U</u></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('blockquote')" title="Cita"><i class="bi bi-quote"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h3')" title="Título H3"><strong>H3</strong></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h4')" title="Título H4"><strong>H4</strong></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleDicePicker" title="Dados"><i class="bi bi-dice-6"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleMentionPicker" title="Mencionar"><i class="bi bi-at"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="insertLink" title="Enlace"><i class="bi bi-link-45deg"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('spoiler')" title="Spoiler"><i class="bi bi-eye-slash"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="clearFormat" title="Limpiar formato"><i class="bi bi-eraser"></i></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn emoji-btn" @mousedown.prevent="toggleEmojiPicker" title="Emojis">😊</button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleAyudaEditor" title="Ayuda"><strong>?</strong></button>
+            </div>
+            <div v-if="mostrarEmojiPicker" class="emoji-picker shadow rounded-3 border bg-white p-2">
+              <div class="emoji-categories d-flex gap-1 mb-2 flex-wrap">
+                <button v-for="(cat, ci) in emojiCategories" :key="ci"
+                        class="emoji-cat-btn btn btn-sm border-0 px-2 py-1"
+                        :class="{ active: categoriaEmojiActiva === ci }"
+                        @mousedown.prevent="categoriaEmojiActiva = ci">
+                  {{ cat.name }}
+                </button>
+              </div>
+              <div class="emoji-grid">
+                <button v-for="(emoji, ei) in emojiCategories[categoriaEmojiActiva]?.emojis" :key="ei"
+                        class="emoji-item btn btn-sm border-0 p-1"
+                        @mousedown.prevent="insertEmoji(emoji)"
+                        :title="emoji">
+                  {{ emoji }}
+                </button>
+              </div>
+            </div>
+            <div v-if="mostrarDicePicker" class="emoji-picker shadow rounded-3 border bg-white p-2" style="max-height:320px;">
+              <div class="d-flex gap-2 align-items-center mb-2 px-1">
+                <label class="small text-nowrap mb-0">Cantidad:</label>
+                <select v-model="diceCount" class="form-select form-select-sm" style="width:auto;">
+                  <option v-for="n in diceQuantityOptions" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button v-for="dt in DICE_TYPES" :key="dt.label"
+                        class="btn btn-sm btn-outline-secondary"
+                        @mousedown.prevent="insertDice(dt)">
+                  {{ dt.label }}
+                </button>
+              </div>
+            </div>
+            <form @submit.prevent="enviarMensaje" class="d-flex gap-2 align-items-end pt-2 position-relative">
+              <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
+                <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
+                <button v-for="(m, mi) in filteredMentions" :key="m.id"
+                        class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
+                        :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
+                        @mousedown.prevent="insertMention(m.personajeNombre)"
+                        @mouseenter="mentionHighlightIndex = mi">
+                  <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
+                  {{ m.personajeNombre }}
+                </button>
+              </div>
+              <div class="flex-grow-1 position-relative">
+                <div ref="editorRef" contenteditable="true"
+                     class="form-control form-control-sm chat-editor"
+                     data-placeholder="Escribe un mensaje..."
+                     @keydown="handleEditorKeydown"
+                     @input="onEditorInput"></div>
+                <div class="character-counter">
+                  <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
+                    {{ charsRestantes.usado }}/{{ charsRestantes.max }}
+                  </span>
+                </div>
+              </div>
               <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
                       :disabled="!nuevoMensaje.trim() || enviando">
                 <i class="bi bi-send"></i>
@@ -1185,7 +1751,8 @@ onUnmounted(() => {
           </div>
 
           <!-- PM Messages -->
-          <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto">
+          <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto"
+               @click="handleMentionClick">
             <div v-if="cargandoPriv" class="text-center py-5">
               <div class="spinner-border text-primary spinner-border-sm"></div>
             </div>
@@ -1200,7 +1767,7 @@ onUnmounted(() => {
                      @click="verPerfil(msg.emisorId)" />
                 <div class="mensaje-burbuja px-3 py-2" :class="msg.esMio ? 'bg-primary text-white' : 'bg-light'"
                      :style="msg.esMio ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;'">
-                  <p class="mb-0" style="white-space:pre-wrap;word-break:break-word;">{{ msg.contenido }}</p>
+                  <p class="mb-0" style="white-space:pre-wrap;word-break:break-word;" v-html="msg.contenido"></p>
                   <small class="opacity-50 d-block text-end mt-1" style="font-size:0.65rem;">{{ formatFecha(msg.fechaEnvio) }}</small>
                 </div>
               </div>
@@ -1212,14 +1779,86 @@ onUnmounted(() => {
           </div>
 
           <!-- PM Input -->
-          <div class="chat-input p-3 border-top bg-light">
-            <form @submit.prevent="enviarMensajePrivadoWs" class="d-flex gap-2 align-items-end">
-              <textarea v-model="nuevoMensaje"
-                        class="form-control form-control-sm chat-textarea"
-                        placeholder="Escribe un mensaje..." maxlength="2000" rows="1"
-                        @keydown="handleKeydownPriv" @input="autoResizeTextarea"></textarea>
+          <div class="chat-input p-3 border-top bg-light position-relative">
+            <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('italic')" title="Cursiva"><em>I</em></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('strikeThrough')" title="Tachado"><s>S</s></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('underline')" title="Subrayado"><u>U</u></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('blockquote')" title="Cita"><i class="bi bi-quote"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h3')" title="Título H3"><strong>H3</strong></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h4')" title="Título H4"><strong>H4</strong></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleDicePicker" title="Dados"><i class="bi bi-dice-6"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleMentionPicker" title="Mencionar"><i class="bi bi-at"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="insertLink" title="Enlace"><i class="bi bi-link-45deg"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('spoiler')" title="Spoiler"><i class="bi bi-eye-slash"></i></button>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="clearFormat" title="Limpiar formato"><i class="bi bi-eraser"></i></button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn emoji-btn" @mousedown.prevent="toggleEmojiPicker" title="Emojis">😊</button>
+              <span class="toolbar-divider"></span>
+              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleAyudaEditor" title="Ayuda"><strong>?</strong></button>
+            </div>
+            <div v-if="mostrarEmojiPicker" class="emoji-picker shadow rounded-3 border bg-white p-2">
+              <div class="emoji-categories d-flex gap-1 mb-2 flex-wrap">
+                <button v-for="(cat, ci) in emojiCategories" :key="ci"
+                        class="emoji-cat-btn btn btn-sm border-0 px-2 py-1"
+                        :class="{ active: categoriaEmojiActiva === ci }"
+                        @mousedown.prevent="categoriaEmojiActiva = ci">
+                  {{ cat.name }}
+                </button>
+              </div>
+              <div class="emoji-grid">
+                <button v-for="(emoji, ei) in emojiCategories[categoriaEmojiActiva]?.emojis" :key="ei"
+                        class="emoji-item btn btn-sm border-0 p-1"
+                        @mousedown.prevent="insertEmoji(emoji)"
+                        :title="emoji">
+                  {{ emoji }}
+                </button>
+              </div>
+            </div>
+            <div v-if="mostrarDicePicker" class="emoji-picker shadow rounded-3 border bg-white p-2" style="max-height:320px;">
+              <div class="d-flex gap-2 align-items-center mb-2 px-1">
+                <label class="small text-nowrap mb-0">Cantidad:</label>
+                <select v-model="diceCount" class="form-select form-select-sm" style="width:auto;">
+                  <option v-for="n in diceQuantityOptions" :key="n" :value="n">{{ n }}</option>
+                </select>
+              </div>
+              <div class="d-flex gap-2 flex-wrap">
+                <button v-for="dt in DICE_TYPES" :key="dt.label"
+                        class="btn btn-sm btn-outline-secondary"
+                        @mousedown.prevent="insertDice(dt)">
+                  {{ dt.label }}
+                </button>
+              </div>
+            </div>
+            <form @submit.prevent="enviarMensajePrivadoWs" class="d-flex gap-2 align-items-end pt-2 position-relative">
+              <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
+                <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
+                <button v-for="(m, mi) in filteredMentions" :key="m.id"
+                        class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
+                        :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
+                        @mousedown.prevent="insertMention(m.personajeNombre)"
+                        @mouseenter="mentionHighlightIndex = mi">
+                  <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
+                  {{ m.personajeNombre }}
+                </button>
+              </div>
+              <div class="flex-grow-1 position-relative">
+                <div ref="editorRef" contenteditable="true"
+                     class="form-control form-control-sm chat-editor"
+                     data-placeholder="Escribe un mensaje..."
+                     @keydown="handleEditorKeydown"
+                     @input="onEditorInput"></div>
+                <div class="character-counter">
+                  <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
+                    {{ charsRestantes.usado }}/{{ charsRestantes.max }}
+                  </span>
+                </div>
+              </div>
               <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
-                      :disabled="!nuevoMensaje.trim()">
+                      :disabled="!nuevoMensaje.trim() || enviando">
                 <i class="bi bi-send"></i>
               </button>
             </form>
@@ -1234,7 +1873,10 @@ onUnmounted(() => {
           <button class="btn-close btn-close-sm" @click="mostrarConectados = false"></button>
         </div>
         <div class="list-group list-group-flush overflow-auto flex-grow-1">
-          <div v-if="miembrosOnline.length === 0" class="list-group-item text-muted text-center py-3">
+          <div v-if="cargandoMiembrosOnline" class="list-group-item text-center py-4">
+            <div class="spinner-border spinner-border-sm text-secondary"></div>
+          </div>
+          <div v-else-if="miembrosOnline.length === 0" class="list-group-item text-muted text-center py-3">
             <small>No hay personajes conectados</small>
           </div>
           <div v-for="m in miembrosOnline" :key="m.id" class="list-group-item d-flex align-items-center gap-2"
@@ -1310,7 +1952,8 @@ onUnmounted(() => {
                  class="rounded-circle mx-auto mb-2"
                  width="48" height="48" style="object-fit: cover;" />
             <h6 class="mb-0 text-truncate small">{{ p.nombre }}</h6>
-            <small class="text-muted" style="font-size:0.65rem;">{{ p.raza || '—' }} {{ p.clase || '' }}</small>
+            <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.raza || '—' }}</small>
+            <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.clase || '' }}</small>
           </button>
         </div>
       </div>
@@ -1417,7 +2060,7 @@ onUnmounted(() => {
 
   <!-- Context menu: clic derecho en conectados -->
   <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu" @contextmenu.prevent="cerrarContextMenu"></div>
-  <div v-if="contextMenuTarget" class="context-menu" :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }">
+  <div v-if="contextMenuTarget" class="context-menu" :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }" @contextmenu.prevent>
     <button class="context-menu-item" @click="verPerfil(contextMenuTarget.personajeId); cerrarContextMenu()">
       <i class="bi bi-person-vcard me-2"></i> Perfil
     </button>
@@ -1434,6 +2077,47 @@ onUnmounted(() => {
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
             class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
       <i class="bi bi-door-open me-2"></i> Expulsar del canal
+    </button>
+  </div>
+
+  <!-- Picker overlays -->
+  <div v-if="mostrarEmojiPicker" class="context-menu-overlay" @click="closeEmojiPicker" @contextmenu.prevent="closeEmojiPicker"></div>
+  <div v-if="mostrarDicePicker" class="context-menu-overlay" @click="closeDicePicker" @contextmenu.prevent="closeDicePicker"></div>
+  <div v-if="mostrarMentionPicker" class="context-menu-overlay" @click="closeMentionPicker" @contextmenu.prevent="closeMentionPicker"></div>
+
+  <!-- Modal: Ayuda del editor -->
+  <div v-if="mostrarAyudaEditor" class="modal-backdrop-custom" @click.self="mostrarAyudaEditor = false">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:480px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-question-circle me-2"></i>Ayuda del editor</h5>
+        <button class="btn-close" @click="mostrarAyudaEditor = false"></button>
+      </div>
+      <div class="help-grid">
+        <div class="help-item"><span class="help-key"><strong>B</strong></span><span>Negrita</span></div>
+        <div class="help-item"><span class="help-key"><em>I</em></span><span>Cursiva</span></div>
+        <div class="help-item"><span class="help-key"><s>S</s></span><span>Tachado</span></div>
+        <div class="help-item"><span class="help-key"><u>U</u></span><span>Subrayado</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-quote"></i></span><span>Cita en bloque</span></div>
+        <div class="help-item"><span class="help-key"><strong>H3</strong></span><span>Encabezado grande</span></div>
+        <div class="help-item"><span class="help-key"><strong>H4</strong></span><span>Encabezado pequeño</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-dice-6"></i></span><span>Insertar dados (se lanzan al enviar)</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-at"></i></span><span>Mencionar personaje — escribe <code>@</code> en el editor o usa este botón; navega con <kbd>↑</kbd><kbd>↓</kbd> y pulsa <kbd>Tab</kbd> o <kbd>Enter</kbd> para seleccionar</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-link-45deg"></i></span><span>Insertar enlace</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-eye-slash"></i></span><span>Spoiler — texto oculto (clic para revelar)</span></div>
+        <div class="help-item"><span class="help-key"><i class="bi bi-eraser"></i></span><span>Limpiar formato</span></div>
+        <div class="help-item"><span class="help-key">😊</span><span>Emojis — selecciona un emoji para insertarlo</span></div>
+      </div>
+      <div class="text-muted small mt-3">
+        También puedes usar <kbd>Tab</kbd> para completar una mención si hay resultados disponibles.
+      </div>
+    </div>
+  </div>
+
+  <!-- Context menu: clic derecho en conversaciones privadas -->
+  <div v-if="conversacionCtxTarget" class="context-menu-overlay" @click="cerrarContextMenuConversacion" @contextmenu.prevent="cerrarContextMenuConversacion"></div>
+  <div v-if="conversacionCtxTarget" class="context-menu" :style="{ left: conversacionCtxX + 'px', top: conversacionCtxY + 'px' }" @contextmenu.prevent>
+    <button class="context-menu-item text-danger" @click="eliminarConversacionPrivada">
+      <i class="bi bi-trash3 me-2"></i> Eliminar conversación
     </button>
   </div>
 
@@ -1601,6 +2285,25 @@ onUnmounted(() => {
 .channel-item.active { background: #d0e2ff; border-left: 3px solid #0d6efd; }
 .channel-item.channel-unread { background: #fffbe6; }
 .channel-item.channel-unread:hover { background: #fff3b0; }
+
+.conversation-close-btn {
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #6c757d;
+  opacity: 0;
+  z-index: 2;
+  transition: opacity 0.1s;
+}
+.channel-item:hover .conversation-close-btn { opacity: 1; }
+.channel-item:hover .conversation-close-btn:hover {
+  background: #dee2e6;
+  color: #212529;
+}
+.sidebar-pm .channel-item:hover .unread-dot { display: none; }
 .unread-dot {
   position: absolute;
   top: -2px;
@@ -1632,6 +2335,49 @@ onUnmounted(() => {
   line-height: 1.4;
 }
 
+/* Chat editor (contentEditable) */
+.chat-editor {
+  min-height: 42px;
+  max-height: 200px;
+  overflow-y: auto;
+  line-height: 1.5;
+  padding: 8px 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.chat-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #6c757d;
+  pointer-events: none;
+}
+.chat-editor:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: #86b7fe;
+}
+
+/* Formatting toolbar */
+.formatting-toolbar {
+  background: #f8f9fa;
+  border-radius: 6px 6px 0 0;
+}
+.fmt-btn {
+  width: 30px;
+  height: 28px;
+  padding: 0;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+}
+.fmt-btn:hover {
+  background: #e2e6ea !important;
+}
+.fmt-btn strong, .fmt-btn em, .fmt-btn s, .fmt-btn u {
+  font-size: 0.85rem;
+}
+
 /* Messages */
 .chat-mensajes { background: #fff; }
 .scroll-bottom-btn {
@@ -1646,6 +2392,40 @@ onUnmounted(() => {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .mensaje-burbuja { border-radius: 16px; max-width: 100%; }
+.mensaje-burbuja :deep(blockquote) {
+  border-left: 3px solid #adb5bd;
+  padding-left: 10px;
+  margin: 6px 0;
+  color: #495057;
+  font-style: italic;
+}
+.mensaje-burbuja.bg-primary :deep(blockquote) {
+  border-left-color: rgba(255,255,255,0.5);
+  color: inherit;
+}
+.mensaje-burbuja :deep(h3) {
+  font-size: 1.1rem;
+  margin: 8px 0 4px;
+  font-weight: 600;
+}
+.mensaje-burbuja :deep(h4) {
+  font-size: 1rem;
+  margin: 6px 0 3px;
+  font-weight: 600;
+}
+.mensaje-burbuja :deep(details) {
+  margin: 6px 0;
+}
+.mensaje-burbuja :deep(summary) {
+  cursor: pointer;
+  font-weight: 600;
+  color: #0d6efd;
+}
+.mensaje-burbuja :deep(details[open]) {
+  padding: 6px 8px;
+  background: rgba(0,0,0,0.03);
+  border-radius: 6px;
+}
 
 /* Perfil trasfondo */
 .perfil-trasfondo :deep(img) {
@@ -1780,5 +2560,163 @@ onUnmounted(() => {
   height: 1px;
   background: #e9ecef;
   margin: 4px 0;
+}
+
+/* Emoji picker */
+.emoji-picker {
+  position: absolute;
+  bottom: 100%;
+  left: 1rem;
+  right: 1rem;
+  max-height: 280px;
+  overflow-y: auto;
+  z-index: 1072;
+  margin-bottom: 4px;
+}
+.emoji-categories {
+  border-bottom: 1px solid #eee;
+  padding-bottom: 0.25rem;
+}
+.emoji-cat-btn {
+  font-size: 0.7rem;
+  border-radius: 12px;
+  color: #555;
+  white-space: nowrap;
+}
+.emoji-cat-btn.active {
+  background: #e8f0fe;
+  color: #0d6efd;
+  font-weight: 600;
+}
+.emoji-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 1px;
+}
+.emoji-item {
+  font-size: 1.3rem;
+  cursor: pointer;
+  border-radius: 4px;
+  text-align: center;
+  line-height: 1;
+  padding: 2px !important;
+  transition: background 0.1s;
+}
+.emoji-item:hover {
+  background: #e9ecef;
+}
+
+/* Toolbar extras */
+.toolbar-divider {
+  width: 1px;
+  background: #dee2e6;
+  margin: 0 2px;
+  align-self: stretch;
+}
+.fmt-btn .bi {
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+/* Character counter */
+.character-counter {
+  position: absolute;
+  bottom: 4px;
+  right: 8px;
+  font-size: 0.65rem;
+  pointer-events: none;
+  line-height: 1;
+}
+.chat-editor {
+  padding-bottom: 18px !important;
+}
+
+/* Mention item */
+.mention-item {
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+.mention-item:hover {
+  background: #e8f0fe !important;
+}
+.mention-highlight,
+.mention-item.mention-highlight:hover {
+  background: #d0e4fc !important;
+}
+.mensaje-burbuja :deep(a[href^="profile:"]) {
+  color: #0d6efd;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+.mensaje-burbuja :deep(a[href^="profile:"]:hover) {
+  text-decoration: underline;
+}
+.mensaje-burbuja.bg-primary :deep(a[href^="profile:"]) {
+  color: #cfe2ff;
+}
+.mention-picker-inside {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 60px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 1072;
+  margin-bottom: 4px;
+}
+.channel-mentioned {
+  background: #fffbe6 !important;
+}
+.mention-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #dc3545;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.65rem;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  line-height: 1;
+}
+.help-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.help-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 0;
+  font-size: 0.85rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+.help-item:last-child {
+  border-bottom: none;
+}
+.help-key {
+  flex-shrink: 0;
+  width: 32px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f0f0f0;
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+.help-key .bi {
+  font-size: 0.95rem;
+}
+.help-grid kbd {
+  background: #222;
+  color: #fff;
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.7rem;
+  border: none;
 }
 </style>

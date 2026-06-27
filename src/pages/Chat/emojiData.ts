@@ -1,0 +1,99 @@
+export interface EmojiCategory {
+  name: string
+  emojis: string[]
+}
+
+export const EMOJI_CATEGORIES: EmojiCategory[] = [
+  {
+    name: 'Caritas',
+    emojis: [
+      '😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊',
+      '😇', '🙂', '😉', '😌', '😍', '🥰', '😘', '😗',
+      '😋', '😛', '😜', '🤪', '😝', '🤑', '🤗', '🤭',
+      '🤔', '🤐', '😐', '😑', '😶', '😏', '😒', '🙄',
+      '😬', '😮', '😯', '😲', '😳', '🥺', '😢', '😭',
+      '😤', '😡', '🤬', '😈', '👿', '💀', '☠️', '💩',
+    ],
+  },
+  {
+    name: 'Gestos',
+    emojis: [
+      '👋', '🤚', '🖐️', '✋', '🖖', '👌', '🤌', '🤏',
+      '✌️', '🤞', '🤟', '🤘', '🤙', '👈', '👉', '👆',
+      '🖕', '👇', '👍', '👎', '👊', '✊', '🤛', '🤜',
+      '👏', '🙌', '👐', '🤲', '🤝', '🙏', '✍️', '💅',
+    ],
+  },
+  {
+    name: 'Corazones',
+    emojis: [
+      '❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍',
+      '🤎', '💕', '💞', '💗', '💖', '💘', '💝', '❣️',
+    ],
+  },
+  {
+    name: 'Objetos',
+    emojis: [
+      '🎮', '🎯', '🎲', '🎪', '🎨', '🎭', '🎤', '🎧',
+      '🎵', '🎶', '🎹', '🥁', '🎷', '🎸', '🎺', '🎻',
+      '📱', '💻', '⌨️', '🖥️', '🖱️', '📷', '📸', '🎥',
+      '📖', '✏️', '🖊️', '📌', '🔒', '🔓', '🔑', '🗝️',
+    ],
+  },
+  {
+    name: 'Naturaleza',
+    emojis: [
+      '🔥', '⭐', '🌟', '✨', '💫', '🌈', '☀️', '🌙',
+      '⭐', '⚡', '💥', '❄️', '🔥', '🌊', '💧', '🍀',
+      '🌸', '🌺', '🌻', '🌹', '🌷', '🌿', '🍃', '🌵',
+    ],
+  },
+  {
+    name: 'Comida',
+    emojis: [
+      '🍕', '🍔', '🌮', '🌯', '🥗', '🍩', '🍪', '🍰',
+      '🧁', '🍫', '🍭', '🍺', '🍷', '🥤', '☕', '🍵',
+    ],
+  },
+  {
+    name: 'Símbolos',
+    emojis: [
+      '✅', '❌', '❓', '❗', '‼️', '⁉️', '💯', '🔝',
+      '♻️', '📛', '⭕', '🔴', '🟢', '🟡', '🟣', '⚫',
+      '⚪', '🟤', '🔵', '🔔', '🔕', '🎵', '🎶', '♠️',
+      '♥️', '♦️', '♣️', '🃏', '🀄', '🎴', '🔞', '☮️',
+    ],
+  },
+  {
+    name: 'Animales',
+    emojis: [
+      '🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼',
+      '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🙈',
+      '🙉', '🙊', '🐒', '🐔', '🐧', '🐦', '🐤', '🐣',
+      '🦆', '🦅', '🦉', '🦇', '🐺', '🐝', '🐛', '🦋',
+      '🐌', '🐞', '🐜', '🦟', '🦗', '🦠', '🐢', '🐍',
+      '🦎', '🦖', '🦕', '🐙', '🦑', '🦐', '🦞', '🦀',
+    ],
+  },
+]
+
+const RECENT_KEY = 'chat-recent-emojis'
+const MAX_RECENT = 20
+
+export function getRecentEmojis(): string[] {
+  try {
+    const raw = localStorage.getItem(RECENT_KEY)
+    if (!raw) return []
+    return JSON.parse(raw) as string[]
+  } catch {
+    return []
+  }
+}
+
+export function addRecentEmoji(emoji: string): void {
+  try {
+    const recent = getRecentEmojis().filter(e => e !== emoji)
+    recent.unshift(emoji)
+    localStorage.setItem(RECENT_KEY, JSON.stringify(recent.slice(0, MAX_RECENT)))
+  } catch { /* ignore */ }
+}

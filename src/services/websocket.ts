@@ -108,6 +108,7 @@ function unsubscribe(key: string) {
 
 function sendChannelMessage(channelId: number, contenido: string) {
   if (!client?.connected) return
+  console.log('[DEBUG] sendChannelMessage sending:', JSON.stringify(contenido))
   client.publish({
     destination: `/app/chat.canal.${channelId}.enviar`,
     body: JSON.stringify({ contenido }),
@@ -116,6 +117,7 @@ function sendChannelMessage(channelId: number, contenido: string) {
 
 function sendPrivateMessage(receptorId: number, contenido: string) {
   if (!client?.connected) return
+  console.log('[DEBUG] sendPrivateMessage sending:', JSON.stringify(contenido))
   client.publish({
     destination: '/app/chat.privado.enviar',
     body: JSON.stringify({ receptorId, contenido }),
