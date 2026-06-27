@@ -55,6 +55,10 @@ export const chatApi = {
     })
   },
 
+  listarMiembrosOnline(canalId: number) {
+    return api.get(`/canales/${canalId}/miembros/online`, { headers: getAuthHeaders() })
+  },
+
   eliminarCanal(canalId: number) {
     return api.delete(`/canales/${canalId}`, { headers: getAuthHeaders() })
   },
@@ -103,5 +107,9 @@ export const chatApi = {
   // Presencia
   checkOnline(personajeId: number) {
     return api.get(`/personajes/${personajeId}/online`, { headers: getAuthHeaders() })
+  },
+
+  actualizarStatus(personajeId: number, status: string) {
+    return api.put(`/personajes/${personajeId}/status`, { status }, { headers: getAuthHeaders() })
   },
 }

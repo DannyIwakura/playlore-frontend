@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import OnlineStatusBadge from '../../components/OnlineStatusBadge.vue'
+import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import { chatApi } from '../../services/chatApi'
 import { websocketService } from '../../services/websocket'
 import { characterSessionStore } from '../../store/characterSessionStore'
@@ -33,22 +34,112 @@ interface MiembroDTO {
   rol: string
   fechaUnion: string
   online: boolean
+  status?: string
+}
+
+const statusOptions = [
+  { value: 'conectado', label: 'Conectado', icon: 'bi-circle-fill', color: '#22c55e' },
+  { value: 'ausente', label: 'Ausente', icon: 'bi-clock-fill', color: '#eab308' },
+  { value: 'ocupado', label: 'Ocupado', icon: 'bi-dash-circle-fill', color: '#ef4444' },
+  { value: 'no molestar', label: 'No molestar', icon: 'bi-ban-fill', color: '#a855f7' },
+]
+
+function getStatusColor(status: string | undefined | null): string {
+  const opt = statusOptions.find(s => s.value === status)
+  return opt?.color ?? '#22c55e'
 }
 
 const canal = ref<any>(null)
 const mensajes = ref<MensajeDTO[]>([])
 const miembros = ref<MiembroDTO[]>([])
+const miembrosOnline = ref<MiembroDTO[]>([])
 const onlineMap = ref<Map<number, boolean>>(new Map())
+const statusMap = ref<Map<number, string>>(new Map())
 const nuevoMensaje = ref('')
 const cargando = ref(true)
 const enviando = ref(false)
 const mostrarMiembros = ref(false)
+const mostrarConectados = ref(true)
 const mostrarInfo = ref(false)
 const mensajesContainer = ref<HTMLElement | null>(null)
 const errorMsg = ref('')
 
 const miPersonajeId = computed(() => characterSessionStore.sesionActiva.value?.personajeId)
 const miRol = computed(() => canal.value?.miRol)
+
+const hayColumnaDerecha = computed(() => mostrarConectados.value || mostrarInfo.value)
+
+const mostrarPerfil = ref(false)
+const perfilPersonajeId = ref<number | null>(null)
+function verPerfil(personajeId: number) {
+  perfilPersonajeId.value = personajeId
+  mostrarPerfil.value = true
+}
+
+// Context menu
+const contextMenuTarget = ref<any>(null)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
+function abrirContextMenu(e: MouseEvent, m: any) {
+  e.preventDefault()
+  contextMenuTarget.value = m
+  contextMenuX.value = e.clientX
+  contextMenuY.value = e.clientY
+}
+
+function cerrarContextMenu() {
+  contextMenuTarget.value = null
+}
+
+// PM modal
+const pmModalTarget = ref<any>(null)
+const pmMensaje = ref('')
+const enviandoPm = ref(false)
+
+function abrirPmModal(m: any) {
+  cerrarContextMenu()
+  pmModalTarget.value = m
+  pmMensaje.value = ''
+}
+
+async function enviarPm() {
+  const texto = pmMensaje.value.trim()
+  if (!texto || !pmModalTarget.value) return
+  enviandoPm.value = true
+  try {
+    await chatApi.enviarMensajePrivado(pmModalTarget.value.personajeId, texto)
+    pmModalTarget.value = null
+    pmMensaje.value = ''
+  } catch {}
+  finally { enviandoPm.value = false }
+}
+
+// Admin actions
+async function ascenderAMod(m: any) {
+  cerrarContextMenu()
+  if (!confirm(`¿Ascender a ${m.personajeNombre} a moderador?`)) return
+  try {
+    await chatApi.cambiarRol(canalId.value, m.personajeId, 'MOD')
+    await cargarMiembrosOnline()
+  } catch {}
+}
+
+async function expulsarDelCanal(m: any) {
+  cerrarContextMenu()
+  if (!confirm(`¿Expulsar a ${m.personajeNombre} del canal?`)) return
+  try {
+    await chatApi.expulsarMiembro(canalId.value, m.personajeId)
+    await cargarMiembrosOnline()
+  } catch {}
+}
+
+const sidebarsActivos = computed(() => {
+  let count = 0
+  if (mostrarMiembros.value) count++
+  if (hayColumnaDerecha.value) count++
+  return count
+})
 
 let wsSubscriptions: string[] = []
 
@@ -112,6 +203,26 @@ async function cargarMiembros() {
   } catch {}
 }
 
+async function cargarMiembrosOnline() {
+  try {
+    const localActiveIds = new Set(characterSessionStore.sesiones.value.map(s => s.personajeId))
+    const { data } = await chatApi.listarMiembros(canalId.value, 0, 100)
+    const members: any[] = data.content || []
+    const roleOrder: Record<string, number> = { 'OWNER': 0, 'ADMIN': 1, 'MOD': 2, 'MEMBER': 3 }
+    miembrosOnline.value = members
+      .filter((m: any) => m.online || localActiveIds.has(m.personajeId))
+      .sort((a: any, b: any) => (roleOrder[a.rol] ?? 99) - (roleOrder[b.rol] ?? 99))
+    for (const m of members) {
+      onlineMap.value.set(m.personajeId, m.online || localActiveIds.has(m.personajeId))
+      if (m.status) {
+        statusMap.value.set(m.personajeId, m.status)
+      }
+    }
+    onlineMap.value = new Map(onlineMap.value)
+    statusMap.value = new Map(statusMap.value)
+  } catch {}
+}
+
 async function conectarWebSocket() {
   const token = characterSessionStore.getToken()
   if (!token) return
@@ -133,6 +244,11 @@ async function conectarWebSocket() {
     const sub2 = websocketService.subscribeToChannelPresence(canalId.value, (data: any) => {
       onlineMap.value.set(data.personajeId, data.online)
       onlineMap.value = new Map(onlineMap.value)
+      if (data.status) {
+        statusMap.value.set(data.personajeId, data.status)
+        statusMap.value = new Map(statusMap.value)
+      }
+      cargarMiembrosOnline()
     })
     wsSubscriptions.push(sub2)
   } catch {}
@@ -189,9 +305,11 @@ async function salirDelCanal() {
 }
 
 onMounted(async () => {
+  await characterSessionStore.obtenerSesionesActivas()
   await cargarCanal()
   if (canal.value) {
     await Promise.all([cargarMiembros(), conectarWebSocket()])
+    await cargarMiembrosOnline()
   }
 })
 
@@ -227,7 +345,7 @@ onUnmounted(() => {
       </div>
 
       <!-- Columna central: chat -->
-      <div class="col" :class="{ 'col-md-9': mostrarMiembros, 'col-md-12': !mostrarMiembros }">
+      <div class="col" :class="{ 'col-md-9': sidebarsActivos === 1, 'col-md-6': sidebarsActivos === 2 }">
         <!-- Cabecera -->
         <div class="p-3 border-bottom d-flex justify-content-between align-items-center bg-light">
           <div>
@@ -237,6 +355,9 @@ onUnmounted(() => {
           <div class="d-flex gap-2">
             <button class="btn btn-outline-secondary btn-sm" @click="mostrarMiembros = !mostrarMiembros" title="Miembros">
               <i class="bi bi-people"></i>
+            </button>
+            <button class="btn btn-outline-secondary btn-sm" @click="mostrarConectados = !mostrarConectados" title="Conectados">
+              <i class="bi bi-person-check"></i>
             </button>
             <button class="btn btn-outline-secondary btn-sm" @click="mostrarInfo = !mostrarInfo" title="Info">
               <i class="bi bi-info-circle"></i>
@@ -296,24 +417,53 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Panel info (derecha) -->
-      <div class="col-12 col-md-3 sidebar-col border-start" v-if="mostrarInfo">
-        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-          <h6 class="mb-0">Información</h6>
-          <button class="btn-close" @click="mostrarInfo = false"></button>
+      <!-- Panel derecho: conectados + info -->
+      <div class="col-12 col-md-3 sidebar-col border-start" v-if="mostrarConectados || mostrarInfo">
+
+        <!-- Conectados -->
+        <div v-if="mostrarConectados">
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+            <h6 class="mb-0">Conectados ({{ miembrosOnline.length }})</h6>
+            <button class="btn-close" @click="mostrarConectados = false"></button>
+          </div>
+          <div class="list-group list-group-flush">
+            <div v-if="miembrosOnline.length === 0" class="list-group-item text-muted text-center py-3">
+              <small>No hay personajes conectados</small>
+            </div>
+            <div v-for="m in miembrosOnline" :key="m.id" class="list-group-item d-flex align-items-center gap-2"
+                 @contextmenu.prevent="abrirContextMenu($event, m)">
+              <div class="avatar-wrapper" style="cursor:pointer;" @click="verPerfil(m.personajeId)">
+                <img :src="avatarUrl(m.personajeAvatar)"
+                     class="rounded-circle" width="32" height="32" style="object-fit: cover;" />
+                <span class="online-dot" :style="{ background: getStatusColor(statusMap.get(m.personajeId)) }"></span>
+              </div>
+              <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning"></i>
+              <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success"></i>
+              <small style="cursor:pointer;" @click="verPerfil(m.personajeId)">{{ m.personajeNombre }}</small>
+            </div>
+          </div>
         </div>
-        <div class="p-3">
-          <dl class="mb-0">
-            <dt>Tipo</dt>
-            <dd>{{ canal.tipo === 'OFFICIAL' ? 'Oficial' : 'Creado por usuarios' }}</dd>
-            <dt>Privado</dt>
-            <dd>{{ canal.privado ? 'Sí' : 'No' }}</dd>
-            <dt>Miembros</dt>
-            <dd>{{ canal.miembroCount || miembros.length }}</dd>
-            <dt>Tu rol</dt>
-            <dd><span class="badge bg-secondary">{{ canal.miRol }}</span></dd>
-          </dl>
+
+        <!-- Información -->
+        <div v-if="mostrarInfo">
+          <div class="p-3 border-bottom d-flex justify-content-between align-items-center" :class="{ 'border-top': mostrarConectados }">
+            <h6 class="mb-0">Información</h6>
+            <button class="btn-close" @click="mostrarInfo = false"></button>
+          </div>
+          <div class="p-3">
+            <dl class="mb-0">
+              <dt>Tipo</dt>
+              <dd>{{ canal.tipo === 'OFFICIAL' ? 'Oficial' : 'Creado por usuarios' }}</dd>
+              <dt>Privado</dt>
+              <dd>{{ canal.privado ? 'Sí' : 'No' }}</dd>
+              <dt>Miembros</dt>
+              <dd>{{ canal.miembroCount || miembros.length }}</dd>
+              <dt>Tu rol</dt>
+              <dd><span class="badge bg-secondary">{{ canal.miRol }}</span></dd>
+            </dl>
+          </div>
         </div>
+
       </div>
 
     </div>
@@ -333,6 +483,59 @@ onUnmounted(() => {
   </section>
 
   <Footer />
+
+  <!-- Context menu: clic derecho en conectados -->
+  <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu" @contextmenu.prevent="cerrarContextMenu"></div>
+  <div v-if="contextMenuTarget" class="context-menu" :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }">
+    <button class="context-menu-item" @click="verPerfil(contextMenuTarget.personajeId); cerrarContextMenu()">
+      <i class="bi bi-person-vcard me-2"></i> Perfil
+    </button>
+    <button class="context-menu-item" @click="abrirPmModal(contextMenuTarget)">
+      <i class="bi bi-envelope me-2"></i> Mensaje Privado
+    </button>
+    <div v-if="(miRol === 'OWNER' || miRol === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'" class="context-menu-divider"></div>
+    <button v-if="(miRol === 'OWNER' || miRol === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'"
+            class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
+      <i class="bi bi-shield me-2"></i> Ascender a moderador
+    </button>
+    <button v-if="(miRol === 'OWNER' || miRol === 'ADMIN' || miRol === 'MOD')
+                  && contextMenuTarget.personajeId !== miPersonajeId
+                  && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
+            class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
+      <i class="bi bi-door-open me-2"></i> Expulsar del canal
+    </button>
+  </div>
+
+  <!-- Modal: Mensaje Privado directo -->
+  <div v-if="pmModalTarget" class="modal-backdrop-custom" @click.self="pmModalTarget = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:450px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-envelope me-2"></i>Mensaje para {{ pmModalTarget.personajeNombre }}</h5>
+        <button class="btn-close" @click="pmModalTarget = null"></button>
+      </div>
+      <textarea v-model="pmMensaje" class="form-control" rows="4" placeholder="Escribe tu mensaje..."
+                :disabled="enviandoPm" @keydown.ctrl.enter="enviarPm"></textarea>
+      <div class="d-flex justify-content-end mt-3">
+        <button class="btn btn-outline-secondary btn-sm me-2" @click="pmModalTarget = null">Cancelar</button>
+        <button class="btn btn-primary btn-sm" :disabled="!pmMensaje.trim() || enviandoPm" @click="enviarPm">
+          <i v-if="enviandoPm" class="spinner-border spinner-border-sm me-1"></i>
+          <i v-else class="bi bi-send me-1"></i>
+          Enviar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Perfil del personaje -->
+  <div v-if="mostrarPerfil && perfilPersonajeId" class="modal-backdrop-custom perfil-modal-full" @click.self="mostrarPerfil = false">
+    <div class="perfil-modal-container">
+      <PerfilPersonajeView
+        :personaje-id="perfilPersonajeId"
+        :modo-modal="true"
+        @cerrar="mostrarPerfil = false"
+      />
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -388,7 +591,82 @@ onUnmounted(() => {
   display: inline-flex;
 }
 
+.online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
 textarea {
   resize: none;
+}
+
+.modal-backdrop-custom {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1060;
+}
+.perfil-modal-full {
+  align-items: stretch;
+  padding: 1rem;
+}
+.perfil-modal-container {
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+  max-height: calc(100vh - 2rem);
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+}
+.modal-content-custom {
+  background: #fff;
+  width: 100%;
+  max-width: 520px;
+  margin: 1rem;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1070;
+}
+.context-menu {
+  position: fixed;
+  z-index: 1071;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 180px;
+  padding: 4px 0;
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 8px 16px;
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.context-menu-item:hover { background: #f0f2f5; }
+.context-menu-divider {
+  height: 1px;
+  background: #e9ecef;
+  margin: 4px 0;
 }
 </style>

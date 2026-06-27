@@ -41,13 +41,13 @@ function connect(token: string): Promise<void> {
   })
 }
 
-function disconnect() {
+async function disconnect() {
   if (client) {
     subscriptions.forEach((sub) => {
       try { sub.unsubscribe() } catch {}
     })
     subscriptions.clear()
-    client.deactivate()
+    try { await client.deactivate() } catch {}
     client = null
     connected.value = false
   }
@@ -79,7 +79,8 @@ function subscribeToPrivateMessages(characterId: number, callback: MessageCallba
   const key = `privado-${characterId}`
   if (!client?.connected) return key
 
-  const sub = client.subscribe(`/user/${characterId}/queue/privado`, (message) => {
+  const dest = `/topic/privado.${characterId}`
+  const sub = client.subscribe(dest, (message) => {
     callback(JSON.parse(message.body))
   })
   subscriptions.set(key, sub)

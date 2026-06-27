@@ -83,6 +83,10 @@ async function obtenerSesionesActivas(): Promise<PersonajeSesion[]> {
   }
 }
 
+function haySesionActiva(): boolean {
+  return sesionActual.value !== null
+}
+
 function seleccionarSesion(index: number) {
   if (index >= 0 && index < sesiones.value.length) {
     sesionActualIdx.value = index
@@ -100,6 +104,7 @@ export const characterSessionStore = {
   cerrarSesion,
   cerrarTodas,
   obtenerSesionesActivas,
+  haySesionActiva,
   seleccionarSesion,
   MAX_SESIONES,
 }

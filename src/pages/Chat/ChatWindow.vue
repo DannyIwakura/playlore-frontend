@@ -18,12 +18,14 @@ const canalesUnidos = ref<any[]>([])
 const canalActivo = ref<any>(null)
 const mensajes = ref<any[]>([])
 const miembros = ref<any[]>([])
+const miembrosOnline = ref<any[]>([])
 const onlineMap = ref<Map<number, boolean>>(new Map())
 const nuevoMensaje = ref('')
 const cargando = ref(true)
 const enviando = ref(false)
 const mensajesContainer = ref<HTMLElement | null>(null)
 const sidebarVisible = ref(window.innerWidth >= 768)
+const mostrarConectados = ref(true)
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const esMobile = () => window.innerWidth < 768
 const errorMsg = ref('')
@@ -43,11 +45,18 @@ const statusOptions = [
 const statusMap = ref<Map<number, string>>(new Map())
 const estadoActual = computed(() => statusMap.value.get(characterSessionStore.sesionActual.value?.personajeId ?? -1) ?? 'conectado')
 const mostrarSelectorEstado = ref(false)
-function cambiarEstado(valor: string) {
+
+function getStatusColor(status: string | undefined | null): string {
+  const opt = statusOptions.find(s => s.value === status)
+  return opt?.color ?? '#22c55e'
+}
+
+async function cambiarEstado(valor: string) {
   const pid = characterSessionStore.sesionActual.value?.personajeId
   if (pid) {
     statusMap.value.set(pid, valor)
     statusMap.value = new Map(statusMap.value)
+    try { await chatApi.actualizarStatus(pid, valor) } catch {}
   }
   mostrarSelectorEstado.value = false
 }
@@ -64,6 +73,162 @@ const errorCrear = ref('')
 
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
+
+// Context menu
+const contextMenuTarget = ref<any>(null)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
+function abrirContextMenu(e: MouseEvent, m: any) {
+  e.preventDefault()
+  contextMenuTarget.value = m
+  const menuW = 180, menuH = 180
+  const maxX = window.innerWidth - menuW
+  const maxY = window.innerHeight - menuH
+  contextMenuX.value = Math.min(e.clientX, maxX)
+  contextMenuY.value = Math.min(e.clientY, maxY)
+}
+
+function cerrarContextMenu() {
+  contextMenuTarget.value = null
+}
+
+const miRolEnCanal = computed(() => canalActivo.value?.miRol)
+
+// Admin actions
+async function ascenderAMod(m: any) {
+  cerrarContextMenu()
+  if (!confirm(`¿Ascender a ${m.personajeNombre} a moderador?`)) return
+  try {
+    await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MOD')
+    await cargarMiembrosOnline()
+  } catch {}
+}
+
+async function expulsarDelCanal(m: any) {
+  cerrarContextMenu()
+  if (!confirm(`¿Expulsar a ${m.personajeNombre} del canal?`)) return
+  try {
+    await chatApi.expulsarMiembro(canalActivo.value!.id, m.personajeId)
+    await cargarMiembrosOnline()
+  } catch {}
+}
+
+// Private messages in chat
+const conversacionesPrivadas = ref<any[]>([])
+const conversacionActiva = ref<any>(null)
+const mensajesPrivados = ref<any[]>([])
+const noLeidosPriv = ref<Map<number, number>>(new Map())
+const noLeidosCharacter = ref<Map<number, number>>(new Map())
+const cargandoPriv = ref(false)
+
+function reproducirSonidoPM() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.frequency.value = 880
+    osc.type = 'sine'
+    gain.gain.setValueAtTime(0.25, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.12)
+  } catch { /* ignore */ }
+}
+
+const modoPrivado = computed(() => conversacionActiva.value !== null)
+
+async function cargarConversaciones() {
+  try {
+    const { data } = await chatApi.obtenerConversaciones()
+    const pid = characterSessionStore.sesionActual.value?.personajeId
+    const grouped = new Map<number, any>()
+    for (const msg of data) {
+      const esReceptor = msg.receptorId === pid
+      const otroId = esReceptor ? msg.emisorId : msg.receptorId
+      if (!grouped.has(otroId)) {
+        grouped.set(otroId, {
+          personajeId: otroId,
+          personajeNombre: esReceptor ? msg.emisorNombre : msg.receptorNombre,
+          personajeAvatar: esReceptor ? msg.emisorAvatar : msg.receptorAvatar,
+          ultimoMensaje: msg.contenido,
+          fecha: msg.fechaEnvio,
+          noLeidos: 0,
+        })
+      }
+      if (esReceptor && !msg.leido) {
+        grouped.get(otroId)!.noLeidos++
+      }
+    }
+    conversacionesPrivadas.value = Array.from(grouped.values())
+  } catch {}
+}
+
+function abrirConversacionPrivada(otroId: number, otroNombre: string, otroAvatar: string) {
+  cerrarContextMenu()
+  let conv = conversacionesPrivadas.value.find(c => c.personajeId === otroId)
+  if (!conv) {
+    conv = { personajeId: otroId, personajeNombre: otroNombre, personajeAvatar: otroAvatar, ultimoMensaje: '', noLeidos: 0 }
+    conversacionesPrivadas.value.unshift(conv)
+  }
+  seleccionarConversacion(conv)
+}
+
+async function seleccionarConversacion(conv: any) {
+  canalActivo.value = null
+  conversacionActiva.value = conv
+  noLeidosPriv.value.set(conv.personajeId, 0)
+  noLeidosPriv.value = new Map(noLeidosPriv.value)
+  const pid = characterSessionStore.sesionActual.value?.personajeId
+  if (pid != null) {
+    noLeidosCharacter.value.set(pid, 0)
+    noLeidosCharacter.value = new Map(noLeidosCharacter.value)
+  }
+  cargandoPriv.value = true
+  try {
+    const { data } = await chatApi.obtenerConversacion(conv.personajeId)
+    mensajesPrivados.value = data || []
+    await nextTick()
+    scrollAlFinal()
+  } catch { mensajesPrivados.value = [] }
+  finally { cargandoPriv.value = false }
+}
+
+function cerrarConversacion() {
+  conversacionActiva.value = null
+  mensajesPrivados.value = []
+}
+
+function enviarMensajePrivadoWs() {
+  const texto = nuevoMensaje.value.trim()
+  if (!texto || !conversacionActiva.value) return
+  nuevoMensaje.value = ''
+  const tempMsg: any = {
+    id: Date.now(),
+    emisorId: characterSessionStore.sesionActual.value?.personajeId,
+    receptorId: conversacionActiva.value.personajeId,
+    contenido: texto,
+    fechaEnvio: new Date().toISOString(),
+    esMio: true,
+    leido: false,
+  }
+  mensajesPrivados.value.push(tempMsg)
+  nextTick(() => scrollAlFinal())
+  const receptorId = conversacionActiva.value.personajeId
+  websocketService.sendPrivateMessage(receptorId, texto)
+  // If recipient is another character in our session, notify locally
+  if (characterSessionStore.sesiones.value.some(s => s.personajeId === receptorId)) {
+    const charCount = noLeidosCharacter.value.get(receptorId) || 0
+    noLeidosCharacter.value.set(receptorId, charCount + 1)
+    noLeidosCharacter.value = new Map(noLeidosCharacter.value)
+    reproducirSonidoPM()
+  }
+  // Update sidebar preview
+  const conv = conversacionesPrivadas.value.find(c => c.personajeId === receptorId)
+  if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
+}
 
 const mostrarConfirmacionDesconectar = ref(false)
 const personajeDesconectarIdx = ref(-1)
@@ -83,6 +248,8 @@ const cargandoMiembros = ref(false)
 const hayMasMiembros = ref(true)
 
 let wsSubscriptions: string[] = []
+let persistentSubscriptions: string[] = []
+let pollingInterval: number | null = null
 
 function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
@@ -143,11 +310,14 @@ async function cargarPersonajes() {
 
 async function iniciarSesionPersonaje(personajeId: number) {
   try {
+    guardarEstadoSesion()
     await characterSessionStore.iniciarSesion(personajeId)
     mostrarSelectorPersonajes.value = false
+    persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
+    persistentSubscriptions = []
     wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
     wsSubscriptions = []
-    websocketService.disconnect()
+    await websocketService.disconnect()
     await conectarWebSocket()
     await cargarCanalesUnidos()
     suscribirCanales()
@@ -182,7 +352,7 @@ const personajeDesconectar = computed(() => {
 
 async function cerrarSesionPersonaje() {
   guardarEstadoSesion()
-  websocketService.disconnect()
+  await websocketService.disconnect()
   const idx = characterSessionStore.sesionActualIdx.value
   await characterSessionStore.cerrarSesionActual()
   canalActivo.value = null
@@ -196,7 +366,7 @@ async function cerrarSesionPersonaje() {
 }
 
 async function cerrarTodasSesiones() {
-  websocketService.disconnect()
+  await websocketService.disconnect()
   await characterSessionStore.cerrarTodas()
   canalActivo.value = null
   mensajes.value = []
@@ -212,8 +382,44 @@ async function conectarWebSocket() {
     const subPres = websocketService.subscribeToPresence((data: any) => {
       onlineMap.value.set(data.personajeId, data.online)
       onlineMap.value = new Map(onlineMap.value)
+      if (data.status) {
+        statusMap.value.set(data.personajeId, data.status)
+        statusMap.value = new Map(statusMap.value)
+      }
+      cargarMiembrosOnline()
     })
-    wsSubscriptions.push(subPres)
+    persistentSubscriptions.push(subPres)
+    const charId = characterSessionStore.sesionActual.value?.personajeId
+    if (charId == null) return
+    const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
+      const pid = characterSessionStore.sesionActual.value?.personajeId
+      if (conversacionActiva.value?.personajeId === data.emisorId) {
+        mensajesPrivados.value.push(data)
+        nextTick(() => scrollAlFinal())
+      } else if (data.emisorId === pid && data.receptorId != null) {
+        const esOtroPersonaje = characterSessionStore.sesiones.value.some(
+          s => s.personajeId === data.receptorId
+        )
+        if (esOtroPersonaje) {
+          const charCount = noLeidosCharacter.value.get(data.receptorId) || 0
+          noLeidosCharacter.value.set(data.receptorId, charCount + 1)
+          noLeidosCharacter.value = new Map(noLeidosCharacter.value)
+          reproducirSonidoPM()
+        }
+      } else if (data.emisorId !== pid) {
+        const count = noLeidosPriv.value.get(data.emisorId) || 0
+        noLeidosPriv.value.set(data.emisorId, count + 1)
+        noLeidosPriv.value = new Map(noLeidosPriv.value)
+        if (pid != null) {
+          const charCount = noLeidosCharacter.value.get(pid) || 0
+          noLeidosCharacter.value.set(pid, charCount + 1)
+          noLeidosCharacter.value = new Map(noLeidosCharacter.value)
+        }
+        reproducirSonidoPM()
+      }
+      cargarConversaciones()
+    })
+    persistentSubscriptions.push(subPm)
     for (const s of characterSessionStore.sesiones.value) {
       onlineMap.value.set(s.personajeId, true)
       if (!statusMap.value.has(s.personajeId)) {
@@ -222,6 +428,7 @@ async function conectarWebSocket() {
     }
     onlineMap.value = new Map(onlineMap.value)
     statusMap.value = new Map(statusMap.value)
+    cargarConversaciones()
   } catch {}
 }
 
@@ -229,6 +436,11 @@ interface SessionCacheEntry {
   canalActivo: any
   canalesUnidos: any[]
   channelLastSeen: Record<number, number>
+  status?: string
+  mensajes: any[]
+  pagina: number
+  hayMasMensajes: boolean
+  usuarioScrolledUp: boolean
 }
 
 const sessionCache = new Map<number, SessionCacheEntry>()
@@ -240,6 +452,13 @@ function guardarEstadoSesion() {
     canalActivo: canalActivo.value,
     canalesUnidos: canalesUnidos.value,
     channelLastSeen: { ...channelLastSeenIds.value },
+    status: statusMap.value.get(pid),
+    mensajes: mensajes.value,
+    pagina: pagina.value,
+    hayMasMensajes: hayMasMensajes.value,
+    usuarioScrolledUp: usuarioScrolledUp.value,
+    conversacionActiva: conversacionActiva.value,
+    mensajesPrivados: mensajesPrivados.value,
   })
 }
 
@@ -248,18 +467,37 @@ function restaurarEstadoSesion() {
   if (pid == null) return
   const cached = sessionCache.get(pid)
   if (cached) {
-    canalActivo.value = cached.canalActivo
+    if (cached.conversacionActiva) {
+      canalActivo.value = null
+      conversacionActiva.value = cached.conversacionActiva
+      mensajesPrivados.value = cached.mensajesPrivados || []
+    } else {
+      canalActivo.value = cached.canalActivo
+      conversacionActiva.value = null
+      mensajesPrivados.value = []
+    }
     canalesUnidos.value = cached.canalesUnidos
     channelLastSeenIds.value = cached.channelLastSeen ?? {}
+    if (cached.status) {
+      statusMap.value.set(pid, cached.status)
+      statusMap.value = new Map(statusMap.value)
+    }
+    mensajes.value = cached.mensajes
+    pagina.value = cached.pagina
+    hayMasMensajes.value = cached.hayMasMensajes
+    usuarioScrolledUp.value = cached.usuarioScrolledUp
   } else {
     canalActivo.value = null
+    conversacionActiva.value = null
+    mensajesPrivados.value = []
     canalesUnidos.value = []
     channelLastSeenIds.value = {}
+    mensajes.value = []
+    pagina.value = 0
+    hayMasMensajes.value = true
+    usuarioScrolledUp.value = false
   }
-  mensajes.value = []
-  pagina.value = 0
-  hayMasMensajes.value = true
-  usuarioScrolledUp.value = false
+  unreadCountMap.value = new Map()
 }
 
 function suscribirCanales() {
@@ -312,20 +550,34 @@ async function actualizarNoLeidos() {
 }
 
 async function reconectarSesion() {
-  websocketService.disconnect()
+  await websocketService.disconnect()
+  persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
+  persistentSubscriptions = []
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions = []
   await conectarWebSocket()
+  const pid = characterSessionStore.sesionActual.value?.personajeId
+  if (pid) {
+    const saved = sessionCache.get(pid)?.status
+    if (saved && saved !== 'conectado') {
+      try { await chatApi.actualizarStatus(pid, saved) } catch {}
+    }
+  }
   await cargarCanalesUnidos()
   suscribirCanales()
   if (canalActivo.value) {
-    try {
-      const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
-      const content: any[] = data.content || []
-      hayMasMensajes.value = !data.last
-      mensajes.value = content.reverse()
+    if (mensajes.value.length === 0) {
+      try {
+        const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
+        const content: any[] = data.content || []
+        hayMasMensajes.value = !data.last
+        mensajes.value = content.reverse()
+        scrollAlFinal()
+      } catch { mensajes.value = [] }
+    } else {
       scrollAlFinal()
-    } catch { mensajes.value = [] }
+    }
+    cargarMiembrosOnline()
   }
   await actualizarNoLeidos()
 }
@@ -346,6 +598,7 @@ async function cargarCanalesUnidos() {
 }
 
 async function seleccionarCanal(canal: any) {
+  conversacionActiva.value = null
   canalActivo.value = canal
   unreadCountMap.value.set(canal.id, 0)
   unreadCountMap.value = new Map(unreadCountMap.value)
@@ -370,6 +623,7 @@ async function seleccionarCanal(canal: any) {
     cargando.value = false
     scrollAlFinal()
   }
+  cargarMiembrosOnline()
 }
 
 function autoResizeTextarea() {
@@ -383,6 +637,13 @@ function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault()
     enviarMensaje()
+  }
+}
+
+function handleKeydownPriv(e: KeyboardEvent) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault()
+    enviarMensajePrivadoWs()
   }
 }
 
@@ -565,6 +826,27 @@ async function cargarMasMiembros() {
   } catch {} finally { cargandoMiembros.value = false }
 }
 
+async function cargarMiembrosOnline() {
+  if (!canalActivo.value) return
+  try {
+    const localActiveIds = new Set(characterSessionStore.sesiones.value.map(s => s.personajeId))
+    const { data } = await chatApi.listarMiembros(canalActivo.value.id, 0, 100)
+    const members: any[] = data.content || []
+    const roleOrder: Record<string, number> = { 'OWNER': 0, 'ADMIN': 1, 'MOD': 2, 'MEMBER': 3 }
+    miembrosOnline.value = members
+      .filter((m: any) => m.online || localActiveIds.has(m.personajeId))
+      .sort((a: any, b: any) => (roleOrder[a.rol] ?? 99) - (roleOrder[b.rol] ?? 99))
+    for (const m of members) {
+      onlineMap.value.set(m.personajeId, m.online || localActiveIds.has(m.personajeId))
+      if (m.status) {
+        statusMap.value.set(m.personajeId, m.status)
+      }
+    }
+    onlineMap.value = new Map(onlineMap.value)
+    statusMap.value = new Map(statusMap.value)
+  } catch {}
+}
+
 function handleBeforeUnload() {
   websocketService.disconnect()
   const sessionToken = characterSessionStore.getToken()
@@ -596,11 +878,20 @@ onMounted(async () => {
   cargarPersonajes()
   cargando.value = false
   window.addEventListener('beforeunload', handleBeforeUnload)
+
+  pollingInterval = window.setInterval(() => {
+    cargarMiembrosOnline()
+  }, 5000)
 })
 
 onUnmounted(() => {
+  persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  if (pollingInterval != null) {
+    clearInterval(pollingInterval)
+    pollingInterval = null
+  }
 })
 </script>
 
@@ -649,7 +940,7 @@ onUnmounted(() => {
       <button v-for="(sesion, idx) in characterSessionStore.sesiones.value"
               :key="sesion.tokenJwt"
               class="chat-tab d-flex align-items-center gap-2 px-3 py-2 border-0 bg-transparent"
-              :class="{ active: idx === characterSessionStore.sesionActualIdx.value }"
+              :class="{ active: idx === characterSessionStore.sesionActualIdx.value, 'chat-tab-unread': (noLeidosCharacter.get(sesion.personajeId) ?? 0) > 0 }"
               @click="cambiarSesion(idx)">
         <div class="position-relative">
           <img :src="avatarUrl(sesion.personajeAvatar)"
@@ -699,6 +990,29 @@ onUnmounted(() => {
           </div>
         </div>
 
+        <!-- Mensajes Privados -->
+        <div v-if="conversacionesPrivadas.length > 0" class="sidebar-pm border-bottom">
+          <div class="px-3 py-2">
+            <small class="fw-bold text-muted text-uppercase" style="font-size:0.65rem;">Mensajes Privados</small>
+          </div>
+          <div v-for="conv in conversacionesPrivadas" :key="conv.personajeId"
+               class="channel-item d-flex align-items-center gap-3 px-3 py-2"
+               :class="{ active: conversacionActiva?.personajeId === conv.personajeId, 'channel-unread': (noLeidosPriv.get(conv.personajeId) ?? 0) > 0 }"
+               @click="seleccionarConversacion(conv)">
+            <div class="position-relative flex-shrink-0">
+              <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" />
+              <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot"></span>
+            </div>
+            <div class="flex-grow-1 min-w-0">
+              <div class="d-flex align-items-center gap-2">
+                <small class="fw-medium text-truncate d-block">{{ conv.personajeNombre }}</small>
+                <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-count">{{ noLeidosPriv.get(conv.personajeId) }}</span>
+              </div>
+              <small class="text-muted text-truncate d-block" style="font-size:0.7rem;">{{ conv.ultimoMensaje }}</small>
+            </div>
+          </div>
+        </div>
+
         <!-- Botón Lista de canales -->
         <div class="p-3 border-bottom">
           <button class="btn btn-primary w-100 btn-sm d-flex align-items-center justify-content-center gap-2"
@@ -740,18 +1054,18 @@ onUnmounted(() => {
 
       <!-- Área principal -->
       <main class="chat-main flex-grow-1 d-flex flex-column overflow-hidden position-relative">
-        <!-- Sin canal seleccionado -->
-        <div v-if="!canalActivo" class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
+        <!-- Sin canal ni conversación seleccionada -->
+        <div v-if="!canalActivo && !conversacionActiva" class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
           <i class="bi bi-chat-dots display-1 mb-3 opacity-25"></i>
-          <h5>Selecciona un canal</h5>
-          <p class="small">Elige un canal de la barra lateral para empezar a chatear</p>
+          <h5>Selecciona un canal o conversación</h5>
+          <p class="small">Elige un canal o una conversación privada de la barra lateral</p>
           <button class="btn btn-outline-primary btn-sm d-md-none" @click="sidebarVisible = true">
             <i class="bi bi-list me-1"></i> Mostrar canales
           </button>
         </div>
 
         <!-- Canal seleccionado -->
-        <template v-else>
+        <template v-else-if="canalActivo">
           <div class="chat-header d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-light">
             <button class="btn btn-sm btn-outline-secondary d-md-none" @click="sidebarVisible = !sidebarVisible">
               <i class="bi bi-list"></i>
@@ -766,6 +1080,9 @@ onUnmounted(() => {
                 </span>
               </small>
             </div>
+            <button class="btn btn-sm btn-outline-secondary" @click="mostrarConectados = !mostrarConectados" title="Conectados">
+              <i class="bi bi-person-check"></i>
+            </button>
             <button class="btn btn-sm btn-outline-danger" @click="salirDelCanal" title="Salir del canal">
               <i class="bi bi-box-arrow-left"></i>
             </button>
@@ -847,7 +1164,92 @@ onUnmounted(() => {
             </form>
           </div>
         </template>
+
+        <!-- Conversación privada seleccionada -->
+        <template v-if="conversacionActiva">
+          <div class="chat-header d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-light">
+            <button class="btn btn-sm btn-outline-secondary" @click="cerrarConversacion" title="Cerrar">
+              <i class="bi bi-arrow-left"></i>
+            </button>
+            <img :src="avatarUrl(conversacionActiva.personajeAvatar)" class="rounded-circle flex-shrink-0"
+                 width="28" height="28" style="object-fit:cover;cursor:pointer;" @click="verPerfil(conversacionActiva.personajeId)" />
+            <h6 class="mb-0 flex-grow-1 text-truncate" style="cursor:pointer;" @click="verPerfil(conversacionActiva.personajeId)">
+              {{ conversacionActiva.personajeNombre }}
+            </h6>
+            <button class="btn btn-sm btn-outline-secondary" @click="verPerfil(conversacionActiva.personajeId)" title="Perfil">
+              <i class="bi bi-person-vcard"></i>
+            </button>
+            <button class="btn btn-sm btn-outline-danger ms-1" @click="cerrarConversacion" title="Cerrar conversación">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+
+          <!-- PM Messages -->
+          <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto">
+            <div v-if="cargandoPriv" class="text-center py-5">
+              <div class="spinner-border text-primary spinner-border-sm"></div>
+            </div>
+            <template v-else-if="mensajesPrivados.length > 0">
+              <div v-for="msg in mensajesPrivados" :key="msg.id"
+                   class="d-flex gap-2 mb-3"
+                   :class="{ 'flex-row-reverse': msg.esMio }"
+                   :style="msg.esMio ? 'margin-left:auto;max-width:85%;' : 'max-width:85%;'">
+                <img :src="msg.esMio ? avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar) : avatarUrl(conversacionActiva.personajeAvatar)"
+                     class="rounded-circle flex-shrink-0"
+                     width="32" height="32" style="object-fit:cover;cursor:pointer;"
+                     @click="verPerfil(msg.emisorId)" />
+                <div class="mensaje-burbuja px-3 py-2" :class="msg.esMio ? 'bg-primary text-white' : 'bg-light'"
+                     :style="msg.esMio ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;'">
+                  <p class="mb-0" style="white-space:pre-wrap;word-break:break-word;">{{ msg.contenido }}</p>
+                  <small class="opacity-50 d-block text-end mt-1" style="font-size:0.65rem;">{{ formatFecha(msg.fechaEnvio) }}</small>
+                </div>
+              </div>
+            </template>
+            <div v-else class="text-center text-muted py-5">
+              <i class="bi bi-chat-dots fs-1 d-block mb-2 opacity-50"></i>
+              <p class="small">No hay mensajes aún. Envía un mensaje para iniciar la conversación.</p>
+            </div>
+          </div>
+
+          <!-- PM Input -->
+          <div class="chat-input p-3 border-top bg-light">
+            <form @submit.prevent="enviarMensajePrivadoWs" class="d-flex gap-2 align-items-end">
+              <textarea v-model="nuevoMensaje"
+                        class="form-control form-control-sm chat-textarea"
+                        placeholder="Escribe un mensaje..." maxlength="2000" rows="1"
+                        @keydown="handleKeydownPriv" @input="autoResizeTextarea"></textarea>
+              <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
+                      :disabled="!nuevoMensaje.trim()">
+                <i class="bi bi-send"></i>
+              </button>
+            </form>
+          </div>
+        </template>
       </main>
+
+      <!-- Right sidebar: connected characters -->
+      <aside v-if="canalActivo && mostrarConectados" class="chat-right-sidebar border-start d-flex flex-column">
+        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+          <h6 class="mb-0 small fw-bold">Conectados ({{ miembrosOnline.length }})</h6>
+          <button class="btn-close btn-close-sm" @click="mostrarConectados = false"></button>
+        </div>
+        <div class="list-group list-group-flush overflow-auto flex-grow-1">
+          <div v-if="miembrosOnline.length === 0" class="list-group-item text-muted text-center py-3">
+            <small>No hay personajes conectados</small>
+          </div>
+          <div v-for="m in miembrosOnline" :key="m.id" class="list-group-item d-flex align-items-center gap-2"
+               @contextmenu.prevent="abrirContextMenu($event, m)">
+            <div class="position-relative" style="cursor:pointer;" @click="verPerfil(m.personajeId)">
+              <img :src="avatarUrl(m.personajeAvatar)"
+                   class="rounded-circle" width="32" height="32" style="object-fit: cover;" />
+              <span class="online-dot" :style="{ background: getStatusColor(statusMap.get(m.personajeId)) }"></span>
+            </div>
+            <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning"></i>
+            <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success"></i>
+            <small class="text-truncate" style="cursor:pointer;" @click="verPerfil(m.personajeId)">{{ m.personajeNombre }}</small>
+          </div>
+        </div>
+      </aside>
     </div>
   </div>
 
@@ -1013,6 +1415,28 @@ onUnmounted(() => {
     </div>
   </div>
 
+  <!-- Context menu: clic derecho en conectados -->
+  <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu" @contextmenu.prevent="cerrarContextMenu"></div>
+  <div v-if="contextMenuTarget" class="context-menu" :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }">
+    <button class="context-menu-item" @click="verPerfil(contextMenuTarget.personajeId); cerrarContextMenu()">
+      <i class="bi bi-person-vcard me-2"></i> Perfil
+    </button>
+    <button class="context-menu-item" @click="abrirConversacionPrivada(contextMenuTarget.personajeId, contextMenuTarget.personajeNombre, contextMenuTarget.personajeAvatar)">
+      <i class="bi bi-envelope me-2"></i> Mensaje Privado
+    </button>
+    <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'" class="context-menu-divider"></div>
+    <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'"
+            class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
+      <i class="bi bi-shield me-2"></i> Ascender a moderador
+    </button>
+    <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN' || miRolEnCanal === 'MOD')
+                  && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
+                  && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
+            class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
+      <i class="bi bi-door-open me-2"></i> Expulsar del canal
+    </button>
+  </div>
+
   <!-- Modal: Perfil completo del personaje (pantalla completa) -->
   <div v-if="mostrarPerfil && perfilPersonajeId" class="modal-backdrop-custom perfil-modal-full" @click.self="mostrarPerfil = false">
     <div class="perfil-modal-container">
@@ -1083,6 +1507,12 @@ onUnmounted(() => {
 .chat-tab.active {
   border-bottom-color: #0d6efd !important;
   background: #e8f0fe;
+}
+.chat-tab.chat-tab-unread {
+  background: #fff9c4 !important;
+}
+.chat-tab.chat-tab-unread:hover {
+  background: #fff59d !important;
 }
 .chat-tab-add {
   font-size: 1.1rem;
@@ -1262,6 +1692,30 @@ onUnmounted(() => {
 .min-w-0 { min-width: 0; }
 .min-h-0 { min-height: 0; }
 
+/* Right sidebar */
+.chat-right-sidebar {
+  width: 240px;
+  min-width: 240px;
+  background: #f8f9fa;
+  height: 100%;
+  overflow: hidden;
+}
+@media (max-width: 991.98px) {
+  .chat-right-sidebar {
+    display: none;
+  }
+}
+
+.online-dot {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #fff;
+  border-radius: 50%;
+}
+
 /* ---- Logo shimmer (sin personajes) ---- */
 .logo-shimmer-wrapper {
   width: 280px;
@@ -1294,5 +1748,37 @@ onUnmounted(() => {
 @keyframes shimmer-sweep {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1070;
+}
+.context-menu {
+  position: fixed;
+  z-index: 1071;
+  background: #fff;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 180px;
+  padding: 4px 0;
+}
+.context-menu-item {
+  display: block;
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 8px 16px;
+  text-align: left;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.context-menu-item:hover { background: #f0f2f5; }
+.context-menu-divider {
+  height: 1px;
+  background: #e9ecef;
+  margin: 4px 0;
 }
 </style>
