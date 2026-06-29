@@ -26,6 +26,7 @@ const cargando = ref(false)
 const mostrarModalCrear = ref(false)
 const nuevoCanal = ref({ nombre: '', descripcion: '', privado: false })
 const errorCrear = ref('')
+const mensajeModal = ref<{ titulo: string; texto: string } | null>(null)
 
 async function cargarCanales() {
   if (!characterSessionStore.haySesionActiva()) {
@@ -57,7 +58,7 @@ async function unirse(canalId: number) {
     await cargarCanales()
     pestanaActiva.value = 'unidos'
   } catch (e: any) {
-    alert(e.response?.data?.error || 'Error al unirse al canal')
+    mensajeModal.value = { titulo: 'Error', texto: e.response?.data?.error || 'Error al unirse al canal' }
   }
 }
 
@@ -201,6 +202,17 @@ onMounted(cargarCanales)
         <button class="btn btn-primary" @click="crearCanal">
           <i class="bi bi-check-lg me-1"></i> Crear
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Mensaje de error/info -->
+  <div v-if="mensajeModal" class="modal-backdrop-custom" @click.self="mensajeModal = null">
+    <div class="modal-dialog-custom shadow-lg rounded-3 p-4" style="max-width:420px;">
+      <h5 class="mb-3">{{ mensajeModal.titulo }}</h5>
+      <p class="mb-4">{{ mensajeModal.texto }}</p>
+      <div class="d-flex justify-content-end">
+        <button class="btn btn-primary" @click="mensajeModal = null">Aceptar</button>
       </div>
     </div>
   </div>

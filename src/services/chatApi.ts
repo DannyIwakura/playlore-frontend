@@ -44,6 +44,10 @@ export const chatApi = {
     return api.delete(`/canales/${canalId}/miembros/${personajeId}`, { headers: getAuthHeaders() })
   },
 
+  banearMiembro(canalId: number, personajeId: number, duracion: string) {
+    return api.post(`/canales/${canalId}/miembros/${personajeId}/ban`, { duracion }, { headers: getAuthHeaders() })
+  },
+
   cambiarRol(canalId: number, personajeId: number, rol: string) {
     return api.put(`/canales/${canalId}/miembros/${personajeId}/rol`, { rol }, { headers: getAuthHeaders() })
   },

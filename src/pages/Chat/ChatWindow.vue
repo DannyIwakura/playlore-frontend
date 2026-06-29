@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { userStore } from '../../store/userStore'
 import { characterSessionStore } from '../../store/characterSessionStore'
@@ -8,9 +8,9 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
-import { EMOJI_CATEGORIES, getRecentEmojis, addRecentEmoji } from './emojiData'
-
-const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole } from './chatUtils'
+import ChatEditor from './ChatEditor.vue'
+import ChatMessage from './ChatMessage.vue'
 
 const router = useRouter()
 
@@ -22,27 +22,13 @@ const mensajes = ref<any[]>([])
 const miembros = ref<any[]>([])
 const miembrosOnline = ref<any[]>([])
 const onlineMap = ref<Map<number, boolean>>(new Map())
-const nuevoMensaje = ref('')
 const cargando = ref(true)
 const enviando = ref(false)
 const mensajesContainer = ref<HTMLElement | null>(null)
 const sidebarVisible = ref(window.innerWidth >= 768)
 const mostrarConectados = ref(true)
-const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const esMobile = () => window.innerWidth < 768
 const errorMsg = ref('')
-
-const editorRef = ref<HTMLElement | null>(null)
-
-const mostrarEmojiPicker = ref(false)
-const categoriaEmojiActiva = ref(0)
-const emojiCategories = computed(() => {
-  const recent = getRecentEmojis()
-  const cats = recent.length > 0
-    ? [{ name: 'Usados recientemente', emojis: recent }, ...EMOJI_CATEGORIES]
-    : EMOJI_CATEGORIES
-  return cats
-})
 
 const PAGE_SIZE = 15
 const pagina = ref(0)
@@ -50,19 +36,20 @@ const cargandoMas = ref(false)
 const hayMasMensajes = ref(true)
 const usuarioScrolledUp = ref(false)
 
-const statusOptions = [
-  { value: 'conectado', label: 'Conectado', icon: 'bi-circle-fill', color: '#22c55e' },
-  { value: 'ausente', label: 'Ausente', icon: 'bi-clock-fill', color: '#eab308' },
-  { value: 'ocupado', label: 'Ocupado', icon: 'bi-dash-circle-fill', color: '#ef4444' },
-  { value: 'no molestar', label: 'No molestar', icon: 'bi-ban-fill', color: '#a855f7' },
-]
 const statusMap = ref<Map<number, string>>(new Map())
 const estadoActual = computed(() => statusMap.value.get(characterSessionStore.sesionActual.value?.personajeId ?? -1) ?? 'conectado')
 const mostrarSelectorEstado = ref(false)
 
-function getStatusColor(status: string | undefined | null): string {
-  const opt = statusOptions.find(s => s.value === status)
+const statusColor = computed(() => {
+  const opt = statusOptions.find(s => s.value === estadoActual.value)
   return opt?.color ?? '#22c55e'
+})
+
+function getTabStatusColor(personajeId: number): string {
+  const online = onlineMap.value.get(personajeId)
+  if (!online) return '#9ca3af'
+  const status = statusMap.value.get(personajeId)
+  return statusOptions.find(s => s.value === status)?.color ?? '#22c55e'
 }
 
 async function cambiarEstado(valor: string) {
@@ -148,26 +135,62 @@ function eliminarConversacionDeLista(conv: any) {
 
 const miRolEnCanal = computed(() => canalActivo.value?.miRol)
 
-// Admin actions
 async function ascenderAMod(m: any) {
   cerrarContextMenu()
-  if (!confirm(`¿Ascender a ${m.personajeNombre} a moderador?`)) return
-  try {
-    await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MOD')
-    await cargarMiembrosOnline()
-  } catch {}
+  mostrarConfirmModal('Ascender a moderador', `¿Ascender a ${m.personajeNombre} a moderador?`, async () => {
+    try {
+      await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MOD')
+      await cargarMiembrosOnline()
+    } catch {}
+  })
+}
+
+async function descenderAMember(m: any) {
+  cerrarContextMenu()
+  mostrarConfirmModal('Descender a miembro', `¿Descender a ${m.personajeNombre} a miembro?`, async () => {
+    try {
+      await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MEMBER')
+      await cargarMiembrosOnline()
+    } catch {}
+  })
 }
 
 async function expulsarDelCanal(m: any) {
   cerrarContextMenu()
-  if (!confirm(`¿Expulsar a ${m.personajeNombre} del canal?`)) return
+  mostrarConfirmModal('Expulsar del canal', `¿Expulsar a ${m.personajeNombre} del canal?`, async () => {
+    try {
+      await chatApi.expulsarMiembro(canalActivo.value!.id, m.personajeId)
+      await cargarMiembrosOnline()
+    } catch {}
+  })
+}
+
+const banTarget = ref<any>(null)
+const banDuracion = ref('PERMANENTE')
+
+function abrirBanModal(m: any) {
+  cerrarContextMenu()
+  banTarget.value = m
+  banDuracion.value = 'PERMANENTE'
+}
+
+async function confirmarBan() {
+  if (!banTarget.value || !canalActivo.value) return
   try {
-    await chatApi.expulsarMiembro(canalActivo.value!.id, m.personajeId)
+    await chatApi.banearMiembro(canalActivo.value.id, banTarget.value.personajeId, banDuracion.value)
+    banTarget.value = null
     await cargarMiembrosOnline()
   } catch {}
 }
 
-// Private messages in chat
+const opcionesBan = [
+  { value: '1H', label: '1 hora' },
+  { value: '24H', label: '24 horas' },
+  { value: '7D', label: '7 días' },
+  { value: 'PERMANENTE', label: 'Permanente' },
+]
+
+// Private messages
 const conversacionesPrivadas = ref<any[]>([])
 const conversacionActiva = ref<any>(null)
 const mensajesPrivados = ref<any[]>([])
@@ -190,8 +213,6 @@ function reproducirSonidoPM() {
     osc.stop(ctx.currentTime + 0.12)
   } catch { /* ignore */ }
 }
-
-const modoPrivado = computed(() => conversacionActiva.value !== null)
 
 async function cargarConversaciones() {
   try {
@@ -254,11 +275,8 @@ function cerrarConversacion() {
   mensajesPrivados.value = []
 }
 
-function enviarMensajePrivadoWs() {
-  const texto = obtenerContenidoEditor()
-  console.log('[DEBUG] enviarMensajePrivadoWs - texto:', JSON.stringify(texto))
+function enviarMensajePrivadoWs(texto: string) {
   if (!texto || !conversacionActiva.value) return
-  limpiarEditor()
   const tempMsg: any = {
     id: Date.now(),
     emisorId: characterSessionStore.sesionActual.value?.personajeId,
@@ -282,15 +300,21 @@ function enviarMensajePrivadoWs() {
   if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
 }
 
+function handleSendPm(texto: string) {
+  enviarMensajePrivadoWs(texto)
+}
+
 const mostrarConfirmacionDesconectar = ref(false)
+const mensajeModal = ref<{ titulo: string; texto: string } | null>(null)
+function mostrarMensajeModal(titulo: string, texto: string) { mensajeModal.value = { titulo, texto } }
+const confirmModal = ref<{ titulo: string; texto: string; onConfirm: () => void } | null>(null)
+function mostrarConfirmModal(titulo: string, texto: string, onConfirm: () => void) { confirmModal.value = { titulo, texto, onConfirm } }
 const personajeDesconectarIdx = ref(-1)
 
 const mostrarConfirmacionEliminar = ref(false)
 const mensajeAEliminarId = ref<number | null>(null)
 
 const mostrarSelectorPersonajes = ref(false)
-
-const mostrarAyudaEditor = ref(false)
 
 const unreadCountMap = ref<Map<number, number>>(new Map())
 const channelMentionedMap = ref<Map<number, boolean>>(new Map())
@@ -305,40 +329,6 @@ const hayMasMiembros = ref(true)
 let wsSubscriptions: string[] = []
 let persistentSubscriptions: string[] = []
 let pollingInterval: number | null = null
-
-function avatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
-  if (avatar.startsWith('http')) return avatar
-  return `${import.meta.env.VITE_API_URL}${avatar}`
-}
-
-function canalAvatar(nombre: string): string {
-  return `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=0d6efd&color=fff&bold=true&size=32`
-}
-
-const statusColor = computed(() => {
-  const opt = statusOptions.find(s => s.value === estadoActual.value)
-  return opt?.color ?? '#22c55e'
-})
-
-function getTabStatusColor(personajeId: number): string {
-  const online = onlineMap.value.get(personajeId)
-  if (!online) return '#9ca3af'
-  const status = statusMap.value.get(personajeId)
-  return statusOptions.find(s => s.value === status)?.color ?? '#22c55e'
-}
-
-function formatFecha(fecha: string): string {
-  const d = new Date(fecha)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  const min = Math.floor(diff / 60000)
-  const h = Math.floor(diff / 3600000)
-  if (min < 1) return 'ahora'
-  if (min < 60) return `hace ${min} min`
-  if (h < 24) return `hace ${h} h`
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
-}
 
 function scrollAlFinal() {
   nextTick(() => {
@@ -379,7 +369,7 @@ async function iniciarSesionPersonaje(personajeId: number) {
     suscribirCanales()
   } catch (e: any) {
     const msg = e.response?.data?.error || e.message || 'Error al iniciar sesión'
-    alert(msg)
+    mostrarMensajeModal('Error', msg)
   }
 }
 
@@ -410,7 +400,6 @@ async function cerrarSesionPersonaje() {
   guardarEstadoSesion()
   const closedPersonajeId = characterSessionStore.sesionActual.value?.personajeId
   await websocketService.disconnect()
-  const idx = characterSessionStore.sesionActualIdx.value
   await characterSessionStore.cerrarSesionActual()
   if (closedPersonajeId != null) {
     onlineMap.value.set(closedPersonajeId, false)
@@ -453,6 +442,22 @@ async function conectarWebSocket() {
     const charId = characterSessionStore.sesionActual.value?.personajeId
     if (charId == null) return
     const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
+      if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO') {
+        const canalIdExp = data.canalId
+        canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalIdExp)
+        canalesOficiales.value = canalesOficiales.value.filter((c: any) => c.id !== canalIdExp)
+        canalesUsuarios.value = canalesUsuarios.value.filter((c: any) => c.id !== canalIdExp)
+        if (canalActivo.value?.id === canalIdExp) {
+          canalActivo.value = null
+          mensajes.value = []
+          miembros.value = []
+        }
+        unreadCountMap.value.delete(canalIdExp)
+        unreadCountMap.value = new Map(unreadCountMap.value)
+        websocketService.unsubscribe(`channel-${canalIdExp}`)
+        websocketService.unsubscribe(`channel-presence-${canalIdExp}`)
+        return
+      }
       const pid = characterSessionStore.sesionActual.value?.personajeId
       data.esMio = data.emisorId === pid
       if (conversacionActiva.value?.personajeId === data.emisorId) {
@@ -503,6 +508,8 @@ interface SessionCacheEntry {
   pagina: number
   hayMasMensajes: boolean
   usuarioScrolledUp: boolean
+  conversacionActiva?: any
+  mensajesPrivados?: any[]
 }
 
 const sessionCache = new Map<number, SessionCacheEntry>()
@@ -569,13 +576,11 @@ function suscribirCanales() {
     const subMsgs = websocketService.subscribeToChannel(canal.id, (msg: any) => {
       const pid = characterSessionStore.sesionActual.value?.personajeId
       msg.esMio = msg.personajeId === pid
-      console.log('[DEBUG] received channel msg:', JSON.stringify({ id: msg.id, contenido: msg.contenido, esMio: msg.esMio }))
       if (canalActivo.value?.id === canal.id) {
         const idx = mensajes.value.findIndex((m: any) => m.id === msg.id)
         if (idx >= 0) {
           const existing = mensajes.value[idx]
           if (existing.eliminado) return
-          console.log('[DEBUG] replacing local msg with server msg')
           mensajes.value[idx] = msg
         } else {
           mensajes.value.push(msg)
@@ -588,13 +593,11 @@ function suscribirCanales() {
         const current = unreadCountMap.value.get(canal.id) || 0
         unreadCountMap.value.set(canal.id, current + 1)
         unreadCountMap.value = new Map(unreadCountMap.value)
-        const senderId = msg.personajeId
         const content = (msg.contenido || '').replace(/&#64;/g, '@')
         const anyMentioned = characterSessionStore.sesiones.value
-          .filter((s: any) => s.personajeId !== senderId)
+          .filter((s: any) => s.personajeId !== msg.personajeId)
           .some((s: any) => content.includes(`@${s.personajeNombre}`))
         if (anyMentioned) {
-          console.log('[DEBUG] mention detected in channel', canal.id, 'setting channelMentionedMap')
           channelMentionedMap.value.set(canal.id, true)
           channelMentionedMap.value = new Map(channelMentionedMap.value)
           reproducirSonidoPM()
@@ -706,33 +709,6 @@ async function seleccionarCanal(canal: any) {
   cargarMiembrosOnline()
 }
 
-function autoResizeTextarea() {
-  const el = textareaRef.value
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = el.scrollHeight + 'px'
-}
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    enviarMensaje()
-  }
-}
-
-function handleKeydownPriv(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    enviarMensajePrivadoWs()
-  }
-}
-
-function resetTextareaHeight() {
-  const el = textareaRef.value
-  if (!el) return
-  el.style.height = 'auto'
-}
-
 function handleMentionClick(e: MouseEvent) {
   const target = e.target as HTMLElement
   const anchor = target.closest('a')
@@ -745,395 +721,11 @@ function handleMentionClick(e: MouseEvent) {
   }
 }
 
-function processDiceInMessage(html: string): string {
-  return html.replace(/🎲\s*(\d+)d(\d+)/g, (_match, count, sides) => {
-    const c = parseInt(count)
-    const s = parseInt(sides)
-    const rolls: number[] = []
-    for (let i = 0; i < c; i++) {
-      rolls.push(Math.floor(Math.random() * s) + 1)
-    }
-    const total = rolls.reduce((a, b) => a + b, 0)
-    if (c === 1) {
-      return `🎲 ${c}d${s} = ${total}`
-    }
-    return `🎲 ${c}d${s} = ${total} (${rolls.join('+')})`
-  })
+function handleSendCanal(texto: string) {
+  enviarMensaje(texto)
 }
 
-function processMentionsInMessage(html: string): string {
-  const members = [...miembrosOnline.value]
-  if (conversacionActiva.value?.personajeId) {
-    members.push({
-      personajeId: conversacionActiva.value.personajeId,
-      personajeNombre: conversacionActiva.value.personajeNombre,
-    })
-  }
-  if (members.length === 0) return html
-  members.sort((a: any, b: any) => b.personajeNombre.length - a.personajeNombre.length)
-  let result = html
-  for (const m of members) {
-    const escapedName = m.personajeNombre.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const regex = new RegExp(`(^|>|\\s)@${escapedName}(?=([.,!?;:\\s<]|$))`, 'g')
-    result = result.replace(regex, `$1<a href="profile:${m.personajeId}">@${m.personajeNombre}</a>`)
-  }
-  return result
-}
-
-function obtenerContenidoEditor(): string {
-  const el = editorRef.value
-  if (!el) return ''
-  let html = el.innerHTML
-  html = html.replace(/<br>\s*$/, '')
-  html = processDiceInMessage(html)
-  html = processMentionsInMessage(html)
-  return html === '<br>' ? '' : html
-}
-
-function limpiarEditor() {
-  if (editorRef.value) editorRef.value.innerHTML = ''
-  nuevoMensaje.value = ''
-}
-
-const FORMAT_TAGS: Record<string, string> = {
-  bold: 'b',
-  italic: 'i',
-  strikeThrough: 's',
-  underline: 'u',
-  blockquote: 'blockquote',
-  h3: 'h3',
-  h4: 'h4',
-}
-
-function wrapSelection(tag: string) {
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  const sel = window.getSelection()
-  if (!sel || !sel.rangeCount || sel.isCollapsed) return
-  const range = sel.getRangeAt(0)
-  const wrapper = document.createElement(tag)
-  try {
-    range.surroundContents(wrapper)
-  } catch {
-    const fragment = range.extractContents()
-    wrapper.appendChild(fragment)
-    range.insertNode(wrapper)
-  }
-  sel.removeAllRanges()
-}
-
-function execFormat(command: string) {
-  if (command === 'spoiler') {
-    const el = editorRef.value
-    if (!el) return
-    el.focus()
-    const sel = window.getSelection()
-    if (!sel || !sel.rangeCount || sel.isCollapsed) return
-    const range = sel.getRangeAt(0)
-    const details = document.createElement('details')
-    const summary = document.createElement('summary')
-    summary.textContent = 'Spoiler'
-    details.appendChild(summary)
-    try {
-      range.surroundContents(details)
-    } catch {
-      const fragment = range.extractContents()
-      details.appendChild(fragment)
-      range.insertNode(details)
-    }
-    sel.removeAllRanges()
-    return
-  }
-  const tag = FORMAT_TAGS[command]
-  if (!tag) return
-  wrapSelection(tag)
-}
-
-function clearFormat() {
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  const sel = window.getSelection()
-  if (!sel || !sel.rangeCount || sel.isCollapsed) return
-  const range = sel.getRangeAt(0)
-  const text = range.extractContents()
-  const textNode = document.createTextNode(text.textContent || '')
-  range.insertNode(textNode)
-  sel.removeAllRanges()
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
-function insertLink() {
-  const sel = window.getSelection()
-  const selectedText = sel.toString().trim()
-  const url = prompt('URL:', 'https://')
-  if (!url) return
-  const linkText = selectedText || prompt('Texto del enlace:') || url
-  if (!linkText) return
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  const range = sel.getRangeAt(0)
-  range.deleteContents()
-  const anchor = document.createElement('a')
-  anchor.href = url
-  anchor.textContent = linkText
-  range.insertNode(anchor)
-  sel.removeAllRanges()
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
-const DICE_TYPES = [
-  { label: 'd4', max: 4, icon: 'd4' },
-  { label: 'd6', max: 6, icon: 'd6' },
-  { label: 'd8', max: 8, icon: 'd8' },
-  { label: 'd10', max: 10, icon: 'd10' },
-  { label: 'd12', max: 12, icon: 'd12' },
-  { label: 'd20', max: 20, icon: 'd20' },
-  { label: 'd100', max: 100, icon: 'd100' },
-]
-
-const mostrarDicePicker = ref(false)
-const diceCount = ref(1)
-const diceQuantityOptions = [1, 2, 3, 4, 5]
-
-function toggleDicePicker() {
-  mostrarDicePicker.value = !mostrarDicePicker.value
-  if (mostrarDicePicker.value) {
-    diceCount.value = 1
-    mostrarEmojiPicker.value = false
-    mostrarMentionPicker.value = false
-  }
-}
-
-function closeDicePicker() {
-  mostrarDicePicker.value = false
-}
-
-function rollDice(count: number, sides: number): { total: number; rolls: number[] } {
-  const rolls: number[] = []
-  for (let i = 0; i < count; i++) {
-    rolls.push(Math.floor(Math.random() * sides) + 1)
-  }
-  const total = rolls.reduce((a, b) => a + b, 0)
-  return { total, rolls }
-}
-
-function insertDice(diceType: typeof DICE_TYPES[0]) {
-  const notation = `${diceCount.value}${diceType.label}`
-  const text = ` 🎲 ${notation} `
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  document.execCommand('insertText', false, text)
-  mostrarDicePicker.value = false
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
-const mostrarMentionPicker = ref(false)
-const mentionSearch = ref('')
-const mentionHighlightIndex = ref(-1)
-
-const filteredMentions = computed(() => {
-  const list = miembrosOnline.value
-  if (!mentionSearch.value) return list
-  const s = mentionSearch.value.toLowerCase()
-  return list.filter((m: any) => m.personajeNombre.toLowerCase().includes(s))
-})
-
-function toggleMentionPicker() {
-  mostrarMentionPicker.value = !mostrarMentionPicker.value
-  if (mostrarMentionPicker.value) {
-    mentionSearch.value = ''
-    mentionHighlightIndex.value = 0
-    mostrarEmojiPicker.value = false
-    mostrarDicePicker.value = false
-  }
-}
-
-function closeMentionPicker() {
-  mostrarMentionPicker.value = false
-  mentionSearch.value = ''
-  mentionHighlightIndex.value = -1
-}
-
-function insertMention(nombre: string) {
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  const sel = window.getSelection()
-  if (sel && sel.rangeCount > 0) {
-    const range = sel.getRangeAt(0)
-    const node = sel.focusNode
-    const offset = sel.focusOffset
-    if (node && node.textContent) {
-      const text = node.textContent
-      const beforeCursor = text.slice(0, offset)
-      const atIndex = beforeCursor.lastIndexOf('@')
-      if (atIndex !== -1) {
-        range.setStart(node, atIndex)
-        range.setEnd(node, offset)
-      }
-    }
-    range.deleteContents()
-    const textNode = document.createTextNode(`@${nombre} `)
-    range.insertNode(textNode)
-    range.setStartAfter(textNode)
-    sel.removeAllRanges()
-    sel.addRange(range)
-  } else {
-    document.execCommand('insertText', false, `@${nombre} `)
-  }
-  mostrarMentionPicker.value = false
-  mentionSearch.value = ''
-  mentionHighlightIndex.value = -1
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
-const charsRestantes = computed(() => {
-  const len = nuevoMensaje.value?.length ?? 0
-  const max = 2000
-  return { usado: len, max, porcentaje: Math.min(100, (len / max) * 100) }
-})
-
-function toggleAyudaEditor() {
-  mostrarAyudaEditor.value = !mostrarAyudaEditor.value
-}
-function toggleEmojiPicker() {
-  mostrarEmojiPicker.value = !mostrarEmojiPicker.value
-  if (mostrarEmojiPicker.value) {
-    categoriaEmojiActiva.value = 0
-    mostrarDicePicker.value = false
-    mostrarMentionPicker.value = false
-  }
-}
-
-function closeEmojiPicker() {
-  mostrarEmojiPicker.value = false
-}
-
-function insertEmoji(emoji: string) {
-  const el = editorRef.value
-  if (!el) return
-  el.focus()
-  const sel = window.getSelection()
-  if (sel && sel.rangeCount > 0) {
-    const range = sel.getRangeAt(0)
-    if (!el.contains(range.commonAncestorContainer)) {
-      el.focus()
-      const newRange = document.createRange()
-      newRange.setStart(el, el.childNodes.length)
-      newRange.collapse(true)
-      sel.removeAllRanges()
-      sel.addRange(newRange)
-    }
-  }
-  document.execCommand('insertText', false, emoji)
-  addRecentEmoji(emoji)
-  closeEmojiPicker()
-  el.dispatchEvent(new Event('input', { bubbles: true }))
-}
-
-function getMentionSearch(): string {
-  const sel = window.getSelection()
-  if (!sel || !sel.rangeCount) return ''
-  const node = sel.focusNode
-  const offset = sel.focusOffset
-  if (!node) return ''
-  const text = node.textContent || ''
-  const beforeCursor = text.slice(0, offset)
-  const atIndex = beforeCursor.lastIndexOf('@')
-  if (atIndex === -1) return ''
-  return beforeCursor.slice(atIndex + 1)
-}
-
-function handleEditorKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
-    e.preventDefault()
-    if (conversacionActiva.value) {
-      enviarMensajePrivadoWs()
-    } else {
-      enviarMensaje()
-    }
-    return
-  }
-  if (e.key === '@') {
-    setTimeout(() => {
-      mentionSearch.value = ''
-      mentionHighlightIndex.value = 0
-      mostrarMentionPicker.value = true
-      mostrarEmojiPicker.value = false
-      mostrarDicePicker.value = false
-    }, 0)
-    return
-  }
-  if (mostrarMentionPicker.value) {
-    if (e.key === 'ArrowDown') {
-      e.preventDefault()
-      const len = filteredMentions.value.length
-      if (len > 0) {
-        mentionHighlightIndex.value = (mentionHighlightIndex.value + 1) % len
-      }
-      return
-    }
-    if (e.key === 'ArrowUp') {
-      e.preventDefault()
-      const len = filteredMentions.value.length
-      if (len > 0) {
-        mentionHighlightIndex.value = (mentionHighlightIndex.value - 1 + len) % len
-      }
-      return
-    }
-    if (e.key === 'Enter' || e.key === 'Tab') {
-      e.preventDefault()
-      const idx = mentionHighlightIndex.value >= 0 ? mentionHighlightIndex.value : 0
-      if (idx < filteredMentions.value.length) {
-        insertMention(filteredMentions.value[idx].personajeNombre)
-      }
-      return
-    }
-    if (e.key === 'Escape') {
-      mostrarMentionPicker.value = false
-      mentionSearch.value = ''
-      return
-    }
-    if (e.key === 'Backspace') {
-      setTimeout(() => {
-        mentionSearch.value = getMentionSearch()
-        if (!mentionSearch.value && !getMentionSearch()) {
-          mostrarMentionPicker.value = false
-        }
-      }, 0)
-    }
-  }
-}
-
-function onEditorInput() {
-  const el = editorRef.value
-  if (!el) return
-  nuevoMensaje.value = el.innerText || ''
-  if (mostrarMentionPicker.value) {
-    mentionSearch.value = getMentionSearch()
-  }
-  const max = 2000
-  if (nuevoMensaje.value.length > max) {
-    el.innerText = nuevoMensaje.value.slice(0, max)
-    nuevoMensaje.value = nuevoMensaje.value.slice(0, max)
-    const range = document.createRange()
-    const sel = window.getSelection()
-    if (el.lastChild) {
-      range.setStartAfter(el.lastChild)
-      range.collapse(true)
-      sel?.removeAllRanges()
-      sel?.addRange(range)
-    }
-  }
-}
-
-async function enviarMensaje() {
-  const texto = obtenerContenidoEditor()
-  console.log('[DEBUG] enviarMensaje - texto:', JSON.stringify(texto))
+async function enviarMensaje(texto: string) {
   if (!texto || enviando.value || !canalActivo.value) return
   channelMentionedMap.value.set(canalActivo.value.id, false)
   channelMentionedMap.value = new Map(channelMentionedMap.value)
@@ -1141,12 +733,10 @@ async function enviarMensaje() {
   const token = characterSessionStore.getToken()
   if (websocketService.connected.value && token) {
     websocketService.sendChannelMessage(canalActivo.value.id, texto)
-    limpiarEditor()
     enviando.value = false
   } else {
     try {
       await chatApi.enviarMensajeCanal(canalActivo.value.id, texto)
-      limpiarEditor()
       pagina.value = 0
       const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
       hayMasMensajes.value = !data.last
@@ -1206,7 +796,7 @@ async function unirseACanal(canalId: number) {
     suscribirCanales()
     mostrarListaCanales.value = false
   } catch (e: any) {
-    alert(e.response?.data?.error || 'Error al unirse')
+    mostrarMensajeModal('Error', e.response?.data?.error || 'Error al unirse')
   }
 }
 
@@ -1256,27 +846,25 @@ function handleScroll() {
 }
 
 async function salirDelCanal() {
-  if (!confirm('¿Salir del canal?') || !canalActivo.value) return
-  const canalId = canalActivo.value.id
-  try {
-    await chatApi.salirDeCanal(canalId)
-    canalActivo.value = null
-    mensajes.value = []
-    miembros.value = []
-    unreadCountMap.value.delete(canalId)
-    unreadCountMap.value = new Map(unreadCountMap.value)
-    await cargarCanalesUnidos()
-    suscribirCanales()
-  } catch {}
+  if (!canalActivo.value) return
+  mostrarConfirmModal('Salir del canal', '¿Salir del canal?', async () => {
+    const canalId = canalActivo.value!.id
+    try {
+      await chatApi.salirDeCanal(canalId)
+      canalActivo.value = null
+      mensajes.value = []
+      miembros.value = []
+      unreadCountMap.value.delete(canalId)
+      unreadCountMap.value = new Map(unreadCountMap.value)
+      await cargarCanalesUnidos()
+      suscribirCanales()
+    } catch {}
+  })
 }
 
 function verPerfil(personajeId: number) {
   perfilPersonajeId.value = personajeId
   mostrarPerfil.value = true
-}
-
-function estaOnline(personajeId: number): boolean {
-  return onlineMap.value.get(personajeId) ?? false
 }
 
 function esAdminOrOwner(): boolean {
@@ -1314,10 +902,7 @@ async function cargarMiembrosOnline(silent = false) {
     const localActiveIds = new Set(characterSessionStore.sesiones.value.map(s => s.personajeId))
     const { data } = await chatApi.listarMiembros(canalActivo.value.id, 0, 100)
     const members: any[] = data.content || []
-    const roleOrder: Record<string, number> = { 'OWNER': 0, 'ADMIN': 1, 'MOD': 2, 'MEMBER': 3 }
-    miembrosOnline.value = members
-      .filter((m: any) => m.online || localActiveIds.has(m.personajeId))
-      .sort((a: any, b: any) => (roleOrder[a.rol] ?? 99) - (roleOrder[b.rol] ?? 99))
+    miembrosOnline.value = sortByRole(members.filter((m: any) => m.online || localActiveIds.has(m.personajeId)))
     for (const m of members) {
       onlineMap.value.set(m.personajeId, m.online || localActiveIds.has(m.personajeId))
       if (m.status) {
@@ -1332,8 +917,6 @@ async function cargarMiembrosOnline(silent = false) {
 function handleBeforeUnload() {
   websocketService.disconnect()
   const sessionToken = characterSessionStore.getToken()
-  const body = sessionToken
-    ? JSON.stringify({}) : null
   if (sessionToken) {
     fetch('/api/personajes/sesion/cerrar-todas', {
       method: 'POST',
@@ -1341,7 +924,7 @@ function handleBeforeUnload() {
         'Authorization': `Bearer ${sessionToken}`,
         'Content-Type': 'application/json'
       },
-      body,
+      body: JSON.stringify({}),
       keepalive: true
     }).catch(() => {})
   }
@@ -1518,9 +1101,9 @@ onUnmounted(() => {
             No estás en ningún canal
           </div>
            <div v-for="canal in canalesUnidos" :key="canal.id"
-                class="channel-item d-flex align-items-center gap-3 px-3 py-2"
-                :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
-                @click="seleccionarCanal(canal)">
+                 class="channel-item d-flex align-items-center gap-3 px-3 py-2"
+                 :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
+                 @click="seleccionarCanal(canal)">
              <div class="position-relative flex-shrink-0">
                <img :src="canalAvatar(canal.nombre)" class="rounded-circle" width="32" height="32" />
                <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot"></span>
@@ -1596,44 +1179,19 @@ onUnmounted(() => {
               <div v-else-if="!hayMasMensajes" class="text-center py-2">
                 <small class="text-muted">No hay más mensajes</small>
               </div>
-              <div v-for="msg in mensajes" :key="msg.id"
-                   class="d-flex gap-2 mb-3"
-                   :class="{ 'flex-row-reverse': msg.esMio }"
-                   :style="msg.esMio ? 'margin-left:auto;max-width:85%;' : 'max-width:85%;'">
-                <img :src="avatarUrl(msg.personajeAvatar)" class="rounded-circle flex-shrink-0"
-                     width="32" height="32" style="object-fit: cover; cursor:pointer;"
-                     @click="verPerfil(msg.personajeId)" />
-                <div class="mensaje-burbuja px-3 py-2" :class="msg.esMio ? 'bg-primary text-white' : 'bg-light'"
-                     :style="msg.esMio ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;'">
-                  <div class="d-flex justify-content-between align-items-baseline gap-2">
-                    <small class="fw-bold" style="cursor:pointer;"
-                           :class="msg.esMio ? 'text-white' : ''"
-                           @click="verPerfil(msg.personajeId)">
-                      {{ msg.personajeNombre }}
-                    </small>
-                    <small class="opacity-50" style="font-size:0.65rem;">
-                      {{ formatFecha(msg.fechaEnvio) }}
-                      <span v-if="msg.editado" class="ms-1">(edit)</span>
-                    </small>
-                  </div>
-                  <p v-if="msg.eliminado" class="mb-0 mt-1 fst-italic text-muted" style="font-size:0.85rem;">
-                    {{ msg.eliminadoPorModerador ? 'El mensaje fue eliminado por moderación' : (msg.esMio ? 'Eliminaste este mensaje' : 'El mensaje fue eliminado por el usuario') }}
-                  </p>
-                  <p v-else class="mb-0 mt-1" style="white-space:pre-wrap;word-break:break-word;" v-html="msg.contenido"></p>
-                  <div v-if="!msg.eliminado && (msg.esMio || esAdminOrOwner())" class="mt-1">
-                    <button class="btn btn-sm text-danger p-0" style="font-size:0.65rem;"
-                            @click="eliminarMensaje(msg.id)">
-                      <i class="bi bi-trash"></i>
-                    </button>
-                  </div>
-                </div>
-              </div>
+              <ChatMessage v-for="msg in mensajes" :key="msg.id"
+                :msg="msg"
+                :es-mio="msg.esMio"
+                :show-header="true"
+                :can-delete="!msg.eliminado && (msg.esMio || esAdminOrOwner())"
+                @delete="eliminarMensaje"
+                @ver-perfil="verPerfil"
+              />
             </template>
             <div v-else class="text-center text-muted py-5">
               <i class="bi bi-chat-dots fs-1 d-block mb-2 opacity-50"></i>
               <p class="small">No hay mensajes aún. ¡Sé el primero!</p>
             </div>
-
           </div>
 
           <!-- Botón volver al final -->
@@ -1644,91 +1202,12 @@ onUnmounted(() => {
             </button>
           </transition>
 
-          <!-- Input -->
-          <div class="chat-input p-3 border-top bg-light position-relative">
-            <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('italic')" title="Cursiva"><em>I</em></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('strikeThrough')" title="Tachado"><s>S</s></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('underline')" title="Subrayado"><u>U</u></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('blockquote')" title="Cita"><i class="bi bi-quote"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h3')" title="Título H3"><strong>H3</strong></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h4')" title="Título H4"><strong>H4</strong></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleDicePicker" title="Dados"><i class="bi bi-dice-6"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleMentionPicker" title="Mencionar"><i class="bi bi-at"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="insertLink" title="Enlace"><i class="bi bi-link-45deg"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('spoiler')" title="Spoiler"><i class="bi bi-eye-slash"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="clearFormat" title="Limpiar formato"><i class="bi bi-eraser"></i></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn emoji-btn" @mousedown.prevent="toggleEmojiPicker" title="Emojis">😊</button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleAyudaEditor" title="Ayuda"><strong>?</strong></button>
-            </div>
-            <div v-if="mostrarEmojiPicker" class="emoji-picker shadow rounded-3 border bg-white p-2">
-              <div class="emoji-categories d-flex gap-1 mb-2 flex-wrap">
-                <button v-for="(cat, ci) in emojiCategories" :key="ci"
-                        class="emoji-cat-btn btn btn-sm border-0 px-2 py-1"
-                        :class="{ active: categoriaEmojiActiva === ci }"
-                        @mousedown.prevent="categoriaEmojiActiva = ci">
-                  {{ cat.name }}
-                </button>
-              </div>
-              <div class="emoji-grid">
-                <button v-for="(emoji, ei) in emojiCategories[categoriaEmojiActiva]?.emojis" :key="ei"
-                        class="emoji-item btn btn-sm border-0 p-1"
-                        @mousedown.prevent="insertEmoji(emoji)"
-                        :title="emoji">
-                  {{ emoji }}
-                </button>
-              </div>
-            </div>
-            <div v-if="mostrarDicePicker" class="emoji-picker shadow rounded-3 border bg-white p-2" style="max-height:320px;">
-              <div class="d-flex gap-2 align-items-center mb-2 px-1">
-                <label class="small text-nowrap mb-0">Cantidad:</label>
-                <select v-model="diceCount" class="form-select form-select-sm" style="width:auto;">
-                  <option v-for="n in diceQuantityOptions" :key="n" :value="n">{{ n }}</option>
-                </select>
-              </div>
-              <div class="d-flex gap-2 flex-wrap">
-                <button v-for="dt in DICE_TYPES" :key="dt.label"
-                        class="btn btn-sm btn-outline-secondary"
-                        @mousedown.prevent="insertDice(dt)">
-                  {{ dt.label }}
-                </button>
-              </div>
-            </div>
-            <form @submit.prevent="enviarMensaje" class="d-flex gap-2 align-items-end pt-2 position-relative">
-              <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
-                <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
-                <button v-for="(m, mi) in filteredMentions" :key="m.id"
-                        class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
-                        :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
-                        @mousedown.prevent="insertMention(m.personajeNombre)"
-                        @mouseenter="mentionHighlightIndex = mi">
-                  <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
-                  {{ m.personajeNombre }}
-                </button>
-              </div>
-              <div class="flex-grow-1 position-relative">
-                <div ref="editorRef" contenteditable="true"
-                     class="form-control form-control-sm chat-editor"
-                     data-placeholder="Escribe un mensaje..."
-                     @keydown="handleEditorKeydown"
-                     @input="onEditorInput"></div>
-                <div class="character-counter">
-                  <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
-                    {{ charsRestantes.usado }}/{{ charsRestantes.max }}
-                  </span>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
-                      :disabled="!nuevoMensaje.trim() || enviando">
-                <i class="bi bi-send"></i>
-              </button>
-            </form>
-          </div>
+          <!-- Input canal -->
+          <ChatEditor
+            :miembros-online="miembrosOnline"
+            :sending="enviando"
+            @send="handleSendCanal"
+          />
         </template>
 
         <!-- Conversación privada seleccionada -->
@@ -1757,20 +1236,12 @@ onUnmounted(() => {
               <div class="spinner-border text-primary spinner-border-sm"></div>
             </div>
             <template v-else-if="mensajesPrivados.length > 0">
-              <div v-for="msg in mensajesPrivados" :key="msg.id"
-                   class="d-flex gap-2 mb-3"
-                   :class="{ 'flex-row-reverse': msg.esMio }"
-                   :style="msg.esMio ? 'margin-left:auto;max-width:85%;' : 'max-width:85%;'">
-                <img :src="msg.esMio ? avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar) : avatarUrl(conversacionActiva.personajeAvatar)"
-                     class="rounded-circle flex-shrink-0"
-                     width="32" height="32" style="object-fit:cover;cursor:pointer;"
-                     @click="verPerfil(msg.emisorId)" />
-                <div class="mensaje-burbuja px-3 py-2" :class="msg.esMio ? 'bg-primary text-white' : 'bg-light'"
-                     :style="msg.esMio ? 'border-bottom-right-radius:4px;' : 'border-bottom-left-radius:4px;'">
-                  <p class="mb-0" style="white-space:pre-wrap;word-break:break-word;" v-html="msg.contenido"></p>
-                  <small class="opacity-50 d-block text-end mt-1" style="font-size:0.65rem;">{{ formatFecha(msg.fechaEnvio) }}</small>
-                </div>
-              </div>
+              <ChatMessage v-for="msg in mensajesPrivados" :key="msg.id"
+                :msg="msg"
+                :es-mio="msg.esMio"
+                :avatar-src="msg.esMio ? avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar) : avatarUrl(conversacionActiva.personajeAvatar)"
+                @ver-perfil="verPerfil"
+              />
             </template>
             <div v-else class="text-center text-muted py-5">
               <i class="bi bi-chat-dots fs-1 d-block mb-2 opacity-50"></i>
@@ -1779,90 +1250,11 @@ onUnmounted(() => {
           </div>
 
           <!-- PM Input -->
-          <div class="chat-input p-3 border-top bg-light position-relative">
-            <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('italic')" title="Cursiva"><em>I</em></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('strikeThrough')" title="Tachado"><s>S</s></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('underline')" title="Subrayado"><u>U</u></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('blockquote')" title="Cita"><i class="bi bi-quote"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h3')" title="Título H3"><strong>H3</strong></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('h4')" title="Título H4"><strong>H4</strong></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleDicePicker" title="Dados"><i class="bi bi-dice-6"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleMentionPicker" title="Mencionar"><i class="bi bi-at"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="insertLink" title="Enlace"><i class="bi bi-link-45deg"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('spoiler')" title="Spoiler"><i class="bi bi-eye-slash"></i></button>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="clearFormat" title="Limpiar formato"><i class="bi bi-eraser"></i></button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn emoji-btn" @mousedown.prevent="toggleEmojiPicker" title="Emojis">😊</button>
-              <span class="toolbar-divider"></span>
-              <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="toggleAyudaEditor" title="Ayuda"><strong>?</strong></button>
-            </div>
-            <div v-if="mostrarEmojiPicker" class="emoji-picker shadow rounded-3 border bg-white p-2">
-              <div class="emoji-categories d-flex gap-1 mb-2 flex-wrap">
-                <button v-for="(cat, ci) in emojiCategories" :key="ci"
-                        class="emoji-cat-btn btn btn-sm border-0 px-2 py-1"
-                        :class="{ active: categoriaEmojiActiva === ci }"
-                        @mousedown.prevent="categoriaEmojiActiva = ci">
-                  {{ cat.name }}
-                </button>
-              </div>
-              <div class="emoji-grid">
-                <button v-for="(emoji, ei) in emojiCategories[categoriaEmojiActiva]?.emojis" :key="ei"
-                        class="emoji-item btn btn-sm border-0 p-1"
-                        @mousedown.prevent="insertEmoji(emoji)"
-                        :title="emoji">
-                  {{ emoji }}
-                </button>
-              </div>
-            </div>
-            <div v-if="mostrarDicePicker" class="emoji-picker shadow rounded-3 border bg-white p-2" style="max-height:320px;">
-              <div class="d-flex gap-2 align-items-center mb-2 px-1">
-                <label class="small text-nowrap mb-0">Cantidad:</label>
-                <select v-model="diceCount" class="form-select form-select-sm" style="width:auto;">
-                  <option v-for="n in diceQuantityOptions" :key="n" :value="n">{{ n }}</option>
-                </select>
-              </div>
-              <div class="d-flex gap-2 flex-wrap">
-                <button v-for="dt in DICE_TYPES" :key="dt.label"
-                        class="btn btn-sm btn-outline-secondary"
-                        @mousedown.prevent="insertDice(dt)">
-                  {{ dt.label }}
-                </button>
-              </div>
-            </div>
-            <form @submit.prevent="enviarMensajePrivadoWs" class="d-flex gap-2 align-items-end pt-2 position-relative">
-              <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
-                <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
-                <button v-for="(m, mi) in filteredMentions" :key="m.id"
-                        class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
-                        :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
-                        @mousedown.prevent="insertMention(m.personajeNombre)"
-                        @mouseenter="mentionHighlightIndex = mi">
-                  <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
-                  {{ m.personajeNombre }}
-                </button>
-              </div>
-              <div class="flex-grow-1 position-relative">
-                <div ref="editorRef" contenteditable="true"
-                     class="form-control form-control-sm chat-editor"
-                     data-placeholder="Escribe un mensaje..."
-                     @keydown="handleEditorKeydown"
-                     @input="onEditorInput"></div>
-                <div class="character-counter">
-                  <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
-                    {{ charsRestantes.usado }}/{{ charsRestantes.max }}
-                  </span>
-                </div>
-              </div>
-              <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
-                      :disabled="!nuevoMensaje.trim() || enviando">
-                <i class="bi bi-send"></i>
-              </button>
-            </form>
-          </div>
+          <ChatEditor
+            :miembros-online="miembrosOnline"
+            :sending="enviando"
+            @send="handleSendPm"
+          />
         </template>
       </main>
 
@@ -2072,43 +1464,49 @@ onUnmounted(() => {
             class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
       <i class="bi bi-shield me-2"></i> Ascender a moderador
     </button>
+    <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MOD'" class="context-menu-divider"></div>
+    <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MOD'"
+            class="context-menu-item" @click="descenderAMember(contextMenuTarget)">
+      <i class="bi bi-arrow-down-circle me-2"></i> Descender a miembro
+    </button>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN' || miRolEnCanal === 'MOD')
                   && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
             class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
       <i class="bi bi-door-open me-2"></i> Expulsar del canal
     </button>
+    <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
+              && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
+              && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'" class="context-menu-divider"></div>
+    <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
+                  && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
+                  && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
+            class="context-menu-item text-danger" @click="abrirBanModal(contextMenuTarget)">
+      <i class="bi bi-hammer me-2"></i> Banear del canal
+    </button>
   </div>
 
-  <!-- Picker overlays -->
-  <div v-if="mostrarEmojiPicker" class="context-menu-overlay" @click="closeEmojiPicker" @contextmenu.prevent="closeEmojiPicker"></div>
-  <div v-if="mostrarDicePicker" class="context-menu-overlay" @click="closeDicePicker" @contextmenu.prevent="closeDicePicker"></div>
-  <div v-if="mostrarMentionPicker" class="context-menu-overlay" @click="closeMentionPicker" @contextmenu.prevent="closeMentionPicker"></div>
-
-  <!-- Modal: Ayuda del editor -->
-  <div v-if="mostrarAyudaEditor" class="modal-backdrop-custom" @click.self="mostrarAyudaEditor = false">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:480px;">
+  <!-- Modal: Banear personaje -->
+  <div v-if="banTarget" class="modal-backdrop-custom" @click.self="banTarget = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
       <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-question-circle me-2"></i>Ayuda del editor</h5>
-        <button class="btn-close" @click="mostrarAyudaEditor = false"></button>
+        <h5 class="mb-0"><i class="bi bi-hammer text-danger me-2"></i>Banear a {{ banTarget.personajeNombre }}</h5>
+        <button class="btn-close" @click="banTarget = null"></button>
       </div>
-      <div class="help-grid">
-        <div class="help-item"><span class="help-key"><strong>B</strong></span><span>Negrita</span></div>
-        <div class="help-item"><span class="help-key"><em>I</em></span><span>Cursiva</span></div>
-        <div class="help-item"><span class="help-key"><s>S</s></span><span>Tachado</span></div>
-        <div class="help-item"><span class="help-key"><u>U</u></span><span>Subrayado</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-quote"></i></span><span>Cita en bloque</span></div>
-        <div class="help-item"><span class="help-key"><strong>H3</strong></span><span>Encabezado grande</span></div>
-        <div class="help-item"><span class="help-key"><strong>H4</strong></span><span>Encabezado pequeño</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-dice-6"></i></span><span>Insertar dados (se lanzan al enviar)</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-at"></i></span><span>Mencionar personaje — escribe <code>@</code> en el editor o usa este botón; navega con <kbd>↑</kbd><kbd>↓</kbd> y pulsa <kbd>Tab</kbd> o <kbd>Enter</kbd> para seleccionar</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-link-45deg"></i></span><span>Insertar enlace</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-eye-slash"></i></span><span>Spoiler — texto oculto (clic para revelar)</span></div>
-        <div class="help-item"><span class="help-key"><i class="bi bi-eraser"></i></span><span>Limpiar formato</span></div>
-        <div class="help-item"><span class="help-key">😊</span><span>Emojis — selecciona un emoji para insertarlo</span></div>
+      <p class="text-muted small mb-3">Selecciona la duración del baneo:</p>
+      <div class="d-flex flex-column gap-2 mb-4">
+        <label v-for="op in opcionesBan" :key="op.value"
+               class="d-flex align-items-center gap-2 p-2 border rounded cursor-pointer"
+               :class="banDuracion === op.value ? 'border-primary bg-primary bg-opacity-10' : ''">
+          <input type="radio" :value="op.value" v-model="banDuracion" class="form-check-input m-0" />
+          <span>{{ op.label }}</span>
+        </label>
       </div>
-      <div class="text-muted small mt-3">
-        También puedes usar <kbd>Tab</kbd> para completar una mención si hay resultados disponibles.
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="banTarget = null">Cancelar</button>
+        <button class="btn btn-danger btn-sm" @click="confirmarBan">
+          <i class="bi bi-hammer me-1"></i> Banear
+        </button>
       </div>
     </div>
   </div>
@@ -2143,6 +1541,29 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+
+  <!-- Modal: Mensaje de error/info -->
+  <div v-if="mensajeModal" class="modal-backdrop-custom" @click.self="mensajeModal = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
+      <h5 class="mb-3">{{ mensajeModal.titulo }}</h5>
+      <p class="mb-4">{{ mensajeModal.texto }}</p>
+      <div class="d-flex justify-content-end">
+        <button class="btn btn-primary btn-sm" @click="mensajeModal = null">Aceptar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirmación genérica -->
+  <div v-if="confirmModal" class="modal-backdrop-custom" @click.self="confirmModal = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
+      <h5 class="mb-3">{{ confirmModal.titulo }}</h5>
+      <p class="mb-4">{{ confirmModal.texto }}</p>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="confirmModal = null">Cancelar</button>
+        <button class="btn btn-primary btn-sm" @click="confirmModal.onConfirm(); confirmModal = null">Aceptar</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <style scoped>
@@ -2156,7 +1577,6 @@ onUnmounted(() => {
   background: linear-gradient(180deg, #e3f0ff 0%, #f0f7ff 40%, #ffffff 100%) !important;
 }
 
-/* Personaje card */
 .personaje-card {
   border-radius: 12px;
   transition: box-shadow 0.18s, transform 0.18s;
@@ -2174,7 +1594,6 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
-/* Tabs bar */
 .chat-tabs-bar {
   min-height: 48px;
   overflow-x: auto;
@@ -2217,7 +1636,6 @@ onUnmounted(() => {
   border: 1.5px solid white;
 }
 
-/* Sidebar */
 .chat-sidebar {
   width: 300px;
   min-width: 300px;
@@ -2242,7 +1660,6 @@ onUnmounted(() => {
   z-index: 1039;
 }
 
-/* Status indicator */
 .status-indicator {
   position: absolute;
   bottom: 2px;
@@ -2253,7 +1670,6 @@ onUnmounted(() => {
   border: 2px solid white;
 }
 
-/* Estado dropdown */
 .dropdown-estado { position: relative; }
 .estado-dropdown-menu {
   position: absolute;
@@ -2279,7 +1695,6 @@ onUnmounted(() => {
 }
 .dropdown-item-estado:hover { background: #f0f0f0; }
 
-/* Channel list */
 .channel-item { cursor: pointer; transition: background 0.12s; }
 .channel-item:hover { background: #e9ecef; }
 .channel-item.active { background: #d0e2ff; border-left: 3px solid #0d6efd; }
@@ -2324,61 +1739,8 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 
-/* Chat header */
 .chat-header { min-height: 52px; }
 
-/* Chat input textarea */
-.chat-textarea {
-  resize: none;
-  overflow-y: auto;
-  max-height: 150px;
-  line-height: 1.4;
-}
-
-/* Chat editor (contentEditable) */
-.chat-editor {
-  min-height: 42px;
-  max-height: 200px;
-  overflow-y: auto;
-  line-height: 1.5;
-  padding: 8px 12px;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.chat-editor:empty:before {
-  content: attr(data-placeholder);
-  color: #6c757d;
-  pointer-events: none;
-}
-.chat-editor:focus {
-  outline: none;
-  box-shadow: none;
-  border-color: #86b7fe;
-}
-
-/* Formatting toolbar */
-.formatting-toolbar {
-  background: #f8f9fa;
-  border-radius: 6px 6px 0 0;
-}
-.fmt-btn {
-  width: 30px;
-  height: 28px;
-  padding: 0;
-  font-size: 0.85rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-}
-.fmt-btn:hover {
-  background: #e2e6ea !important;
-}
-.fmt-btn strong, .fmt-btn em, .fmt-btn s, .fmt-btn u {
-  font-size: 0.85rem;
-}
-
-/* Messages */
 .chat-mensajes { background: #fff; }
 .scroll-bottom-btn {
   bottom: 70px;
@@ -2392,49 +1754,11 @@ onUnmounted(() => {
 .fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .mensaje-burbuja { border-radius: 16px; max-width: 100%; }
-.mensaje-burbuja :deep(blockquote) {
-  border-left: 3px solid #adb5bd;
-  padding-left: 10px;
-  margin: 6px 0;
-  color: #495057;
-  font-style: italic;
-}
-.mensaje-burbuja.bg-primary :deep(blockquote) {
-  border-left-color: rgba(255,255,255,0.5);
-  color: inherit;
-}
-.mensaje-burbuja :deep(h3) {
-  font-size: 1.1rem;
-  margin: 8px 0 4px;
-  font-weight: 600;
-}
-.mensaje-burbuja :deep(h4) {
-  font-size: 1rem;
-  margin: 6px 0 3px;
-  font-weight: 600;
-}
-.mensaje-burbuja :deep(details) {
-  margin: 6px 0;
-}
-.mensaje-burbuja :deep(summary) {
-  cursor: pointer;
-  font-weight: 600;
-  color: #0d6efd;
-}
-.mensaje-burbuja :deep(details[open]) {
-  padding: 6px 8px;
-  background: rgba(0,0,0,0.03);
-  border-radius: 6px;
+
+.miembros-link:hover {
+  text-decoration: underline !important;
 }
 
-/* Perfil trasfondo */
-.perfil-trasfondo :deep(img) {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 0.5rem 0;
-}
-
-/* Modal */
 .modal-backdrop-custom {
   position: fixed;
   inset: 0;
@@ -2472,7 +1796,6 @@ onUnmounted(() => {
 .min-w-0 { min-width: 0; }
 .min-h-0 { min-height: 0; }
 
-/* Right sidebar */
 .chat-right-sidebar {
   width: 240px;
   min-width: 240px;
@@ -2494,40 +1817,6 @@ onUnmounted(() => {
   height: 10px;
   border: 2px solid #fff;
   border-radius: 50%;
-}
-
-/* ---- Logo shimmer (sin personajes) ---- */
-.logo-shimmer-wrapper {
-  width: 280px;
-  height: auto;
-  position: relative;
-  overflow: hidden;
-  border-radius: 8px;
-}
-.logo-shimmer {
-  display: block;
-  width: 100%;
-  height: auto;
-  filter: grayscale(1) brightness(0.6);
-  opacity: 0.35;
-}
-.logo-shimmer-wrapper::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    rgba(255,255,255,0.5) 50%,
-    transparent 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer-sweep 2.5s ease-in-out infinite;
-  pointer-events: none;
-}
-@keyframes shimmer-sweep {
-  0%   { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
 }
 
 .context-menu-overlay {
@@ -2562,109 +1851,6 @@ onUnmounted(() => {
   margin: 4px 0;
 }
 
-/* Emoji picker */
-.emoji-picker {
-  position: absolute;
-  bottom: 100%;
-  left: 1rem;
-  right: 1rem;
-  max-height: 280px;
-  overflow-y: auto;
-  z-index: 1072;
-  margin-bottom: 4px;
-}
-.emoji-categories {
-  border-bottom: 1px solid #eee;
-  padding-bottom: 0.25rem;
-}
-.emoji-cat-btn {
-  font-size: 0.7rem;
-  border-radius: 12px;
-  color: #555;
-  white-space: nowrap;
-}
-.emoji-cat-btn.active {
-  background: #e8f0fe;
-  color: #0d6efd;
-  font-weight: 600;
-}
-.emoji-grid {
-  display: grid;
-  grid-template-columns: repeat(10, 1fr);
-  gap: 1px;
-}
-.emoji-item {
-  font-size: 1.3rem;
-  cursor: pointer;
-  border-radius: 4px;
-  text-align: center;
-  line-height: 1;
-  padding: 2px !important;
-  transition: background 0.1s;
-}
-.emoji-item:hover {
-  background: #e9ecef;
-}
-
-/* Toolbar extras */
-.toolbar-divider {
-  width: 1px;
-  background: #dee2e6;
-  margin: 0 2px;
-  align-self: stretch;
-}
-.fmt-btn .bi {
-  font-size: 0.9rem;
-  vertical-align: middle;
-}
-
-/* Character counter */
-.character-counter {
-  position: absolute;
-  bottom: 4px;
-  right: 8px;
-  font-size: 0.65rem;
-  pointer-events: none;
-  line-height: 1;
-}
-.chat-editor {
-  padding-bottom: 18px !important;
-}
-
-/* Mention item */
-.mention-item {
-  border-radius: 4px;
-  font-size: 0.85rem;
-}
-.mention-item:hover {
-  background: #e8f0fe !important;
-}
-.mention-highlight,
-.mention-item.mention-highlight:hover {
-  background: #d0e4fc !important;
-}
-.mensaje-burbuja :deep(a[href^="profile:"]) {
-  color: #0d6efd;
-  font-weight: 600;
-  text-decoration: none;
-  cursor: pointer;
-}
-.mensaje-burbuja :deep(a[href^="profile:"]:hover) {
-  text-decoration: underline;
-}
-.mensaje-burbuja.bg-primary :deep(a[href^="profile:"]) {
-  color: #cfe2ff;
-}
-.mention-picker-inside {
-  position: absolute;
-  bottom: 100%;
-  left: 0;
-  right: 60px;
-  max-height: 220px;
-  overflow-y: auto;
-  z-index: 1072;
-  margin-bottom: 4px;
-}
 .channel-mentioned {
   background: #fffbe6 !important;
 }
@@ -2680,43 +1866,5 @@ onUnmounted(() => {
   height: 18px;
   border-radius: 50%;
   line-height: 1;
-}
-.help-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-.help-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 4px 0;
-  font-size: 0.85rem;
-  border-bottom: 1px solid #f0f0f0;
-}
-.help-item:last-child {
-  border-bottom: none;
-}
-.help-key {
-  flex-shrink: 0;
-  width: 32px;
-  height: 26px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: #f0f0f0;
-  border-radius: 4px;
-  font-size: 0.8rem;
-}
-.help-key .bi {
-  font-size: 0.95rem;
-}
-.help-grid kbd {
-  background: #222;
-  color: #fff;
-  border-radius: 3px;
-  padding: 1px 5px;
-  font-size: 0.7rem;
-  border: none;
 }
 </style>

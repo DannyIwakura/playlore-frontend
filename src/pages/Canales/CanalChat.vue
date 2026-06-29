@@ -8,11 +8,11 @@ import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import { chatApi } from '../../services/chatApi'
 import { websocketService } from '../../services/websocket'
 import { characterSessionStore } from '../../store/characterSessionStore'
+import { statusOptions, getStatusColor, avatarUrl, formatFecha, sortByRole } from '../Chat/chatUtils'
 
 const route = useRoute()
 const router = useRouter()
 const canalId = computed(() => Number(route.params.id))
-const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
 interface MensajeDTO {
   id: number
@@ -37,17 +37,7 @@ interface MiembroDTO {
   status?: string
 }
 
-const statusOptions = [
-  { value: 'conectado', label: 'Conectado', icon: 'bi-circle-fill', color: '#22c55e' },
-  { value: 'ausente', label: 'Ausente', icon: 'bi-clock-fill', color: '#eab308' },
-  { value: 'ocupado', label: 'Ocupado', icon: 'bi-dash-circle-fill', color: '#ef4444' },
-  { value: 'no molestar', label: 'No molestar', icon: 'bi-ban-fill', color: '#a855f7' },
-]
 
-function getStatusColor(status: string | undefined | null): string {
-  const opt = statusOptions.find(s => s.value === status)
-  return opt?.color ?? '#22c55e'
-}
 
 const canal = ref<any>(null)
 const mensajes = ref<MensajeDTO[]>([])
@@ -71,6 +61,7 @@ const hayColumnaDerecha = computed(() => mostrarConectados.value || mostrarInfo.
 
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
+const confirmModal = ref<{ titulo: string; texto: string; onConfirm: () => void } | null>(null)
 function verPerfil(personajeId: number) {
   perfilPersonajeId.value = personajeId
   mostrarPerfil.value = true
@@ -115,23 +106,61 @@ async function enviarPm() {
   finally { enviandoPm.value = false }
 }
 
-// Admin actions
-async function ascenderAMod(m: any) {
+// Ban modal
+const banTarget = ref<any>(null)
+const banDuracion = ref('PERMANENTE')
+
+function abrirBanModal(m: any) {
   cerrarContextMenu()
-  if (!confirm(`¿Ascender a ${m.personajeNombre} a moderador?`)) return
+  banTarget.value = m
+  banDuracion.value = 'PERMANENTE'
+}
+
+async function confirmarBan() {
+  if (!banTarget.value) return
   try {
-    await chatApi.cambiarRol(canalId.value, m.personajeId, 'MOD')
+    await chatApi.banearMiembro(canalId.value, banTarget.value.personajeId, banDuracion.value)
+    banTarget.value = null
     await cargarMiembrosOnline()
   } catch {}
 }
 
+const opcionesBan = [
+  { value: '1H', label: '1 hora' },
+  { value: '24H', label: '24 horas' },
+  { value: '7D', label: '7 días' },
+  { value: 'PERMANENTE', label: 'Permanente' },
+]
+
+// Admin actions
+async function ascenderAMod(m: any) {
+  cerrarContextMenu()
+  confirmModal.value = { titulo: 'Ascender a moderador', texto: `¿Ascender a ${m.personajeNombre} a moderador?`, onConfirm: async () => {
+    try {
+      await chatApi.cambiarRol(canalId.value, m.personajeId, 'MOD')
+      await cargarMiembrosOnline()
+    } catch {}
+  }}
+}
+
+async function descenderAMember(m: any) {
+  cerrarContextMenu()
+  confirmModal.value = { titulo: 'Descender a miembro', texto: `¿Descender a ${m.personajeNombre} a miembro?`, onConfirm: async () => {
+    try {
+      await chatApi.cambiarRol(canalId.value, m.personajeId, 'MEMBER')
+      await cargarMiembrosOnline()
+    } catch {}
+  }}
+}
+
 async function expulsarDelCanal(m: any) {
   cerrarContextMenu()
-  if (!confirm(`¿Expulsar a ${m.personajeNombre} del canal?`)) return
-  try {
-    await chatApi.expulsarMiembro(canalId.value, m.personajeId)
-    await cargarMiembrosOnline()
-  } catch {}
+  confirmModal.value = { titulo: 'Expulsar del canal', texto: `¿Expulsar a ${m.personajeNombre} del canal?`, onConfirm: async () => {
+    try {
+      await chatApi.expulsarMiembro(canalId.value, m.personajeId)
+      await cargarMiembrosOnline()
+    } catch {}
+  }}
 }
 
 const sidebarsActivos = computed(() => {
@@ -142,25 +171,6 @@ const sidebarsActivos = computed(() => {
 })
 
 let wsSubscriptions: string[] = []
-
-function avatarUrl(avatar: string | null | undefined): string {
-  if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
-  if (avatar.startsWith('http')) return avatar
-  return `${import.meta.env.VITE_API_URL}${avatar}`
-}
-
-function formatFecha(fecha: string): string {
-  const d = new Date(fecha)
-  const now = new Date()
-  const diff = now.getTime() - d.getTime()
-  const min = Math.floor(diff / 60000)
-  const h = Math.floor(diff / 3600000)
-
-  if (min < 1) return 'ahora'
-  if (min < 60) return `hace ${min} min`
-  if (h < 24) return `hace ${h} h`
-  return d.toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
-}
 
 function scrollAlFinal() {
   nextTick(() => {
@@ -251,6 +261,16 @@ async function conectarWebSocket() {
       cargarMiembrosOnline()
     })
     wsSubscriptions.push(sub2)
+
+    const charId = characterSessionStore.sesionActual.value?.personajeId
+    if (charId) {
+      const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
+        if ((data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO') && data.canalId === canalId.value) {
+          router.push('/canales')
+        }
+      })
+      wsSubscriptions.push(subPm)
+    }
   } catch {}
 }
 
@@ -289,19 +309,21 @@ function esAdminOrOwner(): boolean {
 }
 
 async function eliminarMensaje(mensajeId: number) {
-  if (!confirm('¿Eliminar este mensaje?')) return
-  try {
-    await chatApi.eliminarMensajeCanal(canalId.value, mensajeId)
-    mensajes.value = mensajes.value.filter(m => m.id !== mensajeId)
-  } catch {}
+  confirmModal.value = { titulo: 'Eliminar mensaje', texto: '¿Eliminar este mensaje?', onConfirm: async () => {
+    try {
+      await chatApi.eliminarMensajeCanal(canalId.value, mensajeId)
+      mensajes.value = mensajes.value.filter(m => m.id !== mensajeId)
+    } catch {}
+  }}
 }
 
 async function salirDelCanal() {
-  if (!confirm('¿Salir del canal?')) return
-  try {
-    await chatApi.salirDeCanal(canalId.value)
-    router.push('/canales')
-  } catch {}
+  confirmModal.value = { titulo: 'Salir del canal', texto: '¿Salir del canal?', onConfirm: async () => {
+    try {
+      await chatApi.salirDeCanal(canalId.value)
+      router.push('/canales')
+    } catch {}
+  }}
 }
 
 onMounted(async () => {
@@ -498,12 +520,51 @@ onUnmounted(() => {
             class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
       <i class="bi bi-shield me-2"></i> Ascender a moderador
     </button>
+    <div v-if="(miRol === 'OWNER' || miRol === 'ADMIN') && contextMenuTarget.rol === 'MOD'" class="context-menu-divider"></div>
+    <button v-if="(miRol === 'OWNER' || miRol === 'ADMIN') && contextMenuTarget.rol === 'MOD'"
+            class="context-menu-item" @click="descenderAMember(contextMenuTarget)">
+      <i class="bi bi-arrow-down-circle me-2"></i> Descender a miembro
+    </button>
     <button v-if="(miRol === 'OWNER' || miRol === 'ADMIN' || miRol === 'MOD')
                   && contextMenuTarget.personajeId !== miPersonajeId
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
             class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
       <i class="bi bi-door-open me-2"></i> Expulsar del canal
     </button>
+    <div v-if="(miRol === 'OWNER' || miRol === 'ADMIN')
+              && contextMenuTarget.personajeId !== miPersonajeId
+              && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'" class="context-menu-divider"></div>
+    <button v-if="(miRol === 'OWNER' || miRol === 'ADMIN')
+                  && contextMenuTarget.personajeId !== miPersonajeId
+                  && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
+            class="context-menu-item text-danger" @click="abrirBanModal(contextMenuTarget)">
+      <i class="bi bi-hammer me-2"></i> Banear del canal
+    </button>
+  </div>
+
+  <!-- Modal: Banear personaje -->
+  <div v-if="banTarget" class="modal-backdrop-custom" @click.self="banTarget = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-hammer text-danger me-2"></i>Banear a {{ banTarget.personajeNombre }}</h5>
+        <button class="btn-close" @click="banTarget = null"></button>
+      </div>
+      <p class="text-muted small mb-3">Selecciona la duración del baneo:</p>
+      <div class="d-flex flex-column gap-2 mb-4">
+        <label v-for="op in opcionesBan" :key="op.value"
+               class="d-flex align-items-center gap-2 p-2 border rounded cursor-pointer"
+               :class="banDuracion === op.value ? 'border-primary bg-primary bg-opacity-10' : ''">
+          <input type="radio" :value="op.value" v-model="banDuracion" class="form-check-input m-0" />
+          <span>{{ op.label }}</span>
+        </label>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="banTarget = null">Cancelar</button>
+        <button class="btn btn-danger btn-sm" @click="confirmarBan">
+          <i class="bi bi-hammer me-1"></i> Banear
+        </button>
+      </div>
+    </div>
   </div>
 
   <!-- Modal: Mensaje Privado directo -->
@@ -534,6 +595,18 @@ onUnmounted(() => {
         :modo-modal="true"
         @cerrar="mostrarPerfil = false"
       />
+    </div>
+  </div>
+
+  <!-- Modal: Confirmación genérica -->
+  <div v-if="confirmModal" class="modal-backdrop-custom" @click.self="confirmModal = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
+      <h5 class="mb-3">{{ confirmModal.titulo }}</h5>
+      <p class="mb-4">{{ confirmModal.texto }}</p>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="confirmModal = null">Cancelar</button>
+        <button class="btn btn-primary btn-sm" @click="confirmModal.onConfirm(); confirmModal = null">Aceptar</button>
+      </div>
     </div>
   </div>
 </template>
