@@ -38,7 +38,7 @@ const emit = defineEmits<{
         </small>
       </div>
       <p v-if="msg.eliminado" class="mb-0 mt-1 fst-italic text-muted" style="font-size:0.85rem;">
-        {{ msg.eliminadoPorModerador ? 'El mensaje fue eliminado por moderación' : (esMio ? 'Eliminaste este mensaje' : 'El mensaje fue eliminado por el usuario') }}
+        {{ msg.eliminadoPorModerador ? 'El mensaje fue eliminado por moderación' : 'El mensaje fue eliminado por el usuario' }}
       </p>
       <p v-else class="mb-0" :class="showHeader ? 'mt-1' : ''"
          style="white-space:pre-wrap;word-break:break-word;" v-html="msg.contenido"></p>

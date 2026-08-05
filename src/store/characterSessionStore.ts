@@ -68,11 +68,29 @@ async function cerrarTodas() {
   for (const s of [...sesiones.value]) {
     await cerrarSesion(s)
   }
+  sesiones.value = []
+  sesionActualIdx.value = 0
+}
+
+async function limpiarExpiradas() {
+  sesiones.value = sesiones.value.filter(s => {
+    try {
+      const payload = JSON.parse(atob(s.tokenJwt.split('.')[1]))
+      return payload.exp * 1000 > Date.now()
+    } catch {
+      return false
+    }
+  })
+  if (sesionActualIdx.value >= sesiones.value.length) {
+    sesionActualIdx.value = Math.max(0, sesiones.value.length - 1)
+  }
 }
 
 async function obtenerSesionesActivas(): Promise<PersonajeSesion[]> {
   try {
-    const { data } = await api.get<PersonajeSesion[]>('/personajes/sesion/activas')
+    const { data } = await api.get<PersonajeSesion[]>('/personajes/sesion/activas', {
+      timeout: 10000
+    })
     if (data.length > 0) {
       sesiones.value = data
       sesionActualIdx.value = 0
@@ -103,6 +121,7 @@ export const characterSessionStore = {
   cerrarSesionActual,
   cerrarSesion,
   cerrarTodas,
+  limpiarExpiradas,
   obtenerSesionesActivas,
   haySesionActiva,
   seleccionarSesion,

@@ -28,6 +28,10 @@ export const chatApi = {
     return api.post('/canales', data, { headers: getAuthHeaders() })
   },
 
+  editarCanal(canalId: number, data: { nombre: string; descripcion?: string; privado?: boolean }) {
+    return api.put(`/canales/${canalId}`, data, { headers: getAuthHeaders() })
+  },
+
   unirseACanal(canalId: number) {
     return api.post(`/canales/${canalId}/unirse`, {}, { headers: getAuthHeaders() })
   },
@@ -63,8 +67,20 @@ export const chatApi = {
     return api.get(`/canales/${canalId}/miembros/online`, { headers: getAuthHeaders() })
   },
 
-  eliminarCanal(canalId: number) {
-    return api.delete(`/canales/${canalId}`, { headers: getAuthHeaders() })
+  eliminarCanal(canalId: number, password: string) {
+    return api.delete(`/canales/${canalId}`, { data: { password }, headers: getAuthHeaders() })
+  },
+
+  subirImagenCanal(canalId: number, file: File) {
+    const formData = new FormData()
+    formData.append('imagenFile', file)
+    return api.put(`/canales/${canalId}/imagen`, formData, {
+      headers: { ...getAuthHeaders() },
+    })
+  },
+
+  eliminarImagenCanal(canalId: number) {
+    return api.delete(`/canales/${canalId}/imagen`, { headers: getAuthHeaders() })
   },
 
   // Mensajes del canal
@@ -98,6 +114,10 @@ export const chatApi = {
 
   enviarMensajePrivado(receptorId: number, contenido: string) {
     return api.post('/chat/privado', { receptorId, contenido }, { headers: getAuthHeaders() })
+  },
+
+  eliminarConversacion(otroPersonajeId: number) {
+    return api.delete(`/chat/privado/conversaciones/${otroPersonajeId}`, { headers: getAuthHeaders() })
   },
 
   contarNoLeidos() {

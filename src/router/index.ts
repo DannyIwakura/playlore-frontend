@@ -16,8 +16,6 @@ import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
 import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
 import AmigosList from '../pages/Usuarios/AmigosList.vue';
 import BuscarPersonaje from '../pages/Personajes/BuscarPersonajes.vue';
-import CanalesList from '../pages/Canales/CanalesList.vue';
-import CanalChat from '../pages/Canales/CanalChat.vue';
 import ChatWindow from '../pages/Chat/ChatWindow.vue';
 
 const routes = [
@@ -39,8 +37,9 @@ const routes = [
   { path: '/amigos/', component: AmigosList, meta: { requiresAuth: true } },
   //rutas de chat
   { path: '/chat', component: ChatWindow, meta: { requiresAuth: true } },
-  { path: '/canales', component: CanalesList, meta: { requiresAuth: true } },
-  { path: '/canales/:id', component: CanalChat, meta: { requiresAuth: true } },
+  // Los canales solo se gestionan desde /chat (todo el sistema de chat está ahí)
+  { path: '/canales', redirect: '/chat' },
+  { path: '/canales/:id', redirect: '/chat' },
   //rutas protegidas por roles
   { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
   { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },

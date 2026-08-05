@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { EMOJI_CATEGORIES, getRecentEmojis, addRecentEmoji } from './emojiData'
 import { avatarUrl } from './chatUtils'
 
@@ -340,8 +340,15 @@ function closeMentionPicker() {
   mentionHighlightIndex.value = -1
 }
 
+function cerrarPickers() {
+  closeEmojiPicker()
+  closeDicePicker()
+  closeMentionPicker()
+}
+
 function toggleAyudaEditor() {
   mostrarAyudaEditor.value = !mostrarAyudaEditor.value
+  if (mostrarAyudaEditor.value) cerrarPickers()
 }
 
 const mostrarAyudaEditor = ref(false)
@@ -416,10 +423,28 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
   if (pickerType === 'dice') closeDicePicker()
   if (pickerType === 'mention') closeMentionPicker()
 }
+
+function onDocumentKeydown(e: KeyboardEvent) {
+  if (e.key !== 'Escape') return
+  if (mostrarAyudaEditor.value) mostrarAyudaEditor.value = false
+  if (mostrarEmojiPicker.value) closeEmojiPicker()
+  if (mostrarDicePicker.value) closeDicePicker()
+  if (mostrarMentionPicker.value) closeMentionPicker()
+}
+
+onMounted(() => {
+  document.addEventListener('keydown', onDocumentKeydown)
+  window.addEventListener('pl:modal-abierto', cerrarPickers)
+})
+onUnmounted(() => {
+  document.removeEventListener('keydown', onDocumentKeydown)
+  window.removeEventListener('pl:modal-abierto', cerrarPickers)
+})
 </script>
 
 <template>
-  <div class="chat-input p-3 border-top bg-light position-relative">
+  <div class="chat-input p-3 border-top bg-light">
+    <div class="chat-editor-pickers-anchor position-relative">
     <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
       <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
       <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('italic')" title="Cursiva"><em>I</em></button>
@@ -478,19 +503,21 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
       </div>
     </div>
 
+    <!-- Mention picker -->
+    <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
+      <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
+      <button v-for="(m, mi) in filteredMentions" :key="m.id"
+              class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
+              :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
+              @mousedown.prevent="insertMention(m.personajeNombre)"
+              @mouseenter="mentionHighlightIndex = mi">
+        <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
+        {{ m.personajeNombre }}
+      </button>
+    </div>
+
     <!-- Editor + send -->
     <form @submit.prevent="enviar" class="d-flex gap-2 align-items-end pt-2 position-relative">
-      <div v-if="mostrarMentionPicker" class="mention-picker-inside shadow rounded-3 border bg-white p-2">
-        <div v-if="filteredMentions.length === 0" class="text-muted small text-center py-2">No hay miembros disponibles</div>
-        <button v-for="(m, mi) in filteredMentions" :key="m.id"
-                class="d-block w-100 text-start btn btn-sm border-0 px-2 py-1 mention-item"
-                :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
-                @mousedown.prevent="insertMention(m.personajeNombre)"
-                @mouseenter="mentionHighlightIndex = mi">
-          <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
-          {{ m.personajeNombre }}
-        </button>
-      </div>
       <div class="flex-grow-1 position-relative">
         <div ref="editorRef" contenteditable="true"
              class="form-control form-control-sm chat-editor"
@@ -513,6 +540,7 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
     <div v-if="mostrarEmojiPicker" class="context-menu-overlay" @click="handleOverlayClick('emoji')" @contextmenu.prevent="handleOverlayClick('emoji')"></div>
     <div v-if="mostrarDicePicker" class="context-menu-overlay" @click="handleOverlayClick('dice')" @contextmenu.prevent="handleOverlayClick('dice')"></div>
     <div v-if="mostrarMentionPicker" class="context-menu-overlay" @click="handleOverlayClick('mention')" @contextmenu.prevent="handleOverlayClick('mention')"></div>
+    </div>
 
     <!-- Ayuda editor modal -->
     <div v-if="mostrarAyudaEditor" class="modal-backdrop-custom" @click.self="mostrarAyudaEditor = false">
@@ -543,3 +571,72 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
     </div>
   </div>
 </template>
+
+<style scoped>
+.emoji-picker,
+.mention-picker-inside {
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  right: 0;
+  z-index: 1040;
+  max-height: 55vh;
+  overflow-y: auto;
+}
+
+.formatting-toolbar {
+  position: relative;
+  z-index: 1035;
+}
+
+.context-menu-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1030;
+}
+
+.modal-backdrop-custom {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.modal-content-custom {
+  background: #fff;
+  width: 100%;
+  max-width: 520px;
+  margin: 1rem;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+.help-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.4rem 1rem;
+}
+.help-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+}
+.help-key {
+  flex-shrink: 0;
+  min-width: 30px;
+  text-align: center;
+  background: #f0f2f5;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.mention-item:hover,
+.mention-highlight {
+  background-color: #e9ecef;
+}
+</style>

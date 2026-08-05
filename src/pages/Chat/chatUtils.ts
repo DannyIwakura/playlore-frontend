@@ -15,7 +15,13 @@ export function avatarUrl(avatar: string | null | undefined): string {
   return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
-export function canalAvatar(nombre: string): string {
+export function canalAvatar(canal: { nombre: string; imagenUrl?: string | null } | string): string {
+  const imagenUrl = typeof canal === 'object' ? canal.imagenUrl : null
+  const nombre = typeof canal === 'string' ? canal : canal.nombre
+  if (imagenUrl) {
+    if (imagenUrl.startsWith('http')) return imagenUrl
+    return `${import.meta.env.VITE_API_URL}${imagenUrl}`
+  }
   return `https://ui-avatars.com/api/?name=${encodeURIComponent(nombre)}&background=0d6efd&color=fff&bold=true&size=32`
 }
 
@@ -38,4 +44,25 @@ export function getStatusColor(status: string | undefined | null): string {
 
 export function sortByRole(members: any[]): any[] {
   return [...members].sort((a, b) => (roleOrder[a.rol] ?? 99) - (roleOrder[b.rol] ?? 99))
+}
+
+export function solicitarPermisoNotificacion(): void {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'default') {
+    Notification.requestPermission()
+  }
+}
+
+export function notificarPush(titulo: string, cuerpo: string): void {
+  if (!('Notification' in window)) return
+  if (Notification.permission === 'granted') {
+    try {
+      new Notification(titulo, { body: cuerpo, icon: '/favicon.ico' })
+    } catch { /* ignore */ }
+  }
+}
+
+export function truncarTexto(texto: string, max: number = 100): string {
+  const clean = texto.replace(/<[^>]*>/g, '').replace(/&#64;/g, '@')
+  return clean.length > max ? clean.slice(0, max) + '…' : clean
 }

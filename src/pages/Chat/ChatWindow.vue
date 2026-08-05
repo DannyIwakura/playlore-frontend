@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import { userStore } from '../../store/userStore'
 import { characterSessionStore } from '../../store/characterSessionStore'
@@ -8,15 +8,17 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole, solicitarPermisoNotificacion, notificarPush, truncarTexto } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
+import ExpandableText from '../../components/ExpandableText.vue'
 
 const router = useRouter()
 
 const personajes = ref<any[]>([])
 const cargandoPersonajes = ref(true)
 const canalesUnidos = ref<any[]>([])
+const cargandoCanales = ref(true)
 const canalActivo = ref<any>(null)
 const mensajes = ref<any[]>([])
 const miembros = ref<any[]>([])
@@ -71,6 +73,90 @@ const cargandoLista = ref(false)
 const mostrarModalCrear = ref(false)
 const nuevoCanalData = ref({ nombre: '', descripcion: '', privado: false })
 const errorCrear = ref('')
+const imagenCanal = ref<File | null>(null)
+const imagenPreview = ref<string | null>(null)
+const inputImagenRef = ref<HTMLInputElement | null>(null)
+
+const mostrarModalEditarCanal = ref(false)
+const editarCanalData = ref({ nombre: '', descripcion: '', privado: false })
+const errorEditarCanal = ref('')
+const imagenEdicionCanal = ref<File | null>(null)
+const imagenEdicionPreview = ref<string | null>(null)
+const quitarImagenEdicion = ref(false)
+const inputImagenEdicionRef = ref<HTMLInputElement | null>(null)
+const mostrarEliminarCanal = ref(false)
+const passwordEliminarCanal = ref('')
+const errorEliminarCanal = ref('')
+const eliminandoCanal = ref(false)
+
+const imagenEdicionSrc = computed(() => {
+  const p = imagenEdicionPreview.value
+  if (!p) return ''
+  if (p.startsWith('blob:') || p.startsWith('data:') || p.startsWith('http')) return p
+  return canalAvatar({ nombre: editarCanalData.value.nombre, imagenUrl: p })
+})
+
+async function onImagenCanalChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  imagenCanal.value = file
+  const error = await validarImagenCanal(file)
+  if (error) {
+    errorCrear.value = error
+    return
+  }
+  if (imagenPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenPreview.value)
+  imagenPreview.value = URL.createObjectURL(file)
+  errorCrear.value = ''
+}
+
+function quitarImagenCanal() {
+  imagenCanal.value = null
+  if (imagenPreview.value) URL.revokeObjectURL(imagenPreview.value)
+  imagenPreview.value = null
+  errorCrear.value = ''
+}
+
+function obtenerDimensionesImagen(file: File): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }
+    img.src = url
+  })
+}
+
+async function validarImagenCanal(file: File): Promise<string | null> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    return 'Formato no permitido. Solo JPG, PNG y WEBP'
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return 'La imagen no puede superar 10 MB'
+  }
+  const dims = await obtenerDimensionesImagen(file)
+  if (!dims) {
+    return 'El archivo no es una imagen válida'
+  }
+  if (dims.width > 400 || dims.height > 400) {
+    return `La imagen no puede superar 400x400 píxeles (la actual tiene ${dims.width}x${dims.height}). Reduce su tamaño o recorta la imagen antes de subirla.`
+  }
+  return null
+}
+
+function extraerError(e: any, fallback: string): string {
+  const data = e?.response?.data
+  if (!data) return fallback
+  if (typeof data === 'string') return data
+  return data.error || data.message || data.mensaje || data.imagenFile || fallback
+}
 
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
@@ -124,13 +210,20 @@ function eliminarConversacionDirecta(conv: any) {
   eliminarConversacionDeLista(conv)
 }
 
-function eliminarConversacionDeLista(conv: any) {
+async function eliminarConversacionDeLista(conv: any) {
+  try {
+    await chatApi.eliminarConversacion(conv.personajeId)
+  } catch {
+    return
+  }
   if (conversacionActiva.value?.personajeId === conv.personajeId) {
     cerrarConversacion()
   }
   conversacionesPrivadas.value = conversacionesPrivadas.value.filter(
     c => c.personajeId !== conv.personajeId
   )
+  noLeidosPriv.value.delete(conv.personajeId)
+  noLeidosPriv.value = new Map(noLeidosPriv.value)
 }
 
 const miRolEnCanal = computed(() => canalActivo.value?.miRol)
@@ -237,6 +330,9 @@ async function cargarConversaciones() {
       }
     }
     conversacionesPrivadas.value = Array.from(grouped.values())
+    noLeidosPriv.value = new Map(
+      Array.from(grouped.values()).map(c => [c.personajeId, c.noLeidos])
+    )
   } catch {}
 }
 
@@ -295,6 +391,7 @@ function enviarMensajePrivadoWs(texto: string) {
     noLeidosCharacter.value.set(receptorId, charCount + 1)
     noLeidosCharacter.value = new Map(noLeidosCharacter.value)
     reproducirSonidoPM()
+    notificarPush('Mensaje privado', truncarTexto(texto))
   }
   const conv = conversacionesPrivadas.value.find(c => c.personajeId === receptorId)
   if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
@@ -326,8 +423,19 @@ const paginaMiembros = ref(0)
 const cargandoMiembros = ref(false)
 const hayMasMiembros = ref(true)
 
+const cualquierModalAbierto = computed(() =>
+  mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
+  mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
+  mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
+  mostrarConfirmacionEliminar.value || !!banTarget.value
+)
+watch(cualquierModalAbierto, (abierto) => {
+  if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
+})
+
 let wsSubscriptions: string[] = []
 let persistentSubscriptions: string[] = []
+let channelPresenceSubscription: string | null = null
 let pollingInterval: number | null = null
 
 function scrollAlFinal() {
@@ -348,10 +456,13 @@ async function cargarPersonajes() {
   cargandoPersonajes.value = true
   try {
     const { data } = await api.get(`/personajes/usuario/${userStore.usuario.value.id}`, {
-      params: { page: 0, size: 50 }
+      params: { page: 0, size: 50 },
+      timeout: 10000
     })
     personajes.value = data.content || data
-  } catch {} finally { cargandoPersonajes.value = false }
+  } catch {
+    personajes.value = []
+  } finally { cargandoPersonajes.value = false }
 }
 
 async function iniciarSesionPersonaje(personajeId: number) {
@@ -359,17 +470,37 @@ async function iniciarSesionPersonaje(personajeId: number) {
     guardarEstadoSesion()
     await characterSessionStore.iniciarSesion(personajeId)
     mostrarSelectorPersonajes.value = false
+    canalActivo.value = null
+    conversacionActiva.value = null
+    mensajes.value = []
+    mensajesPrivados.value = []
+    miembros.value = []
+    miembrosOnline.value = []
+    canalesUnidos.value = []
+    conversacionesPrivadas.value = []
+    unreadCountMap.value = new Map()
+    noLeidosPriv.value = new Map()
+    channelMentionedMap.value = new Map()
+    channelLastSeenIds.value = {}
+    cargandoCanales.value = true
     persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
     persistentSubscriptions = []
     wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
     wsSubscriptions = []
+    if (channelPresenceSubscription) {
+      websocketService.unsubscribe(channelPresenceSubscription)
+      channelPresenceSubscription = null
+    }
     await websocketService.disconnect()
     await conectarWebSocket()
     await cargarCanalesUnidos()
     suscribirCanales()
   } catch (e: any) {
-    const msg = e.response?.data?.error || e.message || 'Error al iniciar sesión'
-    mostrarMensajeModal('Error', msg)
+    console.error('[Chat] Error al conectar personaje:', e)
+    mostrarMensajeModal('Error', e.response?.data?.error || e.message || 'Error al iniciar sesión')
+    if (characterSessionStore.sesiones.value.length === 0) {
+      mostrarSelectorPersonajes.value = true
+    }
   }
 }
 
@@ -378,17 +509,17 @@ function confirmarDesconectar(idx: number) {
   mostrarConfirmacionDesconectar.value = true
 }
 
-function ejecutarDesconectar() {
+async function ejecutarDesconectar() {
   const idx = personajeDesconectarIdx.value
+  mostrarConfirmacionDesconectar.value = false
+  personajeDesconectarIdx.value = -1
   if (idx >= 0) {
     if (idx !== characterSessionStore.sesionActualIdx.value) {
       guardarEstadoSesion()
       characterSessionStore.seleccionarSesion(idx)
     }
-    cerrarSesionPersonaje()
+    await cerrarSesionPersonaje()
   }
-  mostrarConfirmacionDesconectar.value = false
-  personajeDesconectarIdx.value = -1
 }
 
 const personajeDesconectar = computed(() => {
@@ -399,8 +530,8 @@ const personajeDesconectar = computed(() => {
 async function cerrarSesionPersonaje() {
   guardarEstadoSesion()
   const closedPersonajeId = characterSessionStore.sesionActual.value?.personajeId
-  await websocketService.disconnect()
-  await characterSessionStore.cerrarSesionActual()
+  try { await websocketService.disconnect() } catch {}
+  try { await characterSessionStore.cerrarSesionActual() } catch {}
   if (closedPersonajeId != null) {
     onlineMap.value.set(closedPersonajeId, false)
     onlineMap.value = new Map(onlineMap.value)
@@ -409,19 +540,30 @@ async function cerrarSesionPersonaje() {
   mensajes.value = []
   miembros.value = []
   canalesUnidos.value = []
+  if (channelPresenceSubscription) {
+    websocketService.unsubscribe(channelPresenceSubscription)
+    channelPresenceSubscription = null
+  }
   if (characterSessionStore.sesiones.value.length > 0) {
-    restaurarEstadoSesion()
-    await reconectarSesion()
+    const conCache = restaurarEstadoSesion()
+    try { await reconectarSesion(conCache) } catch {}
   }
 }
 
 async function cerrarTodasSesiones() {
-  await websocketService.disconnect()
-  await characterSessionStore.cerrarTodas()
+  try { await websocketService.disconnect() } catch {}
+  try { await characterSessionStore.cerrarTodas() } catch {
+    characterSessionStore.sesiones.value = []
+    characterSessionStore.sesionActualIdx.value = 0
+  }
   canalActivo.value = null
   mensajes.value = []
   miembros.value = []
   canalesUnidos.value = []
+  if (channelPresenceSubscription) {
+    websocketService.unsubscribe(channelPresenceSubscription)
+    channelPresenceSubscription = null
+  }
 }
 
 async function conectarWebSocket() {
@@ -442,7 +584,7 @@ async function conectarWebSocket() {
     const charId = characterSessionStore.sesionActual.value?.personajeId
     if (charId == null) return
     const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
-      if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO') {
+      if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO' || data.tipo === 'CANAL_ELIMINADO') {
         const canalIdExp = data.canalId
         canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalIdExp)
         canalesOficiales.value = canalesOficiales.value.filter((c: any) => c.id !== canalIdExp)
@@ -472,6 +614,7 @@ async function conectarWebSocket() {
           noLeidosCharacter.value.set(data.receptorId, charCount + 1)
           noLeidosCharacter.value = new Map(noLeidosCharacter.value)
           reproducirSonidoPM()
+          notificarPush('Mensaje privado', truncarTexto(data.contenido || ''))
         }
       } else if (data.emisorId !== pid) {
         const count = noLeidosPriv.value.get(data.emisorId) || 0
@@ -483,6 +626,7 @@ async function conectarWebSocket() {
           noLeidosCharacter.value = new Map(noLeidosCharacter.value)
         }
         reproducirSonidoPM()
+        notificarPush(data.emisorNombre || 'Mensaje privado', truncarTexto(data.contenido || ''))
       }
       cargarConversaciones()
     })
@@ -510,6 +654,7 @@ interface SessionCacheEntry {
   usuarioScrolledUp: boolean
   conversacionActiva?: any
   mensajesPrivados?: any[]
+  conversacionesPrivadas?: any[]
 }
 
 const sessionCache = new Map<number, SessionCacheEntry>()
@@ -528,12 +673,13 @@ function guardarEstadoSesion() {
     usuarioScrolledUp: usuarioScrolledUp.value,
     conversacionActiva: conversacionActiva.value,
     mensajesPrivados: mensajesPrivados.value,
+    conversacionesPrivadas: conversacionesPrivadas.value,
   })
 }
 
-function restaurarEstadoSesion() {
+function restaurarEstadoSesion(): boolean {
   const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid == null) return
+  if (pid == null) return false
   const cached = sessionCache.get(pid)
   if (cached) {
     if (cached.conversacionActiva) {
@@ -555,6 +701,11 @@ function restaurarEstadoSesion() {
     pagina.value = cached.pagina
     hayMasMensajes.value = cached.hayMasMensajes
     usuarioScrolledUp.value = cached.usuarioScrolledUp
+    conversacionesPrivadas.value = cached.conversacionesPrivadas || []
+    if (canalActivo.value && !canalesUnidos.value.some((c: any) => c.id === canalActivo.value.id)) {
+      canalActivo.value = null
+      mensajes.value = []
+    }
   } else {
     canalActivo.value = null
     conversacionActiva.value = null
@@ -565,8 +716,11 @@ function restaurarEstadoSesion() {
     pagina.value = 0
     hayMasMensajes.value = true
     usuarioScrolledUp.value = false
+    conversacionesPrivadas.value = []
   }
+  noLeidosPriv.value = new Map()
   unreadCountMap.value = new Map()
+  return !!cached
 }
 
 function suscribirCanales() {
@@ -590,6 +744,7 @@ function suscribirCanales() {
           channelLastSeenIds.value[canal.id] = msg.id
         }
       } else {
+        if (msg.eliminado) return
         const current = unreadCountMap.value.get(canal.id) || 0
         unreadCountMap.value.set(canal.id, current + 1)
         unreadCountMap.value = new Map(unreadCountMap.value)
@@ -601,6 +756,7 @@ function suscribirCanales() {
           channelMentionedMap.value.set(canal.id, true)
           channelMentionedMap.value = new Map(channelMentionedMap.value)
           reproducirSonidoPM()
+          notificarPush('Te mencionaron en #' + (canal.nombre || 'canal'), truncarTexto(msg.contenido || ''))
         }
       }
     })
@@ -616,12 +772,10 @@ async function actualizarNoLeidos() {
       try {
         const { data } = await chatApi.obtenerMensajesCanal(c.id, 0, 1)
         const content: any[] = data.content || []
-        if (content.length > 0) {
-          const latestId = content[0].id
-          if (latestId > (channelLastSeenIds.value[c.id] ?? 0)) {
-            const current = unreadCountMap.value.get(c.id) || 0
-            unreadCountMap.value.set(c.id, current + 1)
-          }
+        const ultimo = content[0]
+        if (ultimo && !ultimo.eliminado && ultimo.id > (channelLastSeenIds.value[c.id] ?? 0)) {
+          const current = unreadCountMap.value.get(c.id) || 0
+          unreadCountMap.value.set(c.id, current + 1)
         }
       } catch {}
     })
@@ -629,12 +783,46 @@ async function actualizarNoLeidos() {
   unreadCountMap.value = new Map(unreadCountMap.value)
 }
 
-async function reconectarSesion() {
+async function refrescarMensajesActivos() {
+  if (!canalActivo.value || canalActivo.value.id == null) return
+  try {
+    const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
+    const content: any[] = data.content || []
+    const servidor = new Map(content.map((m: any) => [m.id, m]))
+    const pid = characterSessionStore.sesionActual.value?.personajeId
+    const nuevo: any[] = []
+    for (const m of mensajes.value) {
+      const srv = servidor.get(m.id)
+      if (srv) {
+        srv.esMio = srv.personajeId === pid
+        nuevo.push(srv)
+        servidor.delete(m.id)
+      } else {
+        nuevo.push(m)
+      }
+    }
+    const nuevosArr = [...servidor.values()]
+      .map((m: any) => { m.esMio = m.personajeId === pid; return m })
+      .sort((a: any, b: any) => new Date(a.fechaEnvio).getTime() - new Date(b.fechaEnvio).getTime())
+    for (const m of nuevosArr) {
+      const idx = nuevo.findIndex((x: any) => new Date(x.fechaEnvio).getTime() > new Date(m.fechaEnvio).getTime())
+      if (idx >= 0) nuevo.splice(idx, 0, m)
+      else nuevo.push(m)
+    }
+    mensajes.value = nuevo
+  } catch {}
+}
+
+async function reconectarSesion(conCache = false) {
   await websocketService.disconnect()
   persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
   persistentSubscriptions = []
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions = []
+  if (channelPresenceSubscription) {
+    websocketService.unsubscribe(channelPresenceSubscription)
+    channelPresenceSubscription = null
+  }
   await conectarWebSocket()
   const pid = characterSessionStore.sesionActual.value?.personajeId
   if (pid) {
@@ -643,7 +831,12 @@ async function reconectarSesion() {
       try { await chatApi.actualizarStatus(pid, saved) } catch {}
     }
   }
-  await cargarCanalesUnidos()
+  if (conCache) {
+    cargandoCanales.value = false
+  } else {
+    await cargarCanalesUnidos()
+  }
+  await cargarConversaciones()
   suscribirCanales()
   if (canalActivo.value) {
     if (mensajes.value.length === 0) {
@@ -655,6 +848,7 @@ async function reconectarSesion() {
         scrollAlFinal()
       } catch { mensajes.value = [] }
     } else {
+      await refrescarMensajesActivos()
       scrollAlFinal()
     }
     cargarMiembrosOnline()
@@ -662,20 +856,30 @@ async function reconectarSesion() {
   await actualizarNoLeidos()
 }
 
-function cambiarSesion(index: number) {
+async function cambiarSesion(index: number) {
   if (index === characterSessionStore.sesionActualIdx.value) return
   guardarEstadoSesion()
   characterSessionStore.seleccionarSesion(index)
   channelMentionedMap.value = new Map()
-  restaurarEstadoSesion()
-  reconectarSesion()
+  const conCache = restaurarEstadoSesion()
+  await reconectarSesion(conCache)
 }
 
 async function cargarCanalesUnidos() {
+  cargandoCanales.value = true
   try {
     const { data } = await chatApi.obtenerCanalesUnidos()
     canalesUnidos.value = data
-  } catch {}
+  } catch (e: any) {
+    console.error('[ChatWindow] Error cargando canales unidos:', e)
+    if (e?.response?.status === 401 || e?.response?.status === 403) {
+      await cerrarTodasSesiones()
+    } else {
+      canalesUnidos.value = []
+    }
+  } finally {
+    cargandoCanales.value = false
+  }
 }
 
 async function seleccionarCanal(canal: any) {
@@ -691,6 +895,13 @@ async function seleccionarCanal(canal: any) {
   hayMasMensajes.value = true
   usuarioScrolledUp.value = false
   if (window.innerWidth < 768) sidebarVisible.value = false
+
+  // Cancelar suscripción anterior de presencia por canal
+  if (channelPresenceSubscription) {
+    websocketService.unsubscribe(channelPresenceSubscription)
+    channelPresenceSubscription = null
+  }
+
   try {
     const { data } = await chatApi.obtenerMensajesCanal(canal.id, 0, PAGE_SIZE)
     const content: any[] = data.content || []
@@ -707,6 +918,19 @@ async function seleccionarCanal(canal: any) {
     scrollAlFinal()
   }
   cargarMiembrosOnline()
+
+  // Suscribirse a la presencia por canal para actualizaciones en tiempo real
+  if (websocketService.connected.value) {
+    channelPresenceSubscription = websocketService.subscribeToChannelPresence(canal.id, (data: any) => {
+      onlineMap.value.set(data.personajeId, data.online)
+      onlineMap.value = new Map(onlineMap.value)
+      if (data.status) {
+        statusMap.value.set(data.personajeId, data.status)
+        statusMap.value = new Map(statusMap.value)
+      }
+      cargarMiembrosOnline(true)
+    })
+  }
 }
 
 function handleMentionClick(e: MouseEvent) {
@@ -800,17 +1024,149 @@ async function unirseACanal(canalId: number) {
   }
 }
 
+function abrirModalCrear() {
+  nuevoCanalData.value = { nombre: '', descripcion: '', privado: false }
+  quitarImagenCanal()
+  errorCrear.value = ''
+  mostrarListaCanales.value = false
+  mostrarModalCrear.value = true
+}
+
+function cerrarModalCrear() {
+  quitarImagenCanal()
+  errorCrear.value = ''
+  mostrarModalCrear.value = false
+}
+
 async function crearCanal() {
   if (!nuevoCanalData.value.nombre.trim()) { errorCrear.value = 'El nombre es obligatorio'; return }
   errorCrear.value = ''
+  if (imagenCanal.value) {
+    const errImg = await validarImagenCanal(imagenCanal.value)
+    if (errImg) {
+      errorCrear.value = errImg
+      return
+    }
+  }
+  let canalCreado: any = null
   try {
     const { data } = await chatApi.crearCanal(nuevoCanalData.value)
+    canalCreado = data
+    if (imagenCanal.value && data.id) {
+      const imgRes = await chatApi.subirImagenCanal(data.id, imagenCanal.value)
+      data.imagenUrl = imgRes.data?.imagenUrl ?? data.imagenUrl
+    }
     mostrarModalCrear.value = false
     nuevoCanalData.value = { nombre: '', descripcion: '', privado: false }
+    quitarImagenCanal()
     await cargarCanalesUnidos()
     suscribirCanales()
     seleccionarCanal(data)
-  } catch (e: any) { errorCrear.value = e.response?.data?.error || 'Error al crear el canal' }
+  } catch (e: any) {
+    if (canalCreado) {
+      try { await chatApi.eliminarCanal(canalCreado.id) } catch {}
+      errorCrear.value = `No se pudo crear el canal con la imagen seleccionada: ${extraerError(e, 'error desconocido')}`
+    } else {
+      errorCrear.value = extraerError(e, 'Error al crear el canal')
+    }
+  }
+}
+
+function abrirModalEditarCanal() {
+  if (!canalActivo.value) return
+  editarCanalData.value = {
+    nombre: canalActivo.value.nombre,
+    descripcion: canalActivo.value.descripcion || '',
+    privado: canalActivo.value.privado,
+  }
+  imagenEdicionCanal.value = null
+  quitarImagenEdicion.value = false
+  imagenEdicionPreview.value = canalActivo.value.imagenUrl || null
+  errorEditarCanal.value = ''
+  mostrarEliminarCanal.value = false
+  passwordEliminarCanal.value = ''
+  errorEliminarCanal.value = ''
+  mostrarModalEditarCanal.value = true
+}
+
+async function onImagenEdicionCanalChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  imagenEdicionCanal.value = file
+  const error = await validarImagenCanal(file)
+  if (error) {
+    errorEditarCanal.value = error
+    return
+  }
+  if (imagenEdicionPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenEdicionPreview.value)
+  imagenEdicionPreview.value = URL.createObjectURL(file)
+  quitarImagenEdicion.value = false
+  errorEditarCanal.value = ''
+}
+
+function quitarImagenEdicionActual() {
+  imagenEdicionCanal.value = null
+  if (imagenEdicionPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenEdicionPreview.value)
+  imagenEdicionPreview.value = null
+  quitarImagenEdicion.value = true
+  errorEditarCanal.value = ''
+}
+
+async function guardarEdicionCanal() {
+  if (!canalActivo.value || !editarCanalData.value.nombre.trim()) {
+    errorEditarCanal.value = 'El nombre es obligatorio'
+    return
+  }
+  errorEditarCanal.value = ''
+  if (imagenEdicionCanal.value) {
+    const errImg = await validarImagenCanal(imagenEdicionCanal.value)
+    if (errImg) {
+      errorEditarCanal.value = errImg
+      return
+    }
+  }
+  try {
+    let { data } = await chatApi.editarCanal(canalActivo.value.id, editarCanalData.value)
+    if (imagenEdicionCanal.value) {
+      const imgRes = await chatApi.subirImagenCanal(canalActivo.value.id, imagenEdicionCanal.value)
+      data = imgRes.data
+    } else if (quitarImagenEdicion.value && canalActivo.value.imagenUrl) {
+      const imgRes = await chatApi.eliminarImagenCanal(canalActivo.value.id)
+      data = imgRes.data
+    }
+    canalActivo.value = data
+    mostrarModalEditarCanal.value = false
+    await cargarCanalesUnidos()
+  } catch (e: any) {
+    errorEditarCanal.value = extraerError(e, 'Error al editar el canal')
+  }
+}
+
+async function eliminarCanalConfirmado() {
+  if (!canalActivo.value || eliminandoCanal.value) return
+  if (!passwordEliminarCanal.value) {
+    errorEliminarCanal.value = 'Introduce tu contraseña para eliminar el canal'
+    return
+  }
+  errorEliminarCanal.value = ''
+  eliminandoCanal.value = true
+  const canalId = canalActivo.value.id
+  try {
+    await chatApi.eliminarCanal(canalId, passwordEliminarCanal.value)
+    canalActivo.value = null
+    mensajes.value = []
+    miembros.value = []
+    unreadCountMap.value.delete(canalId)
+    unreadCountMap.value = new Map(unreadCountMap.value)
+    mostrarModalEditarCanal.value = false
+    await cargarCanalesUnidos()
+    suscribirCanales()
+  } catch (e: any) {
+    errorEliminarCanal.value = extraerError(e, 'Error al eliminar el canal')
+  } finally {
+    eliminandoCanal.value = false
+  }
 }
 
 async function cargarMensajesAntiguos() {
@@ -858,7 +1214,7 @@ async function salirDelCanal() {
       unreadCountMap.value = new Map(unreadCountMap.value)
       await cargarCanalesUnidos()
       suscribirCanales()
-    } catch {}
+    } catch (e: any) { errorMsg.value = e.response?.data?.mensaje || e.response?.data?.error || 'Error al salir del canal' }
   })
 }
 
@@ -915,34 +1271,45 @@ async function cargarMiembrosOnline(silent = false) {
 }
 
 function handleBeforeUnload() {
-  websocketService.disconnect()
-  const sessionToken = characterSessionStore.getToken()
-  if (sessionToken) {
-    fetch('/api/personajes/sesion/cerrar-todas', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${sessionToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({}),
-      keepalive: true
-    }).catch(() => {})
+  try { websocketService.disconnect() } catch {}
+  const sesiones = characterSessionStore.sesiones.value
+  for (const s of sesiones) {
+    try {
+      fetch('/api/personajes/sesion/cerrar-beacon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: s.tokenJwt }),
+        keepalive: true
+      }).catch(() => {})
+    } catch {}
   }
 }
 
 onMounted(async () => {
+  solicitarPermisoNotificacion()
   await userStore.cargarDesdeToken()
   if (!userStore.usuario.value?.id) { router.push('/login'); return }
 
-  const activas = await characterSessionStore.obtenerSesionesActivas()
-  if (activas.length > 0) {
-    await conectarWebSocket()
-    await cargarCanalesUnidos()
-    suscribirCanales()
+  try {
+    await characterSessionStore.limpiarExpiradas()
+    const activas = await characterSessionStore.obtenerSesionesActivas()
+    if (activas.length > 0) {
+      try {
+        await conectarWebSocket()
+        await cargarCanalesUnidos()
+        suscribirCanales()
+      } catch (e) {
+        console.error('[ChatWindow] Error reconectando sesiones previas:', e)
+        await cerrarTodasSesiones()
+      }
+    }
+  } catch (e) {
+    console.error('[ChatWindow] Error obteniendo sesiones activas:', e)
   }
-  cargarPersonajes()
+  await cargarPersonajes()
   cargando.value = false
   window.addEventListener('beforeunload', handleBeforeUnload)
+  window.addEventListener('pagehide', handleBeforeUnload)
 
   pollingInterval = window.setInterval(() => {
     cargarMiembrosOnline(true)
@@ -952,7 +1319,11 @@ onMounted(async () => {
 onUnmounted(() => {
   persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
+  if (channelPresenceSubscription) {
+    websocketService.unsubscribe(channelPresenceSubscription)
+  }
   window.removeEventListener('beforeunload', handleBeforeUnload)
+  window.removeEventListener('pagehide', handleBeforeUnload)
   if (pollingInterval != null) {
     clearInterval(pollingInterval)
     pollingInterval = null
@@ -1097,7 +1468,10 @@ onUnmounted(() => {
 
         <!-- Lista de canales -->
         <div class="sidebar-channels flex-grow-1 overflow-auto">
-          <div v-if="canalesUnidos.length === 0" class="text-center text-muted p-3 small">
+          <div v-if="cargandoCanales" class="text-center py-4">
+            <div class="spinner-border spinner-border-sm text-primary"></div>
+          </div>
+          <div v-else-if="canalesUnidos.length === 0" class="text-center text-muted p-3 small">
             No estás en ningún canal
           </div>
            <div v-for="canal in canalesUnidos" :key="canal.id"
@@ -1105,7 +1479,7 @@ onUnmounted(() => {
                  :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
                  @click="seleccionarCanal(canal)">
              <div class="position-relative flex-shrink-0">
-               <img :src="canalAvatar(canal.nombre)" class="rounded-circle" width="32" height="32" />
+                <img :src="canalAvatar(canal)" class="rounded-circle" width="32" height="32" />
                <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot"></span>
              </div>
               <div class="flex-grow-1 min-w-0">
@@ -1146,20 +1520,23 @@ onUnmounted(() => {
             <button class="btn btn-sm btn-outline-secondary d-md-none" @click="sidebarVisible = !sidebarVisible">
               <i class="bi bi-list"></i>
             </button>
-            <img :src="canalAvatar(canalActivo.nombre)" class="rounded-circle flex-shrink-0" width="28" height="28" />
+            <img :src="canalAvatar(canalActivo)" class="rounded-circle flex-shrink-0" width="28" height="28" />
             <div class="flex-grow-1 min-w-0">
               <h6 class="mb-0 text-truncate">{{ canalActivo.nombre }}</h6>
-              <small class="text-muted" style="font-size:0.7rem;">
-                {{ canalActivo.descripcion || 'Sin descripción' }}
-                <span v-if="canalActivo.miembroCount != null" class="ms-2 miembros-link" @click="abrirListaMiembros" style="cursor:pointer;text-decoration:underline dotted;">
+              <div class="d-flex align-items-center gap-2" style="font-size:0.7rem;">
+                <ExpandableText :text="canalActivo.descripcion" :max-lines="1" class="flex-grow-1" />
+                <span v-if="canalActivo.miembroCount != null" class="flex-shrink-0 miembros-link" @click="abrirListaMiembros" style="cursor:pointer;text-decoration:underline dotted;">
                   <i class="bi bi-people-fill me-1"></i>{{ canalActivo.miembroCount }} miembros
                 </span>
-              </small>
+              </div>
             </div>
             <button class="btn btn-sm btn-outline-secondary" @click="mostrarConectados = !mostrarConectados" title="Conectados">
               <i class="bi bi-person-check"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger" @click="salirDelCanal" title="Salir del canal">
+            <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" class="btn btn-sm btn-outline-primary" @click="abrirModalEditarCanal" title="Editar canal">
+              <i class="bi bi-pencil"></i>
+            </button>
+            <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-danger" @click="salirDelCanal" title="Salir del canal">
               <i class="bi bi-box-arrow-left"></i>
             </button>
           </div>
@@ -1278,8 +1655,8 @@ onUnmounted(() => {
                    class="rounded-circle" width="32" height="32" style="object-fit: cover;" />
               <span class="online-dot" :style="{ background: getStatusColor(statusMap.get(m.personajeId)) }"></span>
             </div>
-            <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning"></i>
-            <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success"></i>
+            <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning" title="Dueño del canal"></i>
+            <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success" title="Moderador"></i>
             <small class="text-truncate" style="cursor:pointer;" @click="verPerfil(m.personajeId)">{{ m.personajeNombre }}</small>
           </div>
         </div>
@@ -1379,7 +1756,7 @@ onUnmounted(() => {
         <div v-for="c in canalesOficiales" :key="c.id"
              class="d-flex align-items-center gap-3 p-2 rounded-3 mb-1 hover-bg"
              @click="unirseACanal(c.id)" style="cursor:pointer;">
-          <img :src="canalAvatar(c.nombre)" class="rounded-circle" width="36" height="36" />
+          <img :src="canalAvatar(c)" class="rounded-circle" width="36" height="36" />
           <div class="flex-grow-1">
             <small class="fw-medium d-block">{{ c.nombre }}</small>
             <small class="text-muted">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</small>
@@ -1394,7 +1771,7 @@ onUnmounted(() => {
         <div v-for="c in canalesUsuarios" :key="c.id"
              :class="canalActivo?.id === c.id ? 'd-flex align-items-center gap-3 p-2 rounded-3 mb-1 bg-light' : 'd-flex align-items-center gap-3 p-2 rounded-3 mb-1 hover-bg'"
              @click="canalActivo?.id !== c.id ? unirseACanal(c.id) : (mostrarListaCanales=false)" style="cursor:pointer;">
-          <img :src="canalAvatar(c.nombre)" class="rounded-circle" width="36" height="36" />
+          <img :src="canalAvatar(c)" class="rounded-circle" width="36" height="36" />
           <div class="flex-grow-1">
             <div class="d-flex justify-content-between">
               <small class="fw-medium d-block">{{ c.nombre }}</small>
@@ -1404,7 +1781,7 @@ onUnmounted(() => {
           </div>
         </div>
         <hr class="my-2" />
-        <button class="btn btn-primary btn-sm w-100" @click="mostrarModalCrear = true; mostrarListaCanales = false">
+        <button class="btn btn-primary btn-sm w-100" @click="abrirModalCrear">
           <i class="bi bi-plus-lg me-1"></i> Crear nuevo canal
         </button>
       </template>
@@ -1412,11 +1789,11 @@ onUnmounted(() => {
   </div>
 
   <!-- Modal: Crear canal -->
-  <div v-if="mostrarModalCrear" class="modal-backdrop-custom" @click.self="mostrarModalCrear = false">
+  <div v-if="mostrarModalCrear" class="modal-backdrop-custom" @click.self="cerrarModalCrear">
     <div class="modal-content-custom shadow rounded-3 p-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0">Crear nuevo canal</h5>
-        <button class="btn-close" @click="mostrarModalCrear = false"></button>
+        <button class="btn-close" @click="cerrarModalCrear"></button>
       </div>
       <div class="mb-3">
         <label class="form-label">Nombre del canal</label>
@@ -1426,14 +1803,101 @@ onUnmounted(() => {
         <label class="form-label">Descripción</label>
         <textarea v-model="nuevoCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
       </div>
+      <div class="mb-3">
+        <label class="form-label">Imagen del canal (opcional)</label>
+        <div class="d-flex align-items-center gap-3">
+          <img v-if="imagenPreview" :src="imagenPreview" class="rounded-circle" width="48" height="48" style="object-fit:cover;" />
+          <div v-else class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold" style="width:48px;height:48px;font-size:0.9rem;">
+            {{ nuevoCanalData.nombre ? nuevoCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
+          </div>
+          <div class="flex-grow-1">
+            <input type="file" ref="inputImagenRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenCanalChange" />
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenRef?.click()">
+              <i class="bi bi-image me-1"></i> Seleccionar
+            </button>
+            <button v-if="imagenPreview || imagenCanal" type="button" class="btn btn-outline-danger btn-sm" @click="quitarImagenCanal">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="mb-3 form-check">
         <input v-model="nuevoCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivado" />
         <label class="form-check-label small" for="chkPrivado">Canal privado (solo por invitación)</label>
       </div>
       <div v-if="errorCrear" class="alert alert-danger py-1 small">{{ errorCrear }}</div>
       <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="mostrarModalCrear = false">Cancelar</button>
+        <button class="btn btn-outline-secondary btn-sm" @click="cerrarModalCrear">Cancelar</button>
         <button class="btn btn-primary btn-sm" @click="crearCanal"><i class="bi bi-check-lg me-1"></i> Crear</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal editar canal -->
+  <div v-if="mostrarModalEditarCanal" class="modal-backdrop-custom" @click.self="mostrarModalEditarCanal = false">
+    <div class="modal-content-custom shadow rounded-3 p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Editar canal</h5>
+        <button class="btn-close" @click="mostrarModalEditarCanal = false"></button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Nombre del canal</label>
+        <input v-model="editarCanalData.nombre" type="text" class="form-control form-control-sm" maxlength="100" />
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Descripción</label>
+        <textarea v-model="editarCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Imagen del canal</label>
+        <div class="d-flex align-items-center gap-3">
+          <img v-if="imagenEdicionSrc" :src="imagenEdicionSrc" class="rounded-circle flex-shrink-0" width="48" height="48" style="object-fit:cover;" />
+          <div v-else class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold" style="width:48px;height:48px;font-size:0.9rem;">
+            {{ editarCanalData.nombre ? editarCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
+          </div>
+          <div class="flex-grow-1">
+            <input type="file" ref="inputImagenEdicionRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenEdicionCanalChange" />
+            <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenEdicionRef?.click()">
+              <i class="bi bi-image me-1"></i> Seleccionar
+            </button>
+            <button v-if="imagenEdicionPreview || imagenEdicionCanal" type="button" class="btn btn-outline-danger btn-sm" @click="quitarImagenEdicionActual">
+              <i class="bi bi-x-lg"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="mb-3 form-check">
+        <input v-model="editarCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivadoEditar" />
+        <label class="form-check-label small" for="chkPrivadoEditar">Canal privado (solo por invitación)</label>
+      </div>
+      <div v-if="errorEditarCanal" class="alert alert-danger py-1 small">{{ errorEditarCanal }}</div>
+
+      <div v-if="miRolEnCanal === 'OWNER'" class="border-top pt-3 mt-3">
+        <div class="d-flex justify-content-between align-items-center">
+          <span class="small text-danger fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>Zona de peligro</span>
+          <button v-if="!mostrarEliminarCanal" class="btn btn-outline-danger btn-sm" @click="mostrarEliminarCanal = true">
+            <i class="bi bi-trash me-1"></i> Eliminar canal
+          </button>
+          <button v-else class="btn btn-outline-secondary btn-sm" @click="mostrarEliminarCanal = false">
+            <i class="bi bi-x-lg me-1"></i> Cancelar
+          </button>
+        </div>
+        <div v-if="mostrarEliminarCanal" class="mt-3">
+          <p class="small text-muted mb-2">
+            Al eliminar el canal, todos los personajes miembros saldrán y se borrarán todos los mensajes. Esta acción no se puede deshacer.
+          </p>
+          <label class="form-label small" for="passwordEliminarCanal">Escribe tu contraseña para confirmar</label>
+          <input v-model="passwordEliminarCanal" id="passwordEliminarCanal" type="password" class="form-control form-control-sm mb-2" placeholder="Contraseña" @keyup.enter="eliminarCanalConfirmado" />
+          <div v-if="errorEliminarCanal" class="alert alert-danger py-1 small">{{ errorEliminarCanal }}</div>
+          <button class="btn btn-danger btn-sm" :disabled="eliminandoCanal" @click="eliminarCanalConfirmado">
+            <i class="bi bi-trash me-1"></i> {{ eliminandoCanal ? 'Eliminando...' : 'Eliminar definitivamente' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="d-flex justify-content-end gap-2 mt-3">
+        <button class="btn btn-outline-secondary btn-sm" @click="mostrarModalEditarCanal = false">Cancelar</button>
+        <button class="btn btn-primary btn-sm" @click="guardarEdicionCanal"><i class="bi bi-check-lg me-1"></i> Guardar</button>
       </div>
     </div>
   </div>
