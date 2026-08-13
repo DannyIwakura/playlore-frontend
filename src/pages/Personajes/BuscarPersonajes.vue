@@ -212,7 +212,7 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
                   <span v-if="p.genero" class="tag tag-genero">{{ p.genero }}</span>
                   <span v-if="p.edadPersonaje !== null" class="tag tag-edad">{{ p.edadPersonaje }} años</span>
                 </div>
-                <div v-if="p.trasfondo" class="personaje-trasfondo" v-html="p.trasfondo"></div>
+                <div v-if="p.trasfondo" class="personaje-trasfondo" v-sanitize="p.trasfondo"></div>
                 <button class="btn btn-ver-perfil mt-auto">Ver perfil completo</button>
               </div>
             </div>

@@ -7,10 +7,12 @@ import CategoriaNueva from '../Admin/Categorias/CategoriaNueva.vue'
 import { userStore } from '../../store/userStore'
 import UsuariosLista from '../Admin/Usuarios/UsuariosLista.vue'
 import PersonajesLista from '../Admin/Personajes/PersonajesLista.vue'
+import DenunciasLista from '../Admin/Denuncias/DenunciasLista.vue'
+import BaneosLista from '../Admin/Baneos/BaneosLista.vue'
 
 const usuario = userStore.usuario
 const esAdmin = usuario.value?.role === 'ADMIN'
-const esModerador = usuario.value?.role === 'MODERADOR'
+const esModerador = usuario.value?.role === 'MOD'
 
 // Si es moderador, la pestaña inicial será personajes
 const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
@@ -54,6 +56,22 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
           >
             Gestión de personajes
           </button>
+          <button
+            v-if="esAdmin || esModerador"
+            class="list-group-item list-group-item-action"
+            :class="{ active: pestanaActiva === 'denuncias' }"
+            @click="pestanaActiva = 'denuncias'"
+          >
+            Denuncias
+          </button>
+          <button
+            v-if="esAdmin || esModerador"
+            class="list-group-item list-group-item-action"
+            :class="{ active: pestanaActiva === 'baneos' }"
+            @click="pestanaActiva = 'baneos'"
+          >
+            Baneos globales
+          </button>
         </div>
       </div>
 
@@ -77,6 +95,18 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
           <div v-if="pestanaActiva === 'personajes' && (esAdmin || esModerador)">
           <h2 class="mb-3">Gestión de personajes</h2>
           <PersonajesLista />
+        </div>
+
+        <!-- Denuncias -->
+        <div v-if="pestanaActiva === 'denuncias' && (esAdmin || esModerador)">
+          <h2 class="mb-3">Denuncias</h2>
+          <DenunciasLista />
+        </div>
+
+        <!-- Baneos globales -->
+        <div v-if="pestanaActiva === 'baneos' && (esAdmin || esModerador)">
+          <h2 class="mb-3">Baneos globales</h2>
+          <BaneosLista />
         </div>
       </div>
     </div>

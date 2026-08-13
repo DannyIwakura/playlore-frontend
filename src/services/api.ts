@@ -7,20 +7,9 @@ const api = axios.create({
 })
 
 //interceptor para añadir token a todas las peticiones (solo si no hay ya uno)
+//y poner el Content-Type adecuado sin pisar los FormData
 api.interceptors.request.use(config => {
 
-  if (!config.headers.Authorization) {
-    const token = localStorage.getItem("token")
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-  }
-
-  return config
-})
-
-//interceptor para manejar errores globales
-api.interceptors.request.use(config => {
   if (!config.headers.Authorization) {
     const token = localStorage.getItem("token")
     if (token) {
@@ -35,5 +24,28 @@ api.interceptors.request.use(config => {
 
   return config
 })
+
+//interceptor de respuesta: si la API devuelve 401, la sesión ha caducado o el
+//token es inválido → limpiamos la sesión y redirigimos al login
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error.response?.status === 401) {
+      const url: string = error.config?.url ?? ''
+      const esEndpointPublico =
+        url.includes('/usuarios/login') || url.includes('/usuarios/google-login')
+
+      if (!esEndpointPublico) {
+        localStorage.removeItem('token')
+        const { userStore } = await import('../store/userStore')
+        userStore.setUsuario(null)
+        if (router.currentRoute.value.path !== '/login') {
+          router.push('/login')
+        }
+      }
+    }
+    return Promise.reject(error)
+  }
+)
 
 export default api

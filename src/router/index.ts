@@ -11,7 +11,6 @@ import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
 import AdminPanel from '../pages/Admin/AdminPanel.vue';
 import { userStore } from '../store/userStore';
 import EditarFormulario from '../pages/Usuarios/EditarFormulario.vue';
-import MensajesPrivadosList from '../pages/Mensajes Privados/MensajesPrivadosList.vue';
 import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
 import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
 import AmigosList from '../pages/Usuarios/AmigosList.vue';
@@ -31,7 +30,7 @@ const routes = [
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
   { path: '/personajes/buscar',component: BuscarPersonaje, meta: { requiresAuth: true } },
-  { path: '/mensajes', component: MensajesPrivadosList, meta: { requiresAuth: true } },
+  { path: '/mensajes', redirect: '/chat' },
   { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
   { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },
   { path: '/amigos/', component: AmigosList, meta: { requiresAuth: true } },
@@ -71,7 +70,7 @@ router.beforeEach((to, _from, next) => {
   if (to.meta.requiresAdmin) {
   userStore.cargarDesdeToken();
     const role = userStore.usuario.value?.role
-    if (role !== 'ADMIN' && role !== 'MODERADOR') {
+    if (role !== 'ADMIN' && role !== 'MOD') {
       next('/dashboard');
       return;
     }

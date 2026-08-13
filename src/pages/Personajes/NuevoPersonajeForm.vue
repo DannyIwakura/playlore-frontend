@@ -1,14 +1,16 @@
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
+import ModalAviso from '../../components/ModalAviso.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 
 const router = useRouter()
 const errores = reactive<Record<string, string>>({})
+const aviso = ref<string | null>(null)
 
 const personaje = reactive({
   nombre: "",
@@ -32,7 +34,7 @@ async function crearPersonaje() {
   // Limpiar errores
   Object.keys(errores).forEach(key => delete errores[key])
   if (!userStore.usuario?.value) {
-    alert("No se ha detectado usuario logueado")
+    aviso.value = "No se ha detectado usuario logueado"
     return
   }
   try {
@@ -122,4 +124,6 @@ async function crearPersonaje() {
     </form>
   </div>
   <Footer />
+
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>

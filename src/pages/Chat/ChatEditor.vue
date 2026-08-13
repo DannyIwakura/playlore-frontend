@@ -1,15 +1,19 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { EMOJI_CATEGORIES, getRecentEmojis, addRecentEmoji } from './emojiData'
-import { avatarUrl } from './chatUtils'
+import { avatarUrl, truncarTexto } from './chatUtils'
 
 const props = defineProps<{
   miembrosOnline: any[]
   sending?: boolean
+  mensajeEnRespuesta?: any | null
+  modoEdicion?: any | null
 }>()
 
 const emit = defineEmits<{
   send: [texto: string]
+  'cancelar-respuesta': []
+  'cancelar-edicion': []
 }>()
 
 const editorRef = ref<HTMLElement | null>(null)
@@ -188,6 +192,19 @@ function limpiarEditor() {
   nuevoMensaje.value = ''
 }
 
+function setContenido(html: string) {
+  if (editorRef.value) {
+    editorRef.value.innerHTML = html
+    nuevoMensaje.value = editorRef.value.innerText || ''
+  }
+}
+
+function enfocar() {
+  editorRef.value?.focus()
+}
+
+defineExpose({ enfocar, limpiar: limpiarEditor, setContenido })
+
 function getMentionSearch(): string {
   const sel = window.getSelection()
   if (!sel || !sel.rangeCount) return ''
@@ -221,6 +238,27 @@ function onEditorInput() {
       sel?.addRange(range)
     }
   }
+}
+
+function onEditorPaste(e: ClipboardEvent) {
+  e.preventDefault()
+  const el = editorRef.value
+  if (!el) return
+  const html = e.clipboardData?.getData('text/html')
+  const text = e.clipboardData?.getData('text/plain') ?? ''
+  if (html) {
+    const tmp = document.createElement('div')
+    tmp.innerHTML = html
+    tmp.querySelectorAll('*').forEach(node => {
+      const style = (node as HTMLElement).style
+      style.removeProperty('color')
+      style.removeProperty('background-color')
+    })
+    document.execCommand('insertHTML', false, tmp.innerHTML)
+  } else if (text) {
+    document.execCommand('insertText', false, text)
+  }
+  el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
 function rollDice(count: number, sides: number): { total: number; rolls: number[] } {
@@ -444,6 +482,19 @@ onUnmounted(() => {
 
 <template>
   <div class="chat-input p-3 border-top bg-light">
+    <div v-if="modoEdicion || mensajeEnRespuesta" class="reply-edit-banner d-flex align-items-center gap-2 px-2 py-1 mb-2">
+      <div v-if="modoEdicion" class="flex-grow-1 text-truncate small">
+        <i class="bi bi-pencil me-1"></i><strong>Editando mensaje</strong>
+      </div>
+      <div v-else class="flex-grow-1 text-truncate small">
+        <i class="bi bi-reply me-1"></i><strong>Respondiendo a @{{ mensajeEnRespuesta.personajeNombre }}</strong>
+        <span class="text-muted"> — {{ truncarTexto(mensajeEnRespuesta.contenido, 80) }}</span>
+      </div>
+      <button type="button" class="btn btn-sm btn-light border-0 p-0 px-1 flex-shrink-0" title="Cancelar"
+              @click="modoEdicion ? emit('cancelar-edicion') : emit('cancelar-respuesta')">
+        <i class="bi bi-x-lg"></i>
+      </button>
+    </div>
     <div class="chat-editor-pickers-anchor position-relative">
     <div class="formatting-toolbar d-flex gap-1 px-2 py-1 border-bottom flex-wrap">
       <button type="button" class="btn btn-sm btn-light border-0 fmt-btn" @mousedown.prevent="execFormat('bold')" title="Negrita"><strong>B</strong></button>
@@ -518,23 +569,24 @@ onUnmounted(() => {
 
     <!-- Editor + send -->
     <form @submit.prevent="enviar" class="d-flex gap-2 align-items-end pt-2 position-relative">
-      <div class="flex-grow-1 position-relative">
+      <div class="editor-wrap flex-grow-1 position-relative">
         <div ref="editorRef" contenteditable="true"
              class="form-control form-control-sm chat-editor"
              data-placeholder="Escribe un mensaje..."
              @keydown="handleEditorKeydown"
-             @input="onEditorInput"></div>
-        <div class="character-counter">
-          <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
-            {{ charsRestantes.usado }}/{{ charsRestantes.max }}
-          </span>
-        </div>
+             @input="onEditorInput"
+             @paste="onEditorPaste"></div>
       </div>
-      <button type="submit" class="btn btn-primary btn-sm flex-shrink-0"
+      <button type="submit" class="btn btn-primary btn-sm flex-shrink-0 send-btn"
               :disabled="!nuevoMensaje.trim() || sending">
         <i class="bi bi-send"></i>
       </button>
     </form>
+    <div class="character-counter text-end pt-1">
+      <span :class="charsRestantes.usado > charsRestantes.max * 0.9 ? 'text-danger fw-bold' : 'text-muted'">
+        {{ charsRestantes.usado }}/{{ charsRestantes.max }}
+      </span>
+    </div>
 
     <!-- Picker overlays -->
     <div v-if="mostrarEmojiPicker" class="context-menu-overlay" @click="handleOverlayClick('emoji')" @contextmenu.prevent="handleOverlayClick('emoji')"></div>
@@ -573,6 +625,25 @@ onUnmounted(() => {
 </template>
 
 <style scoped>
+.editor-wrap {
+  min-width: 0;
+}
+
+.chat-editor {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+  min-height: 31px;
+  max-height: 180px;
+  overflow-y: auto;
+  resize: none;
+}
+
+.character-counter {
+  font-size: 0.7rem;
+  line-height: 1;
+}
+
 .emoji-picker,
 .mention-picker-inside {
   position: absolute;
@@ -638,5 +709,12 @@ onUnmounted(() => {
 .mention-item:hover,
 .mention-highlight {
   background-color: #e9ecef;
+}
+
+.reply-edit-banner {
+  background: #eef4ff;
+  border: 1px solid #cfe0ff;
+  border-radius: 8px;
+  color: #1d4ed8;
 }
 </style>

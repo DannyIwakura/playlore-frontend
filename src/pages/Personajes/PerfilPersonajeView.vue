@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
+import ModalAviso from '../../components/ModalAviso.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import defaultAvatar from '../../assets/img/AVATAR.png'
@@ -60,9 +61,7 @@ const categorias = ref<CategoriaDTO[]>([])
 const cargando = ref(true)
 const error = ref<string | null>(null)
 
-const modalMensaje = ref(false)
-const mensaje = ref({ titulo: '', contenido: '' })
-const enviandoMensaje = ref(false)
+const aviso = ref<string | null>(null)
 
 const activeTab = ref<'trasfondo' | 'categorias' | 'galeria'>('trasfondo')
 
@@ -82,9 +81,9 @@ async function cambiarEstadoPersonaje(nuevoEstado: 'ACTIVO' | 'DESACTIVADO') {
       estado: nuevoEstado
     })
     personaje.value = { ...personaje.value, estadoPersonaje: nuevoEstado }
-    alert(`Personaje ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'} correctamente.`)
+    aviso.value = `Personaje ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'} correctamente.`
   } catch {
-    alert('Error al cambiar el estado del personaje.')
+    aviso.value = 'Error al cambiar el estado del personaje.'
   }
 }
 
@@ -164,32 +163,6 @@ function irAlPerfil() {
   if (usuario.value) router.push(`/perfil/${usuario.value.userId}`)
 }
 
-async function enviarMensaje() {
-    console.log("Payload:", {
-    emisorId: miId.value,
-    receptorId: usuario.value?.userId,
-    titulo: mensaje.value.titulo,
-    contenido: mensaje.value.contenido
-    });
-    const emisor = miId.value
-    if (!emisor || !usuario.value) return
-    enviandoMensaje.value = true
-    try {
-        await api.post('/mensajes/enviar', {
-        emisorId: emisor,
-        receptorId: usuario.value.userId,
-        titulo: mensaje.value.titulo,
-        contenido: mensaje.value.contenido
-        })
-        modalMensaje.value = false
-        mensaje.value = { titulo: '', contenido: '' }
-    } catch {
-        alert('Error al enviar el mensaje.')
-    } finally {
-        enviandoMensaje.value = false
-    }
-}
-
 async function enviarAmistad() {
   if (!usuario.value) return
   const emisor = miId.value
@@ -199,10 +172,74 @@ async function enviarAmistad() {
       emisorId: emisor,
       receptorId: usuario.value.userId
     })
-    alert('Solicitud de amistad enviada.')
+    aviso.value = 'Solicitud de amistad enviada.'
   } catch (e: any) {
-    if (e.response?.status === 409) alert('Ya existe una solicitud pendiente o ya sois amigos.')
-    else alert('No se pudo enviar la solicitud.')
+    if (e.response?.status === 409) aviso.value = 'Ya existe una solicitud pendiente o ya sois amigos.'
+    else aviso.value = 'No se pudo enviar la solicitud.'
+  }
+}
+
+// --- Denunciar personaje ---
+const modalDenuncia = ref(false)
+const denuncia = ref({ motivo: '', detalle: '' })
+const enviandoDenuncia = ref(false)
+
+async function enviarDenuncia() {
+  if (!personaje.value) return
+  if (!denuncia.value.motivo.trim()) {
+    aviso.value = 'El motivo es obligatorio para enviar la denuncia.'
+    return
+  }
+  enviandoDenuncia.value = true
+  try {
+    await api.post('/denuncias', {
+      tipo: 'PERSONAJE',
+      tipoId: personaje.value.idPersonaje,
+      motivo: denuncia.value.motivo.trim(),
+      detalle: denuncia.value.detalle.trim() || null,
+    })
+    modalDenuncia.value = false
+    denuncia.value = { motivo: '', detalle: '' }
+    aviso.value = 'Denuncia enviada. Gracias por ayudar a mantener la comunidad segura.'
+  } catch (e: any) {
+    const data = e?.response?.data
+    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
+  } finally {
+    enviandoDenuncia.value = false
+  }
+}
+
+// --- Banear personaje (solo ADMIN/MOD) ---
+const modalBaneo = ref(false)
+const baneo = ref({ duracion: 'PERMANENTE', motivo: '' })
+const baneando = ref(false)
+
+const opcionesDuracion = [
+  { value: '1H', label: '1 hora' },
+  { value: '24H', label: '24 horas' },
+  { value: '7D', label: '7 días' },
+  { value: 'PERMANENTE', label: 'Permanente' },
+]
+
+async function banearPersonaje() {
+  if (!personaje.value) return
+  const dur = baneo.value.duracion
+  baneando.value = true
+  try {
+    await api.post('/moderacion/baneos', {
+      tipo: 'PERSONAJE',
+      id: personaje.value.idPersonaje,
+      duracion: baneo.value.duracion,
+      motivo: baneo.value.motivo.trim() || null,
+    })
+    modalBaneo.value = false
+    baneo.value = { duracion: 'PERMANENTE', motivo: '' }
+    aviso.value = `Personaje baneado${dur !== 'PERMANENTE' ? ' temporalmente' : ''}.`
+  } catch (e: any) {
+    const data = e?.response?.data
+    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al banear al personaje.'
+  } finally {
+    baneando.value = false
   }
 }
 
@@ -314,9 +351,6 @@ onMounted(async () => {
                 <button class="btn-accion btn-accion--primary" @click="irAlPerfil">
                   <i class="bi bi-person-fill me-2"></i>Ver perfil
                 </button>
-                <button class="btn-accion btn-accion--outline" @click="modalMensaje = true">
-                  <i class="bi bi-envelope-fill me-2"></i>Enviar mensaje
-                </button>
                 <template v-if="puedeModerarPersonaje">
                     <div
                       v-if="personaje.estadoPersonaje === 'DESACTIVADO'"
@@ -337,9 +371,15 @@ onMounted(async () => {
                     @click="cambiarEstadoPersonaje('ACTIVO')">
                     <i class="bi bi-check-circle me-2"></i>Activar perfil
                   </button>
+                  <button class="btn-accion btn-accion--danger" @click="modalBaneo = true">
+                    <i class="bi bi-hammer me-2"></i>Banear personaje
+                  </button>
                 </template>
                 <button class="btn-accion btn-accion--ghost" @click="enviarAmistad">
                   <i class="bi bi-person-plus-fill me-2"></i>Petición de amistad
+                </button>
+                <button class="btn-accion btn-accion--denunciar" @click="modalDenuncia = true">
+                  <i class="bi bi-flag-fill me-2"></i>Denunciar personaje
                 </button>
               </div>
 
@@ -395,7 +435,7 @@ onMounted(async () => {
             <div
               v-if="personaje.trasfondo"
               class="trasfondo-contenido"
-              v-html="personaje.trasfondo"
+              v-sanitize="personaje.trasfondo"
             ></div>
             <p v-else class="text-muted fst-italic mb-0">Este personaje aún no tiene trasfondo escrito.</p>
           </div>
@@ -430,41 +470,73 @@ onMounted(async () => {
     </div>
   </main>
   </div>
-  <!-- Modal de mensaje -->
-   <div v-if="modalMensaje" class="modal-backdrop-custom" @click.self="modalMensaje = false">
-  <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h5 class="mb-0">Nuevo mensaje</h5>
-      <button class="btn-close" @click="modalMensaje = false"></button>
+  <!-- Modal de denuncia -->
+  <div v-if="modalDenuncia" class="modal-backdrop-custom" @click.self="modalDenuncia = false">
+    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Denunciar a {{ personaje?.nombre }}</h5>
+        <button class="btn-close" @click="modalDenuncia = false"></button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Motivo <span class="text-danger">*</span></label>
+        <input v-model="denuncia.motivo" type="text" class="form-control" maxlength="200" placeholder="¿Por qué lo denuncias?" />
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Detalle (opcional)</label>
+        <textarea v-model="denuncia.detalle" class="form-control" rows="4" maxlength="2000" placeholder="Amplía la información si lo necesitas..."></textarea>
+        <div class="text-end text-muted small mt-1">{{ denuncia.detalle.length }}/2000</div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary" @click="modalDenuncia = false">Cancelar</button>
+        <button
+          class="btn btn-outline-danger"
+          :disabled="enviandoDenuncia || !denuncia.motivo.trim()"
+          @click="enviarDenuncia"
+        >
+          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm me-1"></span>
+          <i v-else class="bi bi-flag me-1"></i>
+          Enviar denuncia
+        </button>
+      </div>
     </div>
-    <div class="mb-3">
-        <label class="form-label">Destinatario</label>
-        <input :value="usuario?.nombre" type="text" class="form-control" disabled />
+  </div>
+
+  <!-- Modal de baneo -->
+  <div v-if="modalBaneo" class="modal-backdrop-custom" @click.self="modalBaneo = false">
+    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">Banear a {{ personaje?.nombre }}</h5>
+        <button class="btn-close" @click="modalBaneo = false"></button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Duración</label>
+        <select v-model="baneo.duracion" class="form-select">
+          <option v-for="op in opcionesDuracion" :key="op.value" :value="op.value">
+            {{ op.label }}
+          </option>
+        </select>
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Motivo (opcional)</label>
+        <input v-model="baneo.motivo" type="text" class="form-control" maxlength="300" placeholder="Motivo del baneo" />
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary" @click="modalBaneo = false">Cancelar</button>
+        <button
+          class="btn btn-danger"
+          :disabled="baneando"
+          @click="banearPersonaje"
+        >
+          <span v-if="baneando" class="spinner-border spinner-border-sm me-1"></span>
+          <i v-else class="bi bi-hammer me-1"></i>
+          Banear
+        </button>
+      </div>
     </div>
-    <div class="mb-3">
-      <label class="form-label">Asunto</label>
-      <input v-model="mensaje.titulo" type="text" class="form-control" maxlength="150" placeholder="Asunto del mensaje" />
-    </div>
-    <div class="mb-4">
-      <label class="form-label">Mensaje</label>
-      <textarea v-model="mensaje.contenido" class="form-control" rows="5" maxlength="2000"></textarea>
-      <div class="text-end text-muted small mt-1">{{ mensaje.contenido.length }}/2000</div>
-    </div>
-    <div class="d-flex justify-content-end gap-2">
-      <button class="btn btn-outline-secondary" @click="modalMensaje = false">Cancelar</button>
-      <button
-        class="btn btn-primary"
-        :disabled="enviandoMensaje || !mensaje.contenido"
-        @click="enviarMensaje"
-      >
-        <span v-if="enviandoMensaje" class="spinner-border spinner-border-sm me-1"></span>
-        <i v-else class="bi bi-send me-1"></i>
-        Enviar
-      </button>
-        </div>
-    </div>
-    </div>
+  </div>
   <Footer v-if="!modoModal" />
+
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 
 <style scoped>
@@ -622,6 +694,17 @@ onMounted(async () => {
 .btn-accion--ghost:hover {
   background: #f3f4f6;
   color: #374151;
+}
+
+.btn-accion--denunciar {
+  background: transparent;
+  color: #d97706;
+  border-color: #d97706;
+}
+
+.btn-accion--denunciar:hover {
+  background: #fffbeb;
+  color: #b45309;
 }
 
 /* ---- Secciones derecha ---- */

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue';
 import api from '../../services/api';
+import ModalAviso from '../../components/ModalAviso.vue';
 
 const props = defineProps<{ idPersonaje: number }>();
 const emit = defineEmits(['close', 'success']);
@@ -8,6 +9,7 @@ const emit = defineEmits(['close', 'success']);
 const todasLasCategorias = ref<any[]>([]);
 const categoriasActuales = ref<any[]>([]);
 const categoriaSeleccionada = ref('');
+const aviso = ref<string | null>(null);
 
 // Cargamos los datos al abrir el modal
 onMounted(async () => {
@@ -57,7 +59,7 @@ const guardarCategorias = async () => {
         categoriaSeleccionada.value = '';
         emit('success');
     } catch (error) {
-        alert("Error al asignar la categoría.");
+        aviso.value = "Error al asignar la categoría.";
     }
 };
 
@@ -73,7 +75,7 @@ const eliminarCategoria = async (idRelacion: number) => {
         emit('success');
     } catch (error) {
         console.error("Error al eliminar:", error);
-        alert("No se pudo eliminar la categoría.");
+        aviso.value = "No se pudo eliminar la categoría.";
     }
 };
 </script>
@@ -131,6 +133,8 @@ const eliminarCategoria = async (idRelacion: number) => {
       </div>
     </div>
   </div>
+
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 <style scoped>
 .btn-eliminar-pildora {

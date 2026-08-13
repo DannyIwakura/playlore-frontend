@@ -79,6 +79,20 @@ Build a real-time chat system with connected members sidebar, status colors, rol
 - Frontend: Edit button in CanalesList.vue channel cards — visible for OWNER only
 - Frontend: Edit modal in all 3 views with name, description, privacy fields pre-filled
 - Frontend: After save, updates canalActivo in ChatWindow/CanalCanal, refreshes list in CanalesList
+- Backend: `MensajeCanal` reply fields — `mensajePadre` (ManyToOne LAZY), `mensajePadreAutor`, `mensajePadreContenido` (LONGTEXT), created by `ddl-auto=update`
+- Backend: `MensajeCanalDTO` exposes `mensajePadreId`/`mensajePadreAutor`/`mensajePadreContenido` (id only when padre != null)
+- Backend: `CanalMensajeService.enviarMensaje` overload with `mensajePadreId` — validates padre exists (ResourceNotFoundException), same channel and not deleted (BadRequestException → 400); server snapshots the quote; REST + WS controllers parse `mensajePadreId`
+- Frontend: `chatApi.enviarMensajeCanal` and `websocket.sendChannelMessage` accept optional `mensajePadreId`
+- Frontend: `ChatMessage.vue` hover overlay `.msg-actions` (Responder/Copiar/Editar/Eliminar), clickable `.msg-reply-preview` quote, emits `responder`/`copiar`/`editar`/`scroll-a-mensaje` — only with `mostrar-acciones` (channel messages)
+- Frontend: `ChatWindow.vue` reply/edit state (`mensajeEnRespuesta`/`modoEdicion`), `scrollAMensaje` with flash highlight, edit routed to existing `PUT` marking `editado`
+- Frontend: `ChatEditor.vue` reply/edit banner (`.reply-edit-banner`) with ✕ cancel + `defineExpose({ enfocar, limpiar, setContenido })`
+- Frontend: `chatUtils.copiarTexto()` — clipboard copy with execCommand fallback
+- Test: `playwright-responder-mensaje.js` PASS (reply quote visible in both browsers, scroll-highlight on quote click, copy, edit badge, delete from overlay)
+- Backend: `GoogleAuthService` (new) verifies Google ID token (credential) with `GoogleIdTokenVerifier` from `google-api-client:2.7.2` — checks signature (Google public certs), audience (client id), issuer and `emailVerified`; finds user by email or auto-creates (username sanitized to `[a-zA-Z0-9_]+` + numeric suffix if collision, random BCrypt password, avatar = Google `picture`); returns the app JWT
+- Backend: `POST /usuarios/google-login` in `UsuarioController` — public (permitAll in `SecurityConfig`), NO CAPTCHA, body `{ credential }`, response is the SAME raw JWT string as `/usuarios/login`
+- Backend: `UsuarioRepositoryInterface` now has `findByEmail` and `existsByNombre`; `application.properties` has `google.client-id` (`${GOOGLE_CLIENT_ID}`)
+- Frontend: GSI script added to `index.html`; `Login.vue` renders "Continuar con Google" button via `google.accounts.id.renderButton` (divider "o"), `handleCredentialResponse` POSTs the credential to `/usuarios/google-login`, stores JWT in localStorage and redirects to `/dashboard`
+- Frontend: `VITE_GOOGLE_CLIENT_ID` in `.env.development` and `.env.production`
 
 ### In Progress
 - (none)
@@ -100,6 +114,9 @@ Build a real-time chat system with connected members sidebar, status colors, rol
 - Channel creation is two-step: create channel first (JSON), then upload image via `PUT /canales/{id}/imagen` (MultipartFile) — backend validates type/dimensions
 - Channel images stored as `UUID_filename` in `uploads/canales/`, old image deleted on replace, served via `/uploads/**`
 - `ExpandableText.vue` uses `-webkit-line-clamp: 3` for collapsed state, `max-height: 300px; overflow-y: auto` for expanded; button visibility toggled via CSS (`text-overflow: ellipsis`)
+- Google login uses Sign in with Google (GSI ID token / credential) instead of the OAuth2 redirect flow — no client secret, no redirect URI; the backend (`GoogleAuthService`) is the authority: it verifies the token signature against Google's public certs, the audience (client id) and `emailVerified`. Never trust an unverified token.
+- Google-created users get an auto-generated username (email prefix sanitized to `^[a-zA-Z0-9_]+$` + numeric suffix on collision, max 50 chars) and a random BCrypt password (password column is NOT NULL) — they can only log in via Google. Existing users are linked by email.
+- `POST /usuarios/google-login` returns the same raw JWT string shape as `/usuarios/login`, so the frontend token flow is identical (localStorage `token` → `userStore.cargarDesdeToken()`).
 
 ## Next Steps
 1. Test: switch between characters, verify status persists, messages stay cached, context menu works
@@ -342,6 +359,14 @@ console.log('Updated:', headerText.includes('EDITADO'));
 - **Lesson**: A full-viewport backdrop must have a HIGHER z-index than every element it must cover, including elements in child components. Keep z-indexes across sibling layers in one global scale with clear levels (modals ≥ 1050, editor overlays < 1050, ChatWindow context menus 1070/1071).
 - **Test**: `playwright-modal-cubre-toolbar.js` (temp dir) — PASS: with the "Miembros" modal open, `document.elementFromPoint` over the toolbar returns the `.modal-backdrop-custom` (not a `.fmt-btn`), and clicking the toolbar closes the modal; pickers still float above the toolbar and are switchable (Bug 7 regression); Escape closes pickers; opening Ayuda with a picker open closes the picker; the `pl:modal-abierto` event closes open pickers. Regressions: `playwright-ayuda-modal.js` PASS. Note: `playwright-editor-pickers.js`'s mention-filter step ("Filtrar menciones muestra a Preuba2") only passes when Preuba2 is ONLINE (the mention picker lists `miembrosOnline`) — with sessions cleared, connect Preuba2 first (see `playwright-mention-prebua2.js`).
 
+#### Feature: Responder a mensaje (cita) + acciones hover estilo Discord ✅ DONE
+- **Qué hace**: Cada mensaje de canal muestra al hacer hover un overlay con acciones: Responder, Copiar, Editar (solo mensajes propios), Eliminar (solo con permiso). "Responder" abre un banner sobre el editor "Respondiendo a @autor — texto" y el mensaje enviado incluye la cita (preview clicable que hace scroll al mensaje original y lo resalta en azul claro `#d8e7ff` durante ~2s con desvanecimiento, sobre la fila completa, estilo Discord — el clic repetido re-dispara la animación). "Editar" reusa el `PUT /canales/{canalId}/mensajes/{mensajeId}` existente y muestra el badge `(edit)`.
+- **Decisiones**: La cita guarda SNAPSHOT (autor + texto copiados al responder EN EL SERVIDOR), inmune a edición/borrado posterior del original. Reacciones de emoji → fase 2 (el overlay `.msg-actions` está preparado para añadir el botón). Overlay y citas SOLO en mensajes de canal — los PM (`ChatMessage` sin `mostrar-acciones`) no muestran nada de esto.
+- **Backend**: `MensajeCanal` añade `mensajePadre` (ManyToOne LAZY, col `mensaje_padre_id`), `mensajePadreAutor` (`mensaje_padre_autor`) y `mensajePadreContenido` (LONGTEXT `mensaje_padre_contenido`) — creadas por `ddl-auto=update`. `MensajeCanalDTO` expone `mensajePadreId` (solo si padre != null), `mensajePadreAutor`, `mensajePadreContenido`. `CanalMensajeService.enviarMensaje(canalId, personajeId, contenido, mensajePadreId)` valida: padre existe (`ResourceNotFoundException`), mismo canal y no eliminado (`BadRequestException` → 400). REST (`CanalMensajeController` POST) y WS (`ChatWebSocketController` `/app/chat.canal.{canalId}.enviar`) parsean `mensajePadreId` (null si vacío). Broadcast `/topic/canal.{id}` sin cambios (el front reemplaza/inserta por `id`).
+- **Frontend**: `chatApi.enviarMensajeCanal(canalId, contenido, mensajePadreId?)` y `websocket.sendChannelMessage(channelId, contenido, mensajePadreId?)`. `ChatMessage.vue` reescrito: overlay `.msg-actions` (opacity 0 → visible en `.msg-row:hover`/`:focus-within`), `.msg-reply-preview` clicable que emite `scroll-a-mensaje`, emits nuevos `responder`/`copiar`/`editar`, props `canEditar`/`mostrarAcciones`/`destacar`. `ChatWindow.vue`: refs `mensajeEnRespuesta`/`modoEdicion`/`mensajeDestacado`/`chatEditorRef`; `enviarMensaje` adjunta `mensajePadreId`; `iniciarRespuesta`/`iniciarEdicion`/`ejecutarEdicion`/`copiarMensaje`/`scrollAMensaje` (busca `.msg-row[data-msg-id]`, scrollIntoView block center + clase `msg-row-flash`); `handleSendCanal` deriva a edición si `modoEdicion`; `seleccionarCanal` limpia respuesta/edición. `ChatEditor.vue`: props `mensajeEnRespuesta`/`modoEdicion`, banner `.reply-edit-banner` con ✕ (emite `cancelar-respuesta`/`cancelar-edicion`), `defineExpose({ enfocar, limpiar, setContenido })`. `chatUtils.copiarTexto` (navigator.clipboard + fallback execCommand; limpia HTML y `&#64;`).
+- **Test**: `playwright-responder-mensaje.js` (temp dir) — PASS 5/5: T1 cita visible en ambos navegadores tras responder + banner desaparece; T2 clic en cita resalta el original; T3 copiar al portapapeles (contexto con `grantPermissions(['clipboard-read','clipboard-write'])`); T4 editar propio con badge `(edit)` en ambos + banner desaparece; T5 eliminar desde el overlay con tombstone en ambos. Regresiones: `playwright-presencia.js` PASS, `playwright-cambio-pestana.js` PASS.
+- **Selectores de conexión (UI actual)**: la modal inicial de selección (sin sesión activa) muestra `Conectarse` DENTRO de la tarjeta; la modal de `.chat-tab-add` muestra `.personaje-card` como `<button>` sin botón interno (clic directo en la tarjeta; la tarjeta conectada aparece `disabled`). Helper robusto: probar `button:has-text("Conectarse")` dentro de la tarjeta; si no existe, clic en la tarjeta.
+
 ### Patterns to Remember
 - **Multi-character presence**: User can connect multiple characters simultaneously (internal tabs, not browser tabs). Only one character has active WebSocket at a time. Use `isOnline()` (checks all user's characters) not `isOnlineStrict()` (checks only the specific character's WS). `isOnline()` now ALSO requires the character to have an active (non-expired) DB session — a disconnected character does not inherit online status from same-user characters.
 - **Session JWT expiration**: Backend must decode JWT and check `exp` field. Don't trust that sessions in DB are still valid.
@@ -363,13 +388,19 @@ console.log('Updated:', headerText.includes('EDITADO'));
 - `seleccionarCanal()` clears `conversacionActiva`; `seleccionarConversacion()` clears `canalActivo` — only one active view at a time
 - `ExpandableText.vue` uses `-webkit-line-clamp: 3` for collapsed state, `max-height: 300px; overflow-y: auto` for expanded; "Expandir/Contraer" button visibility is toggled via CSS (`text-overflow: ellipsis` hides button when not needed)
 - `characterSessionStore` is a module-level `ref` (in-memory) — sessions are lost on page reload; `CanalesList.vue` checks `haySesionActiva()` on mount and redirects to `/dashboard` if none
+- Reply quotes (`mensajePadreAutor`/`mensajePadreContenido`) are a server-side SNAPSHOT taken at send time — safe if the original message is later edited/deleted. Overlay actions + quotes only render in channel messages (`mostrar-acciones`), never in PMs.
 
 ### Relevant Files
 
 #### Backend (Java/Spring Boot) — `E:\playrole-backend\playrole-api\`
 - `src\main\java\com\playrole\chat\controller\CharacterSessionController.java`: Session endpoints (`/iniciar`, `/cerrar`, `/cerrar-beacon`, `/cerrar-todas`, `/activas`)
 - `src\main\java\com\playrole\chat\controller\CanalController.java`: Channel CRUD, membership, image upload/delete endpoints
-- `src\main\java\com\playrole\chat\controller\CanalMensajeController.java`: Channel messages (REST)
+- `src\main\java\com\playrole\chat\controller\CanalMensajeController.java`: Channel messages (REST) — POST accepts `mensajePadreId`, PUT edita (setea `editado=true`), DELETE
+- `src\main\java\com\playrole\chat\controller\ChatWebSocketController.java`: `/app/chat.canal.{canalId}.enviar` accepts `mensajePadreId`
+- `src\main\java\com\playrole\chat\model\MensajeCanal.java`: Message entity with `mensajePadre` (ManyToOne LAZY), `mensajePadreAutor`, `mensajePadreContenido`
+- `src\main\java\com\playrole\chat\dto\MensajeCanalDTO.java`: Exposes `mensajePadreId` (only when padre != null), `mensajePadreAutor`, `mensajePadreContenido`
+- `src\main\java\com\playrole\chat\service\CanalMensajeService.java`: `enviarMensaje` overload with `mensajePadreId` — validates padre exists / same channel / not deleted, snapshots quote server-side
+- `src\main\java\com\playrole\exception\BadRequestException.java`: Mapped to 400 by `GlobalExceptionHandler`
 - `src\main\java\com\playrole\chat\model\Canal.java`: Channel entity with `imagenUrl` field (column `imagen_url`, nullable)
 - `src\main\java\com\playrole\chat\dto\CanalDTO.java`: Channel DTO with `imagenUrl` mapped from entity
 - `src\main\java\com\playrole\chat\dto\CrearCanalDTO.java`: Channel creation DTO with nombre, descripcion, privado
@@ -381,26 +412,63 @@ console.log('Updated:', headerText.includes('EDITADO'));
 - `src\main\java\com\playrole\chat\repository\CanalRepository.java`: `findCanalesDePersonaje` (JOIN MiembroCanal, WHERE visible=true)
 - `src\main\java\com\playrole\chat\auth\CharacterSessionFilter.java`: Validates session JWT, sets SecurityContext
 - `src\main\java\com\playrole\chat\auth\SessionJwtUtils.java`: JWT decode/encode, `validarToken()` checks expiration
-- `src\main\java\com\playrole\config\SecurityConfig.java`: URL permissions, `/cerrar-beacon` is permitAll
-- `src\main\java\com\playrole\controller\UsuarioController.java`: Login endpoint (`/usuarios/login`), requires CAPTCHA
+- `src\main\java\com\playrole\config\SecurityConfig.java`: URL permissions, `/cerrar-beacon` is permitAll, `POST /usuarios/google-login` is permitAll
+- `src\main\java\com\playrole\controller\UsuarioController.java`: Login endpoint (`/usuarios/login`, requires CAPTCHA) + `POST /usuarios/google-login` (NO CAPTCHA, body `{ credential }`, returns raw JWT string)
+- `src\main\java\com\playrole\service\GoogleAuthService.java`: Verifies Google ID token via `GoogleIdTokenVerifier` (audience = `google.client-id`, signature, issuer, `emailVerified`), finds/creates user by email, returns app JWT
+- `src\main\java\com\playrole\dto\GoogleLoginDTO.java`: `{ credential }` body DTO for `/usuarios/google-login`
 - `src\main\java\com\playrole\service\CaptchaService.java`: reCAPTCHA verification, has `skipVerification` flag
-- `src\main\resources\application.properties`: `recaptcha.skip-verification=${RECAPTCHA_SKIP_VERIFICATION:false}`
+- `src\main\resources\application.properties`: `recaptcha.skip-verification=${RECAPTCHA_SKIP_VERIFICATION:false}`, `google.client-id=${GOOGLE_CLIENT_ID:...}`
 
 #### Frontend (Vue 3 + Vite) — `E:\playlore-frontend\playlore-frontend\`
-- `src\pages\Chat\ChatWindow.vue`: Main chat component — all session/channel/PM/presence logic. Error handling: `onMounted` wraps each async in own try/catch; `iniciarSesionPersonaje` doesn't call `cerrarTodas()` on error; `ejecutarDesconectar` is async with modal close before disconnect
-- `src\pages\Chat\ChatEditor.vue`: Formatting toolbar + emoji/dice/mention pickers + Ayuda modal. Floating layers: pickers 1040, toolbar 1035, overlay 1030 (all BELOW ChatWindow's modal backdrop 1050); Ayuda backdrop 2000. Listens for `pl:modal-abierto` (dispatched by ChatWindow when any modal opens) to close open pickers
+- `src\pages\Chat\ChatWindow.vue`: Main chat component — all session/channel/PM/presence logic. Error handling: `onMounted` wraps each async in own try/catch; `iniciarSesionPersonaje` doesn't call `cerrarTodas()` on error; `ejecutarDesconectar` is async with modal close before disconnect. Reply/edit state: `mensajeEnRespuesta`/`modoEdicion` (cleared on `seleccionarCanal`), `scrollAMensaje` via `.msg-row[data-msg-id]`, edit routes to `chatApi.editarMensajeCanal` and marks `editado`
+- `src\pages\Chat\ChatMessage.vue`: Message bubble — hover overlay `.msg-actions` (Responder/Copiar/Editar/Eliminar), `.msg-reply-preview` quote, emits `responder`/`copiar`/`editar`/`scroll-a-mensaje`; only with `mostrar-acciones`
+- `src\pages\Chat\ChatEditor.vue`: Formatting toolbar + emoji/dice/mention pickers + Ayuda modal. Floating layers: pickers 1040, toolbar 1035, overlay 1030 (all BELOW ChatWindow's modal backdrop 1050); Ayuda backdrop 2000. Listens for `pl:modal-abierto` (dispatched by ChatWindow when any modal opens) to close open pickers. Reply/edit banner + `defineExpose({ enfocar, limpiar, setContenido })`
 - `src\pages\Canales\CanalChat.vue`: Standalone channel route (`/canales/:id`)
 - `src\pages\Canales\CanalesList.vue`: Channel list with avatars, image upload in create modal, `ExpandableText` for descriptions
 - `src\store\characterSessionStore.ts`: Session management store. Added `limpiarExpiradas()` for client-side JWT expiry check; `cerrarTodas()` uses individual `cerrarSesion()` calls (not API bulk endpoint)
 - `src\store\userStore.ts`: User store, `cargarDesdeToken()` reads JWT from localStorage
 - `src\services\websocket.ts`: STOMP/SockJS WebSocket service
-- `src\services\chatApi.ts`: Chat REST API (channels, messages, presence, channel images) using character session JWT
-- `src\services\api.ts`: Axios instance with interceptors (has duplicate interceptors at lines 10-20 and 23-37 — potential cleanup needed)
-- `src\pages\Chat\chatUtils.ts`: Utility functions including `canalAvatar()` (accepts object or string, returns uploaded image URL or `ui-avatars.com` initials)
+- `src\services\chatApi.ts`: Chat REST API (channels, messages, presence, channel images) using character session JWT — `enviarMensajeCanal`/`editarMensajeCanal`/`eliminarMensajeCanal`
+- `src\services\api.ts`: Axios instance with a SINGLE request interceptor (token + JSON unless FormData) and a response interceptor: on 401 it clears the token, resets `userStore.setUsuario(null)` and redirects to `/login` (public endpoints `/usuarios/login` and `/usuarios/google-login` are exempt). userStore is imported dynamically to avoid a circular import.
+- XSS (Fase 1): todo HTML de usuario que se pinte con `v-html` DEBE pasar por la directiva global `v-sanitize` (DOMPurify). El backend ya sanitiza en origen (`HtmlUtils.sanitize`), esto es defensa en profundidad. PROHIBIDO añadir `v-html` nuevo sin sanitizar.
+- `src\pages\Chat\chatUtils.ts`: Utility functions including `canalAvatar()` (accepts object or string, returns uploaded image URL or `ui-avatars.com` initials), `truncarTexto()`, `copiarTexto()`
 - `src\components\ExpandableText.vue`: Collapsible text component with expand/collapse button
+- `src\pages\Login.vue`: Login form + "Continuar con Google" button (GSI `renderButton` in `googleBtnRef` div), `handleCredentialResponse` POSTs `credential` to `/usuarios/google-login`, saves JWT, redirects to `/dashboard`
 - `src\router\index.ts`: Route guard checks `localStorage.getItem('token')` for auth
+- `index.html`: GSI script `<script src="https://accounts.google.com/gsi/client" async defer>` (added next to reCAPTCHA script)
+- `.env.development` / `.env.production`: `VITE_GOOGLE_CLIENT_ID`
 - `vite.config.ts`: Proxy `/api` → `http://localhost:8080` (NO `ws: true` — SockJS handles transport)
 
 #### Database
 - `MiembroCanal` table: Links characters to channels — must have records for channels to appear
 - `SesionPersonaje` table: Active sessions — expired tokens now auto-cleaned by backend
+- `mensajes_canal` reply columns (created by `ddl-auto=update`): `mensaje_padre_id` (FK MensajeCanal), `mensaje_padre_autor`, `mensaje_padre_contenido` (LONGTEXT)
+
+### Google Login (Sign in with Google / GSI) — CRITICAL
+- Client ID is PUBLIC: `675939625105-9j6v9apda68d0pmua27ba16jnkp2hr0n.apps.googleusercontent.com`. Lives in frontend (`VITE_GOOGLE_CLIENT_ID`) AND backend (`google.client-id`, used as the verifier audience). No client secret involved.
+- The "localhost no detectado como fuente" error = `idpiframe_initialization_failed` / "Not a valid origin for the client". Cause: the browser origin is NOT in the OAuth client's "Authorized JavaScript origins" in Google Cloud Console. It must match the address bar EXACTLY (protocol+host+port): `http://localhost:5173`. `http://127.0.0.1:5173` and the tunnelmole tunnel URL are DIFFERENT origins — testing via the tunnel fails unless that origin is also registered. No wildcards allowed.
+- Consent screen must be "External" and the app PUBLISHED, or each Google account must be added as a test user — otherwise Google blocks sign-in.
+- Third-party cookies blocked in the browser break GSI silently (popup spinner, then nothing). Use incognito or allow cookies. Clear browser cache after changing origins.
+- Always test Google login from `http://localhost:5173` directly (not the tunnel URL). The reCAPTCHA bypass key (`6LeIxAcTAAAAAGG-...`) is for regular login only — Google login has NO captcha.
+- Security rule: the backend (`GoogleAuthService`) is the only authority that verifies the credential (signature + audience + issuer + `emailVerified`). Never trust a token that wasn't verified server-side.
+- Username auto-generation for new Google users: email prefix sanitized to `^[a-zA-Z0-9_]+$`, max 50 chars, numeric suffix `_1`, `_2`... on collision (`existsByNombre`). Password = random BCrypt (NOT NULL column). Users created by Google can ONLY log in via Google.
+
+### Denuncias + Moderación + Regla "Siempre modales" (Aug 2026)
+- **Regla de UI (obligatoria)**: PROHIBIDO `alert()` / `confirm()` (cuadros de diálogo del navegador) en toda la plataforma. Siempre se usa un modal. Los cuadros nativos se reemplazaron en los 12 archivos que los usaban (ChatWindow, PerfilPersonajeView, PerfilUsuario, DenunciasLista, GaleriaImagenes, BaneosLista, PersonajesLista, MensajesPrivadosList, AnadirCategoriaForm, NuevoPersonajeForm, PersonajesList, Dashboard).
+- **Componentes compartidos nuevos**:
+  - `src\components\ModalAviso.vue` — modal informativo (props `mensaje`, `titulo?`, emit `cerrar`). Uso: `const aviso = ref<string|null>(null)` → `aviso.value = 'mensaje'` → `<ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />`.
+  - `src\components\ModalConfirmacion.vue` — modal de confirmación (props `mensaje`, `titulo?`, `botonConfirmar?`, `botonCancelar?`, `peligro?`; emits `confirmar`/`cancelar`). Uso: `confirmacion = ref<{mensaje, ejecutar}|null>(null)`; para un `confirm(...)` se envuelve el código posterior en `ejecutar`. Ambos usan `.modal-backdrop-custom` z-index 1060 (por encima de los 1050 del chat).
+- **Denuncias**: tipos `MENSAJE_CANAL`, `PERSONAJE`, `USUARIO` y `CANAL`. `POST /denuncias` (usuario o sesión de personaje), `GET /denuncias?estado&page&size&tipo&desde&hasta&objetivo&denunciante&resueltoPor`, `PUT /denuncias/{id}/resolver` (estado RESUELTA/IGNORADA + `decision`). Auto-denuncia bloqueada (mismo usuario/personaje/canal propio).
+- **Filtros de denuncias (backend)**: `DenunciaRepository` extiende `JpaSpecificationExecutor`; `DenunciaService.listarDenuncias` construye una `Specification` con AND: `estado` (obligatorio), `tipo` (exacto), `desde`/`hasta` sobre `fecha` (inicio/fin de día), `objetivo` (LIKE `objetivoNombre`), `denunciante` (LIKE `denunciante.nombre`), `resueltoPor` (LEFT JOIN `resueltoPor.nombre`). Textos case-insensitive con `LOWER(...) LIKE %term%`; vacíos ignorados. `desde`/`hasta` llegan como `LocalDate` con `@DateTimeFormat(iso=DATE)`.
+- **Snapshots al denunciar** (inmutables aunque luego borren el objetivo): `objetivoNombre`, `autorPersonajeNombre`, `autorUsuarioId`+`autorUsuarioNombre`, `canalNombre`, `contenidoDenunciado`. `toDTO` usa el snapshot con fallback a consulta viva.
+- **`DenunciasLista.vue` (Admin)**: filtro por estado (pestañas), barra de filtros combinables (Tipo, Fecha desde/hasta, Objetivo, Denunciante y "Resuelto por" — este último solo en Resueltas/Ignoradas) + botón Limpiar; los filtros se mantienen al cambiar de pestaña y se aplican volviendo a la página 0. Columna Resultado, modal de detalle con enlaces a perfiles (`/perfil/:id`, `/personaje/:id`, `/chat` para canales), autor del mensaje = personaje+cuenta+canal, Resolver/Ignorar dentro del modal con nota de decisión. El contenido del mensaje se renderiza con `v-html` (igual que `ChatMessage.vue:61`) y en la tabla se recorta a 3 líneas (`-webkit-line-clamp`) con enlace "Ver más" que solo aparece si hay overflow real (`scrollHeight > clientHeight`, recalculado en resize).
+- **Botones denunciar/banear**: PerfilUsuario (USUARIO) y PerfilPersonajeView (PERSONAJE) con modales motivo(obligatorio)+detalle(opcional) y ban (duración 1H/24H/7D/PERMANENTE+motivo, solo ADMIN/MOD). ChatWindow: denunciar mensaje (contexto del mensaje) y denunciar canal (bandera en la cabecera, oculto si `miRolEnCanal === 'OWNER'`).
+
+### Launch Checklist (CRITICAL — A5/A3)
+- `JwtUtils` (user JWT) reads `jwt.secret` from config (like `SessionJwtUtils`) — keys are PERSISTENT across restarts. Set a real random `JWT_SECRET` (≥32 bytes) in Render. NOTE: after this change existing tokens are invalidated once; afterwards they survive restarts.
+- CORS is now restricted via `app.cors.allowed-origins` (default `http://localhost:5173,http://127.0.0.1:5173`). Add the PRODUCTION frontend origin via env `CORS_ALLOWED_ORIGINS`. The old `addAllowedOriginPattern("*")` is gone.
+- reCAPTCHA: the defaults in `application.properties` and `.env.*` are the GOOGLE TEST KEYS (always pass). In production you MUST set `RECAPTCHA_SECRET` (real) + `RECAPTCHA_SKIP_VERIFICATION=false` in Render and a real `VITE_RECAPTCHA_SITE_KEY` in `.env.production`; otherwise the captcha is a no-op.
+- Rate limiting: `LoginAttemptService` (in-memory) — 5 failed logins per username+IP → 15 min lock (HTTP 429 via `TooManyRequestsException`). Registro also limited per IP. In-memory: resets on restart (acceptable pre-scale).
+- Render env vars needed: `JWT_SECRET`, `DB_URL`, `DB_USER`, `DB_PASS`, `RECAPTCHA_SECRET`, `RECAPTCHA_SKIP_VERIFICATION=false`, `GOOGLE_CLIENT_ID`, `PORT`, `CORS_ALLOWED_ORIGINS`.
+- Google Cloud: add the production frontend origin to the OAuth client "Authorized JavaScript origins" and publish the consent screen.
+- DB backup: schedule mysqldump of `playlore_db` (no automatic backup exists).

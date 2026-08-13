@@ -1,4 +1,5 @@
 import { createApp } from 'vue'
+import DOMPurify from 'dompurify'
 import App from './App.vue'
 import router from './router'
 
@@ -8,6 +9,25 @@ import { userStore } from './store/userStore'
 
 userStore.cargarDesdeToken()
 
-createApp(App)
-  .use(router)
-  .mount('#app')
+const app = createApp(App)
+
+const SANITIZE_URI_REGEX = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|profile):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: SANITIZE_URI_REGEX })
+}
+
+app.directive('sanitize', {
+  mounted(el: HTMLElement, binding) {
+    if (binding.value != null) {
+      el.innerHTML = sanitizeHtml(String(binding.value))
+    }
+  },
+  updated(el: HTMLElement, binding) {
+    if (binding.value !== binding.oldValue) {
+      el.innerHTML = sanitizeHtml(String(binding.value))
+    }
+  }
+})
+
+app.use(router).mount('#app')

@@ -66,3 +66,19 @@ export function truncarTexto(texto: string, max: number = 100): string {
   const clean = texto.replace(/<[^>]*>/g, '').replace(/&#64;/g, '@')
   return clean.length > max ? clean.slice(0, max) + '…' : clean
 }
+
+export async function copiarTexto(texto: string): Promise<void> {
+  const clean = (texto || '').replace(/<[^>]*>/g, '').replace(/&#64;/g, '@')
+  try {
+    await navigator.clipboard.writeText(clean)
+  } catch {
+    const ta = document.createElement('textarea')
+    ta.value = clean
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.select()
+    document.execCommand('copy')
+    document.body.removeChild(ta)
+  }
+}

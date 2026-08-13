@@ -52,6 +52,14 @@ export const chatApi = {
     return api.post(`/canales/${canalId}/miembros/${personajeId}/ban`, { duracion }, { headers: getAuthHeaders() })
   },
 
+  desbanearMiembro(canalId: number, personajeId: number) {
+    return api.delete(`/canales/${canalId}/miembros/${personajeId}/ban`, { headers: getAuthHeaders() })
+  },
+
+  listarBaneados(canalId: number) {
+    return api.get(`/canales/${canalId}/baneados`, { headers: getAuthHeaders() })
+  },
+
   cambiarRol(canalId: number, personajeId: number, rol: string) {
     return api.put(`/canales/${canalId}/miembros/${personajeId}/rol`, { rol }, { headers: getAuthHeaders() })
   },
@@ -91,8 +99,10 @@ export const chatApi = {
     })
   },
 
-  enviarMensajeCanal(canalId: number, contenido: string) {
-    return api.post(`/canales/${canalId}/mensajes`, { contenido }, { headers: getAuthHeaders() })
+  enviarMensajeCanal(canalId: number, contenido: string, mensajePadreId?: number | null) {
+    const body: Record<string, unknown> = { contenido }
+    if (mensajePadreId != null) body.mensajePadreId = mensajePadreId
+    return api.post(`/canales/${canalId}/mensajes`, body, { headers: getAuthHeaders() })
   },
 
   editarMensajeCanal(canalId: number, mensajeId: number, contenido: string) {

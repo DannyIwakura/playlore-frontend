@@ -17,9 +17,6 @@ const dropdownRef = ref<HTMLElement | null>(null)
 //extraemos el ref para mantener reactividad
 const usuario = userStore.usuario
 
-//inciamos el contador de mensajes no leidos
-const mensajesNoLeidos = ref(0)
-
 //contador de solicitudes de amistad pendientes
 const solicitudesPendientes = ref(0)
 
@@ -59,20 +56,18 @@ onMounted(async () => {
   console.log('avatar en store:', usuario.value?.avatar)
   if (props.logeado && usuario.value?.id) {
     try {
-      const { data } = await axios.get(`/mensajes/recibidos/${usuario.value.id}/count-no-leidos`)
-      mensajesNoLeidos.value = data
-    } catch (_) {}
-    try {
       const { data } = await axios.get(`/amistades/pendientes-recibidas/${usuario.value.id}`)
       solicitudesPendientes.value = data.length
     } catch (_) {}
-    //heartbeat: actualizar ultima conexion cada 60 segundos
-    await axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`)
-    heartbeatInterval = setInterval(() => {
-      if (usuario.value?.id) {
-        axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`).catch(() => {})
-      }
-    }, 60000)
+    try {
+      //heartbeat: actualizar ultima conexion cada 60 segundos
+      await axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`)
+      heartbeatInterval = setInterval(() => {
+        if (usuario.value?.id) {
+          axios.put(`/usuarios/${usuario.value.id}/ultima-conexion`).catch(() => {})
+        }
+      }, 60000)
+    } catch (_) {}
   }
 })
 
@@ -147,18 +142,6 @@ onUnmounted(() => {
           </li>
 
           <li class="nav-item">
-            <router-link to="/mensajes" class="nav-link">
-              <i class="bi bi-envelope-fill me-2"></i>Mensajes Privados
-              <span
-              v-if="mensajesNoLeidos > 0"
-              class="badge bg-danger rounded-pill"
-              style="font-size: 0.7rem">
-                {{ mensajesNoLeidos }}
-              </span>
-            </router-link>
-          </li>
-
-          <li class="nav-item">
             <a :href="chatUrl" target="_blank" class="nav-link">
               <i class="bi bi-chat-dots-fill me-2"></i>Chat
             </a>
@@ -176,7 +159,7 @@ onUnmounted(() => {
             </router-link>
           </li>
 
-          <li class="nav-item" v-if="usuario?.role === 'ADMIN'">
+          <li class="nav-item" v-if="usuario?.role === 'ADMIN' || usuario?.role === 'MOD'">
           <router-link to="/admin" class="nav-link">
           <i class="bi bi-shield-lock-fill me-2"></i>Panel de Administración
           </router-link>

@@ -6,6 +6,8 @@ import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import AnadirCategoriaForm from './AnadirCategoriaForm.vue'
 import PaginadorComponent from '../../components/PaginadorComponent.vue'
+import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
+import ModalAviso from '../../components/ModalAviso.vue'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 const AVATAR_DEFECTO = `${BASE_URL}/images/AVATAR.png`
@@ -35,20 +37,23 @@ const cargarPersonajes = async (pagina = 0) => {
 onMounted(() => cargarPersonajes())
 
 //función para eliminar un personaje
-const eliminarPersonaje = async (idPersonaje: number) => {
-  const confirmacion = confirm("¿Seguro que quieres eliminar este personaje?")
+const confirmacion = ref<{ mensaje: string; ejecutar: () => void } | null>(null)
+const aviso = ref<string | null>(null)
 
-  if (!confirmacion) return
-
-  try {
-    await api.delete(`/personajes/${idPersonaje}`)
-
-    personajes.value = personajes.value.filter(
-      (p) => p.idPersonaje !== idPersonaje
-    )
-
-  } catch (error) {
-    console.error("Error eliminando personaje:", error)
+const eliminarPersonaje = (idPersonaje: number) => {
+  confirmacion.value = {
+    mensaje: "¿Seguro que quieres eliminar este personaje?",
+    ejecutar: async () => {
+      try {
+        await api.delete(`/personajes/${idPersonaje}`)
+        personajes.value = personajes.value.filter(
+          (p) => p.idPersonaje !== idPersonaje
+        )
+      } catch (error) {
+        console.error("Error eliminando personaje:", error)
+        aviso.value = 'Error al eliminar el personaje.'
+      }
+    },
   }
 }
 
@@ -128,7 +133,7 @@ function avatarUrl(avatar: string | null | undefined): string {
             <p class="mb-2"><strong>Clase:</strong> {{ personaje.clase }}</p>
 
             <!-- TRASFONDO (HTML SAFE PREVIEW) -->
-            <div class="trasfondo-preview mb-3" v-html="personaje.trasfondo"></div>
+            <div class="trasfondo-preview mb-3" v-sanitize="personaje.trasfondo"></div>
 
             <!-- BOTONES -->
             <router-link
@@ -177,6 +182,20 @@ function avatarUrl(avatar: string | null | undefined): string {
   </div>
 
   <Footer />
+
+  <!-- Modal: Confirmación -->
+  <ModalConfirmacion
+    v-if="confirmacion"
+    :mensaje="confirmacion.mensaje"
+    titulo="Eliminar personaje"
+    boton-confirmar="Eliminar"
+    :peligro="true"
+    @confirmar="confirmacion.ejecutar(); confirmacion = null"
+    @cancelar="confirmacion = null"
+  />
+
+  <!-- Modal: Aviso -->
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 <style scoped> 
 .trasfondo-preview {

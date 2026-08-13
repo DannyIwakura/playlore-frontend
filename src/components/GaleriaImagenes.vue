@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import api from '../services/api'
+import ModalAviso from './ModalAviso.vue'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -26,6 +27,7 @@ const subiendo = ref(false)
 const dragOver = ref(false)
 const indiceActual = ref<number | null>(null)
 const eliminarConfirm = ref<number | null>(null)
+const aviso = ref<string | null>(null)
 
 const MAX_IMAGENES = 30
 
@@ -114,12 +116,12 @@ async function subirArchivo(file: File) {
 
   const tiposValidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
   if (!tiposValidos.includes(file.type)) {
-    alert('Formato no permitido. Solo JPG, PNG, WEBP y GIF')
+    aviso.value = 'Formato no permitido. Solo JPG, PNG, WEBP y GIF'
     return
   }
 
   if (file.size > 10 * 1024 * 1024) {
-    alert('La imagen no puede superar los 10MB')
+    aviso.value = 'La imagen no puede superar los 10MB'
     return
   }
 
@@ -135,7 +137,7 @@ async function subirArchivo(file: File) {
     emit('imagenSubida', data)
   } catch (e: any) {
     const msg = e.response?.data?.message || e.response?.data?.error || 'Error al subir la imagen'
-    alert(msg)
+    aviso.value = msg
   } finally {
     subiendo.value = false
   }
@@ -179,7 +181,7 @@ async function eliminarImagen(idImagen: number) {
     emit('imagenEliminada', idImagen)
     eliminarConfirm.value = null
   } catch {
-    alert('Error al eliminar la imagen')
+    aviso.value = 'Error al eliminar la imagen'
   }
 }
 
@@ -348,6 +350,8 @@ onMounted(cargarImagenes)
       </div>
     </Teleport>
   </div>
+
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 
 <style scoped>

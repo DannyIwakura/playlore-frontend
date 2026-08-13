@@ -3,19 +3,67 @@ import Footer from '../components/Footer.vue'
 import NavBar from '../components/NavBar.vue'
 import ReCaptcha from '../components/ReCaptcha.vue'
 import { useRouter, useRoute  } from 'vue-router'
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
+
+declare global {
+  interface Window {
+    google?: any
+  }
+}
 
 const router = useRouter()
 const route = useRoute()
 
 const mensajeRegistro = ref('')
 
+const googleBtnRef = ref<HTMLElement | null>(null)
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+
+const handleCredentialResponse = async (response: any) => {
+  errorLogin.value = ''
+
+  try {
+    const res = await api.post('/usuarios/google-login', {
+      credential: response.credential
+    })
+
+    localStorage.setItem('token', res.data)
+    userStore.cargarDesdeToken()
+    router.push('/dashboard')
+  } catch (error: any) {
+    errorLogin.value = error.response?.data?.error || 'Error al iniciar sesión con Google'
+  }
+}
+
 onMounted(() => {
   if (route.query.registro === 'ok') {
     mensajeRegistro.value = "Usuario creado correctamente. Ya puedes iniciar sesión."
     router.replace({ query: {} })
+  }
+})
+
+onMounted(() => {
+  if (GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: handleCredentialResponse,
+      ux_mode: 'popup'
+    })
+    window.google.accounts.id.renderButton(googleBtnRef.value, {
+      theme: 'outline',
+      size: 'large',
+      text: 'continue_with',
+      shape: 'pill',
+      width: 300
+    })
+  }
+})
+
+onUnmounted(() => {
+  if (window.google?.accounts?.id) {
+    window.google.accounts.id.cancel()
   }
 })
 
@@ -114,6 +162,14 @@ const iniciarSesion = async () => {
               Iniciar sesión
             </button>
           </form>
+
+          <div class="d-flex align-items-center my-3">
+            <hr class="flex-grow-1" />
+            <span class="px-2 text-muted small">o</span>
+            <hr class="flex-grow-1" />
+          </div>
+
+          <div ref="googleBtnRef" class="d-flex justify-content-center"></div>
 
           <p class="mt-3 text-center">
             ¿No tienes cuenta?

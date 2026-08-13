@@ -106,12 +106,13 @@ function unsubscribe(key: string) {
   }
 }
 
-function sendChannelMessage(channelId: number, contenido: string) {
+function sendChannelMessage(channelId: number, contenido: string, mensajePadreId?: number | null) {
   if (!client?.connected) return
-  console.log('[DEBUG] sendChannelMessage sending:', JSON.stringify(contenido))
+  const body: Record<string, unknown> = { contenido }
+  if (mensajePadreId != null) body.mensajePadreId = mensajePadreId
   client.publish({
     destination: `/app/chat.canal.${channelId}.enviar`,
-    body: JSON.stringify({ contenido }),
+    body: JSON.stringify(body),
   })
 }
 

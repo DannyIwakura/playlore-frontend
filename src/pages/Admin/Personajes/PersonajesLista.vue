@@ -2,6 +2,8 @@
 import { ref, onMounted } from 'vue'
 import axios from '../../../services/api'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
+import ModalAviso from '../../../components/ModalAviso.vue'
+import ModalConfirmacion from '../../../components/ModalConfirmacion.vue'
 
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
@@ -21,6 +23,8 @@ interface Personaje {
 const personajes = ref<Personaje[]>([])
 const cargando = ref(false)
 const error = ref('')
+const aviso = ref<string | null>(null)
+const confirmacion = ref<{ mensaje: string; ejecutar: () => void } | null>(null)
 
 // Paginación
 const paginaActual = ref(0)
@@ -60,13 +64,17 @@ const cargarPersonajes = async (pagina = 0) => {
     cargando.value = false
   }
 }
-const eliminarPersonaje = async (id: number) => {
-  if (!confirm('¿Eliminar este personaje? Esta acción no se puede deshacer.')) return
-  try {
-    await axios.delete(`/personajes/${id}`)
-    await cargarPersonajes(paginaActual.value)
-  } catch (e) {
-    alert('Error al eliminar el personaje.')
+const eliminarPersonaje = (id: number) => {
+  confirmacion.value = {
+    mensaje: '¿Eliminar este personaje? Esta acción no se puede deshacer.',
+    ejecutar: async () => {
+      try {
+        await axios.delete(`/personajes/${id}`)
+        await cargarPersonajes(paginaActual.value)
+      } catch (e) {
+        aviso.value = 'Error al eliminar el personaje.'
+      }
+    },
   }
 }
 
@@ -76,7 +84,7 @@ const cambiarEstado = async (id: number, estadoActual: string | null) => {
     await axios.put(`/personajes/admin/${id}/estado`, { estado: nuevoEstado })
     await cargarPersonajes(paginaActual.value)
   } catch (e) {
-    alert('Error al cambiar el estado.')
+    aviso.value = 'Error al cambiar el estado.'
   }
 }
 
@@ -205,4 +213,18 @@ onMounted(() => cargarPersonajes())
     </div>
 
   </div>
+
+  <!-- Modal: Confirmación -->
+  <ModalConfirmacion
+    v-if="confirmacion"
+    :mensaje="confirmacion.mensaje"
+    titulo="Eliminar personaje"
+    boton-confirmar="Eliminar"
+    :peligro="true"
+    @confirmar="confirmacion.ejecutar(); confirmacion = null"
+    @cancelar="confirmacion = null"
+  />
+
+  <!-- Modal: Aviso -->
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>

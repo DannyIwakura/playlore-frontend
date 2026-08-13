@@ -8,10 +8,11 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole, solicitarPermisoNotificacion, notificarPush, truncarTexto } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole, solicitarPermisoNotificacion, notificarPush, truncarTexto, copiarTexto } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
+import ModalAviso from '../../components/ModalAviso.vue'
 
 const router = useRouter()
 
@@ -37,6 +38,11 @@ const pagina = ref(0)
 const cargandoMas = ref(false)
 const hayMasMensajes = ref(true)
 const usuarioScrolledUp = ref(false)
+
+const mensajeEnRespuesta = ref<any | null>(null)
+const modoEdicion = ref<any | null>(null)
+const mensajeDestacado = ref<number | null>(null)
+const chatEditorRef = ref<InstanceType<typeof ChatEditor> | null>(null)
 
 const statusMap = ref<Map<number, string>>(new Map())
 const estadoActual = computed(() => statusMap.value.get(characterSessionStore.sesionActual.value?.personajeId ?? -1) ?? 'conectado')
@@ -258,6 +264,54 @@ async function expulsarDelCanal(m: any) {
   })
 }
 
+const denunciaTarget = ref<{ tipo: 'MENSAJE_CANAL' | 'CANAL', tipoId: number } | null>(null)
+const denunciaMotivo = ref('')
+const denunciaDetalle = ref('')
+const enviandoDenuncia = ref(false)
+
+function denunciarMensaje(msg: any) {
+  cerrarContextMenu()
+  denunciaTarget.value = { tipo: 'MENSAJE_CANAL', tipoId: msg.id }
+  denunciaMotivo.value = ''
+  denunciaDetalle.value = ''
+}
+
+function denunciarCanalActivo() {
+  if (!canalActivo.value) return
+  denunciaTarget.value = { tipo: 'CANAL', tipoId: canalActivo.value.id }
+  denunciaMotivo.value = ''
+  denunciaDetalle.value = ''
+}
+
+const aviso = ref<string | null>(null)
+
+async function enviarDenunciaMensaje() {
+  if (!denunciaTarget.value) return
+  if (!denunciaMotivo.value.trim()) {
+    aviso.value = 'El motivo es obligatorio para enviar la denuncia.'
+    return
+  }
+  enviandoDenuncia.value = true
+  try {
+    await api.post('/denuncias', {
+      tipo: denunciaTarget.value.tipo,
+      tipoId: denunciaTarget.value.tipoId,
+      motivo: denunciaMotivo.value.trim(),
+      detalle: denunciaDetalle.value.trim() || null,
+    })
+    denunciaTarget.value = null
+    denunciaMotivo.value = ''
+    denunciaDetalle.value = ''
+    aviso.value = 'Denuncia enviada. Gracias por ayudar a mantener el canal seguro.'
+  } catch (e: any) {
+    const data = e?.response?.data
+    const mensaje = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
+    aviso.value = mensaje
+  } finally {
+    enviandoDenuncia.value = false
+  }
+}
+
 const banTarget = ref<any>(null)
 const banDuracion = ref('PERMANENTE')
 
@@ -282,6 +336,41 @@ const opcionesBan = [
   { value: '7D', label: '7 días' },
   { value: 'PERMANENTE', label: 'Permanente' },
 ]
+
+// Modal de baneados del canal
+const mostrarBaneados = ref(false)
+const baneados = ref<any[]>([])
+const cargandoBaneados = ref(false)
+
+async function abrirModalBaneados() {
+  if (!canalActivo.value) return
+  mostrarBaneados.value = true
+  cargandoBaneados.value = true
+  try {
+    const { data } = await chatApi.listarBaneados(canalActivo.value.id)
+    baneados.value = data
+  } catch {
+    baneados.value = []
+  } finally {
+    cargandoBaneados.value = false
+  }
+}
+
+function desbanearPersonaje(p: any) {
+  if (!canalActivo.value) return
+  mostrarConfirmModal(
+    'Desbanear personaje',
+    `¿Desbanear a ${p.personajeNombre} de este canal?`,
+    async () => {
+      try {
+        await chatApi.desbanearMiembro(canalActivo.value!.id, p.personajeId)
+        baneados.value = baneados.value.filter((b: any) => b.personajeId !== p.personajeId)
+      } catch {
+        aviso.value = 'Error al desbanear al personaje.'
+      }
+    }
+  )
+}
 
 // Private messages
 const conversacionesPrivadas = ref<any[]>([])
@@ -427,7 +516,7 @@ const cualquierModalAbierto = computed(() =>
   mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
-  mostrarConfirmacionEliminar.value || !!banTarget.value
+  mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -885,6 +974,8 @@ async function cargarCanalesUnidos() {
 async function seleccionarCanal(canal: any) {
   conversacionActiva.value = null
   canalActivo.value = canal
+  mensajeEnRespuesta.value = null
+  modoEdicion.value = null
   unreadCountMap.value.set(canal.id, 0)
   unreadCountMap.value = new Map(unreadCountMap.value)
   channelMentionedMap.value.set(canal.id, false)
@@ -946,7 +1037,11 @@ function handleMentionClick(e: MouseEvent) {
 }
 
 function handleSendCanal(texto: string) {
-  enviarMensaje(texto)
+  if (modoEdicion.value) {
+    ejecutarEdicion(texto)
+  } else {
+    enviarMensaje(texto)
+  }
 }
 
 async function enviarMensaje(texto: string) {
@@ -954,13 +1049,16 @@ async function enviarMensaje(texto: string) {
   channelMentionedMap.value.set(canalActivo.value.id, false)
   channelMentionedMap.value = new Map(channelMentionedMap.value)
   enviando.value = true
+  const mensajePadreId = mensajeEnRespuesta.value?.id ?? null
   const token = characterSessionStore.getToken()
   if (websocketService.connected.value && token) {
-    websocketService.sendChannelMessage(canalActivo.value.id, texto)
+    websocketService.sendChannelMessage(canalActivo.value.id, texto, mensajePadreId)
+    mensajeEnRespuesta.value = null
     enviando.value = false
   } else {
     try {
-      await chatApi.enviarMensajeCanal(canalActivo.value.id, texto)
+      await chatApi.enviarMensajeCanal(canalActivo.value.id, texto, mensajePadreId)
+      mensajeEnRespuesta.value = null
       pagina.value = 0
       const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
       hayMasMensajes.value = !data.last
@@ -971,7 +1069,69 @@ async function enviarMensaje(texto: string) {
   }
 }
 
+function iniciarRespuesta(msg: any) {
+  mensajeEnRespuesta.value = msg
+  modoEdicion.value = null
+  nextTick(() => chatEditorRef.value?.enfocar())
+}
+
+function iniciarEdicion(msg: any) {
+  modoEdicion.value = msg
+  mensajeEnRespuesta.value = null
+  nextTick(() => {
+    chatEditorRef.value?.setContenido(msg.contenido)
+    chatEditorRef.value?.enfocar()
+  })
+}
+
+function copiarMensaje(msg: any) {
+  copiarTexto(msg.contenido || '')
+}
+
+function cancelarEdicion() {
+  modoEdicion.value = null
+  chatEditorRef.value?.limpiar()
+}
+
+async function ejecutarEdicion(texto: string) {
+  const msg = modoEdicion.value
+  if (!texto || enviando.value || !canalActivo.value || !msg) return
+  if (msg.contenido === texto) {
+    modoEdicion.value = null
+    chatEditorRef.value?.limpiar()
+    return
+  }
+  enviando.value = true
+  try {
+    await chatApi.editarMensajeCanal(canalActivo.value.id, msg.id, texto)
+    const idx = mensajes.value.findIndex((m: any) => m.id === msg.id)
+    if (idx >= 0) {
+      mensajes.value[idx] = { ...mensajes.value[idx], contenido: texto, editado: true }
+    }
+  } catch {}
+  enviando.value = false
+  modoEdicion.value = null
+  chatEditorRef.value?.limpiar()
+}
+
+function scrollAMensaje(mensajeId: number) {
+  const el = document.querySelector<HTMLElement>(`.msg-row[data-msg-id="${mensajeId}"]`)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  mensajeDestacado.value = null
+  nextTick(() => {
+    mensajeDestacado.value = mensajeId
+    setTimeout(() => {
+      if (mensajeDestacado.value === mensajeId) mensajeDestacado.value = null
+    }, 2000)
+  })
+}
+
 async function eliminarMensaje(mensajeId: number) {
+  if (modoEdicion.value?.id === mensajeId) {
+    modoEdicion.value = null
+    chatEditorRef.value?.limpiar()
+  }
   mensajeAEliminarId.value = mensajeId
   mostrarConfirmacionEliminar.value = true
 }
@@ -1271,18 +1431,9 @@ async function cargarMiembrosOnline(silent = false) {
 }
 
 function handleBeforeUnload() {
+  // Solo desconectamos el WebSocket (presencia). Las sesiones de personaje
+  // se mantienen activas en el servidor para poder restaurarlas al volver.
   try { websocketService.disconnect() } catch {}
-  const sesiones = characterSessionStore.sesiones.value
-  for (const s of sesiones) {
-    try {
-      fetch('/api/personajes/sesion/cerrar-beacon', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: s.tokenJwt }),
-        keepalive: true
-      }).catch(() => {})
-    } catch {}
-  }
 }
 
 onMounted(async () => {
@@ -1533,6 +1684,12 @@ onUnmounted(() => {
             <button class="btn btn-sm btn-outline-secondary" @click="mostrarConectados = !mostrarConectados" title="Conectados">
               <i class="bi bi-person-check"></i>
             </button>
+            <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-warning" @click="denunciarCanalActivo" title="Denunciar canal">
+              <i class="bi bi-flag"></i>
+            </button>
+            <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" class="btn btn-sm btn-outline-secondary" @click="abrirModalBaneados" title="Baneados del canal">
+              <i class="bi bi-hammer"></i>
+            </button>
             <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" class="btn btn-sm btn-outline-primary" @click="abrirModalEditarCanal" title="Editar canal">
               <i class="bi bi-pencil"></i>
             </button>
@@ -1561,8 +1718,17 @@ onUnmounted(() => {
                 :es-mio="msg.esMio"
                 :show-header="true"
                 :can-delete="!msg.eliminado && (msg.esMio || esAdminOrOwner())"
+                :can-editar="msg.esMio && !msg.eliminado"
+                :can-denunciar="!msg.esMio && !msg.eliminado"
+                :mostrar-acciones="true"
+                :destacar="msg.id === mensajeDestacado"
                 @delete="eliminarMensaje"
                 @ver-perfil="verPerfil"
+                @responder="iniciarRespuesta"
+                @copiar="copiarMensaje"
+                @editar="iniciarEdicion"
+                @denunciar="denunciarMensaje"
+                @scroll-a-mensaje="scrollAMensaje"
               />
             </template>
             <div v-else class="text-center text-muted py-5">
@@ -1581,9 +1747,14 @@ onUnmounted(() => {
 
           <!-- Input canal -->
           <ChatEditor
+            ref="chatEditorRef"
             :miembros-online="miembrosOnline"
             :sending="enviando"
+            :mensaje-en-respuesta="mensajeEnRespuesta"
+            :modo-edicion="modoEdicion"
             @send="handleSendCanal"
+            @cancelar-respuesta="mensajeEnRespuesta = null"
+            @cancelar-edicion="cancelarEdicion"
           />
         </template>
 
@@ -1975,6 +2146,73 @@ onUnmounted(() => {
     </div>
   </div>
 
+  <!-- Modal: Denunciar mensaje o canal -->
+  <div v-if="denunciaTarget" class="modal-backdrop-custom" @click.self="denunciaTarget = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:440px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0">
+          <i class="bi bi-flag text-warning me-2"></i>
+          {{ denunciaTarget.tipo === 'CANAL' ? 'Denunciar canal' : 'Denunciar mensaje' }}
+        </h5>
+        <button class="btn-close" @click="denunciaTarget = null"></button>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Motivo <span class="text-danger">*</span></label>
+        <input v-model="denunciaMotivo" type="text" class="form-control" maxlength="200" :placeholder="denunciaTarget.tipo === 'CANAL' ? '¿Por qué denuncias este canal?' : '¿Por qué denuncias este mensaje?'" />
+      </div>
+      <div class="mb-4">
+        <label class="form-label">Detalle (opcional)</label>
+        <textarea v-model="denunciaDetalle" class="form-control" rows="4" maxlength="2000" placeholder="Amplía la información si lo necesitas..."></textarea>
+        <div class="text-end text-muted small mt-1">{{ denunciaDetalle.length }}/2000</div>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="denunciaTarget = null">Cancelar</button>
+        <button
+          class="btn btn-warning btn-sm"
+          :disabled="enviandoDenuncia || !denunciaMotivo.trim()"
+          @click="enviarDenunciaMensaje"
+        >
+          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm me-1"></span>
+          <i v-else class="bi bi-flag me-1"></i>
+          Enviar denuncia
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Baneados del canal -->
+  <div v-if="mostrarBaneados" class="modal-backdrop-custom" @click.self="mostrarBaneados = false">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:480px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-hammer text-danger me-2"></i>Baneados del canal</h5>
+        <button class="btn-close" @click="mostrarBaneados = false"></button>
+      </div>
+      <div v-if="cargandoBaneados" class="text-center py-3">
+        <div class="spinner-border spinner-border-sm text-primary"></div>
+      </div>
+      <div v-else-if="baneados.length === 0" class="text-muted small text-center py-3">
+        No hay personajes baneados.
+      </div>
+      <div v-else class="d-flex flex-column gap-2">
+        <div v-for="b in baneados" :key="b.personajeId" class="d-flex align-items-center gap-2 p-2 border rounded">
+          <img :src="avatarUrl(b.avatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" />
+          <div class="flex-grow-1">
+            <div class="small fw-medium">{{ b.personajeNombre }}</div>
+            <div class="text-muted" style="font-size:0.72rem;">
+              <template v-if="b.activo">
+                {{ b.fechaExpiracion ? 'Hasta ' + new Date(b.fechaExpiracion).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'Permanente' }}
+              </template>
+              <template v-else>Expirado</template>
+            </div>
+          </div>
+          <button class="btn btn-sm btn-outline-success" @click="desbanearPersonaje(b)">
+            <i class="bi bi-unlock me-1"></i> Desbanear
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Context menu: clic derecho en conversaciones privadas -->
   <div v-if="conversacionCtxTarget" class="context-menu-overlay" @click="cerrarContextMenuConversacion" @contextmenu.prevent="cerrarContextMenuConversacion"></div>
   <div v-if="conversacionCtxTarget" class="context-menu" :style="{ left: conversacionCtxX + 'px', top: conversacionCtxY + 'px' }" @contextmenu.prevent>
@@ -2028,6 +2266,9 @@ onUnmounted(() => {
       </div>
     </div>
   </div>
+
+  <!-- Modal: Aviso -->
+  <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 
 <style scoped>
@@ -2206,6 +2447,7 @@ onUnmounted(() => {
 .chat-header { min-height: 52px; }
 
 .chat-mensajes { background: #fff; }
+.chat-mensajes .msg-row { scroll-margin-block: 80px; }
 .scroll-bottom-btn {
   bottom: 70px;
   right: 20px;
