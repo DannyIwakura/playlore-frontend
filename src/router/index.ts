@@ -30,7 +30,6 @@ const routes = [
   { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
   { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
   { path: '/personajes/buscar',component: BuscarPersonaje, meta: { requiresAuth: true } },
-  { path: '/mensajes', redirect: '/chat' },
   { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
   { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },
   { path: '/amigos/', component: AmigosList, meta: { requiresAuth: true } },

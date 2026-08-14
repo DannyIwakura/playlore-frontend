@@ -67,8 +67,6 @@ const cargarUsuarios = async (pagina = 0) => {
       }
     )
 
-    console.log(response.data)
-
     usuarios.value = response.data.content || []
     totalPaginas.value = response.data.totalPages || 0
     paginaActual.value = response.data.number || 0

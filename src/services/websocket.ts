@@ -118,7 +118,6 @@ function sendChannelMessage(channelId: number, contenido: string, mensajePadreId
 
 function sendPrivateMessage(receptorId: number, contenido: string) {
   if (!client?.connected) return
-  console.log('[DEBUG] sendPrivateMessage sending:', JSON.stringify(contenido))
   client.publish({
     destination: '/app/chat.privado.enviar',
     body: JSON.stringify({ receptorId, contenido }),

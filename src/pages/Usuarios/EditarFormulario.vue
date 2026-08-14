@@ -86,8 +86,7 @@ async function guardar() {
     formData.append('usuario', usuarioBlob)
     if (avatarFile.value) formData.append('avatarFile', avatarFile.value)
 
-    const res = await api.put(`/usuarios/${miId.value}`, formData)
-    console.log('Respuesta PUT:', res.status, res.data)
+    await api.put(`/usuarios/${miId.value}`, formData)
 
     await cargarDatos()
 

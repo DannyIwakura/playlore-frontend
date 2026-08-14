@@ -8,20 +8,12 @@ function getAuthHeaders() {
 
 export const chatApi = {
   // Canales
-  obtenerCanales() {
-    return api.get('/canales', { headers: getAuthHeaders() })
-  },
-
   obtenerCanalesUnidos() {
     return api.get('/canales/unidos', { headers: getAuthHeaders() })
   },
 
   obtenerCanalesDisponibles() {
     return api.get('/canales/disponibles', { headers: getAuthHeaders() })
-  },
-
-  obtenerCanal(id: number) {
-    return api.get(`/canales/${id}`, { headers: getAuthHeaders() })
   },
 
   crearCanal(data: { nombre: string; descripcion?: string; privado?: boolean }) {
@@ -38,10 +30,6 @@ export const chatApi = {
 
   salirDeCanal(canalId: number) {
     return api.post(`/canales/${canalId}/salir`, {}, { headers: getAuthHeaders() })
-  },
-
-  invitarMiembro(canalId: number, personajeId: number) {
-    return api.post(`/canales/${canalId}/invitar`, { personajeId }, { headers: getAuthHeaders() })
   },
 
   expulsarMiembro(canalId: number, personajeId: number) {
@@ -77,10 +65,6 @@ export const chatApi = {
       params: { page, size },
       headers: getAuthHeaders(),
     })
-  },
-
-  listarMiembrosOnline(canalId: number) {
-    return api.get(`/canales/${canalId}/miembros/online`, { headers: getAuthHeaders() })
   },
 
   eliminarCanal(canalId: number, password: string) {
@@ -130,27 +114,11 @@ export const chatApi = {
     return api.get(`/chat/privado/${otroPersonajeId}`, { headers: getAuthHeaders() })
   },
 
-  enviarMensajePrivado(receptorId: number, contenido: string) {
-    return api.post('/chat/privado', { receptorId, contenido }, { headers: getAuthHeaders() })
-  },
-
   eliminarConversacion(otroPersonajeId: number) {
     return api.delete(`/chat/privado/conversaciones/${otroPersonajeId}`, { headers: getAuthHeaders() })
   },
 
-  contarNoLeidos() {
-    return api.get('/chat/privado/no-leidos', { headers: getAuthHeaders() })
-  },
-
-  cerrarTodasSesiones() {
-    return api.post('/personajes/sesion/cerrar-todas')
-  },
-
   // Presencia
-  checkOnline(personajeId: number) {
-    return api.get(`/personajes/${personajeId}/online`, { headers: getAuthHeaders() })
-  },
-
   actualizarStatus(personajeId: number, status: string) {
     return api.put(`/personajes/${personajeId}/status`, { status }, { headers: getAuthHeaders() })
   },

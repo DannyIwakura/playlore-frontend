@@ -1,7 +1,6 @@
 <script setup lang="ts">
 
 const props = defineProps<{ logeado?: boolean }>()
-console.log('logeado en footer:', props.logeado)
 
 </script>
 

@@ -83,8 +83,6 @@ async function enviarSolicitudAmistad() {
   const miId = userId()
   if (!miId || !perfil.value) return
   enviandoSolicitud.value = true
-    console.log("Emisor (Yo):", miId, typeof miId);
-    console.log("Receptor (Perfil):", perfil.value.userId, typeof perfil.value.userId);
   try {
     await axios.post('/amistades', {
       emisorId: miId,

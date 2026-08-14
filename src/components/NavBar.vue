@@ -53,7 +53,6 @@ const logout = () => {
 }
 
 onMounted(async () => {
-  console.log('avatar en store:', usuario.value?.avatar)
   if (props.logeado && usuario.value?.id) {
     try {
       const { data } = await axios.get(`/amistades/pendientes-recibidas/${usuario.value.id}`)
