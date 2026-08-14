@@ -13,7 +13,7 @@ userStore.cargarDesdeToken()
 
 const app = createApp(App)
 
-const SANITIZE_URI_REGEX = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|profile):|[^a-z]|[a-z+.\-]+(?:[^a-z+.\-:]|$))/i
+const SANITIZE_URI_REGEX = /^(?:(?:(?:f|ht)tps?|mailto|tel|callto|sms|cid|xmpp|profile):|[^a-z]|[a-z+.-]+(?:[^a-z+.-:]|$))/i
 
 function sanitizeHtml(html: string): string {
   return DOMPurify.sanitize(html, { ALLOWED_URI_REGEXP: SANITIZE_URI_REGEX })
