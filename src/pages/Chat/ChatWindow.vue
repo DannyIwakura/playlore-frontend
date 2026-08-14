@@ -174,7 +174,7 @@ const imagenEdicionSrc = computed(() => {
   return canalAvatar({ nombre: editarCanalData.value.nombre, imagenUrl: p })
 })
 
-const cualquieraModalAbierto = computed(() =>
+const cualquierModalAbierto = computed(() =>
   mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
