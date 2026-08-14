@@ -8,11 +8,16 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, formatFecha, sortByRole, solicitarPermisoNotificacion, notificarPush, truncarTexto, copiarTexto } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
+import { useChatPresencia } from './composables/useChatPresencia'
+import { useChatMensajes } from './composables/useChatMensajes'
+import { useChatPrivado } from './composables/useChatPrivado'
+import { useChatModeracion } from './composables/useChatModeracion'
+import { useChatDenuncias } from './composables/useChatDenuncias'
 
 const router = useRouter()
 
@@ -21,61 +26,127 @@ const cargandoPersonajes = ref(true)
 const canalesUnidos = ref<any[]>([])
 const cargandoCanales = ref(true)
 const canalActivo = ref<any>(null)
-const mensajes = ref<any[]>([])
+const conversacionActiva = ref<any>(null)
 const miembros = ref<any[]>([])
-const miembrosOnline = ref<any[]>([])
-const onlineMap = ref<Map<number, boolean>>(new Map())
-const cargando = ref(true)
-const enviando = ref(false)
-const mensajesContainer = ref<HTMLElement | null>(null)
 const sidebarVisible = ref(window.innerWidth >= 768)
 const mostrarConectados = ref(true)
 const esMobile = () => window.innerWidth < 768
-const errorMsg = ref('')
 
 const PAGE_SIZE = 15
-const pagina = ref(0)
-const cargandoMas = ref(false)
-const hayMasMensajes = ref(true)
-const usuarioScrolledUp = ref(false)
 
-const mensajeEnRespuesta = ref<any | null>(null)
-const modoEdicion = ref<any | null>(null)
-const mensajeDestacado = ref<number | null>(null)
+const unreadCountMap = ref<Map<number, number>>(new Map())
+const channelMentionedMap = ref<Map<number, boolean>>(new Map())
+const channelLastSeenIds = ref<Record<number, number>>({})
+
 const chatEditorRef = ref<InstanceType<typeof ChatEditor> | null>(null)
 
-const statusMap = ref<Map<number, string>>(new Map())
-const estadoActual = computed(() => statusMap.value.get(characterSessionStore.sesionActual.value?.personajeId ?? -1) ?? 'conectado')
-const mostrarSelectorEstado = ref(false)
+const mostrarPerfil = ref(false)
+const perfilPersonajeId = ref<number | null>(null)
 
-const statusColor = computed(() => {
-  const opt = statusOptions.find(s => s.value === estadoActual.value)
-  return opt?.color ?? '#22c55e'
-})
-
-function getTabStatusColor(personajeId: number): string {
-  const online = onlineMap.value.get(personajeId)
-  if (!online) return '#9ca3af'
-  const status = statusMap.value.get(personajeId)
-  return statusOptions.find(s => s.value === status)?.color ?? '#22c55e'
+function verPerfil(personajeId: number) {
+  perfilPersonajeId.value = personajeId
+  mostrarPerfil.value = true
 }
 
-async function cambiarEstado(valor: string) {
-  const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid) {
-    statusMap.value.set(pid, valor)
-    statusMap.value = new Map(statusMap.value)
-    try { await chatApi.actualizarStatus(pid, valor) } catch {}
-  }
-  mostrarSelectorEstado.value = false
+// Context menu (conectados)
+const contextMenuTarget = ref<any>(null)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+
+function abrirContextMenu(e: MouseEvent, m: any) {
+  e.preventDefault()
+  contextMenuTarget.value = m
+  const menuW = 180, menuH = 180
+  const maxX = window.innerWidth - menuW
+  const maxY = window.innerHeight - menuH
+  contextMenuX.value = Math.min(e.clientX, maxX)
+  contextMenuY.value = Math.min(e.clientY, maxY)
 }
 
+function cerrarContextMenu() {
+  contextMenuTarget.value = null
+}
+
+// Modales globales
+const aviso = ref<string | null>(null)
+const mensajeModal = ref<{ titulo: string; texto: string } | null>(null)
+function mostrarMensajeModal(titulo: string, texto: string) { mensajeModal.value = { titulo, texto } }
+const confirmModal = ref<{ titulo: string; texto: string; onConfirm: () => void } | null>(null)
+function mostrarConfirmModal(titulo: string, texto: string, onConfirm: () => void) { confirmModal.value = { titulo, texto, onConfirm } }
+const mostrarConfirmacionDesconectar = ref(false)
+const personajeDesconectarIdx = ref(-1)
+const mostrarSelectorPersonajes = ref(false)
+
+// ---- Composables ----
+const {
+  onlineMap, statusMap, miembrosOnline, cargandoMiembrosOnline, mostrarSelectorEstado,
+  estadoActual, statusColor, getTabStatusColor, cambiarEstado, cargarMiembrosOnline,
+} = useChatPresencia({ canalActivo })
+
+const {
+  mensajes, cargando, enviando, cargandoMas, hayMasMensajes, usuarioScrolledUp, errorMsg, pagina,
+  mensajeEnRespuesta, modoEdicion, mensajeDestacado, mensajesContainer, mostrarConfirmacionEliminar,
+  mensajeAEliminarId, scrollAlFinal, scrollAlFinalForzado, handleScroll, handleMentionClick,
+  handleSendCanal, iniciarRespuesta, iniciarEdicion, copiarMensaje, cancelarEdicion, ejecutarEdicion,
+  scrollAMensaje, eliminarMensaje, ejecutarEliminarMensaje, esAdminOrOwner, refrescarMensajesActivos,
+} = useChatMensajes({ canalActivo, PAGE_SIZE, channelLastSeenIds, channelMentionedMap, chatEditorRef, verPerfil })
+
+const {
+  conversacionesPrivadas, mensajesPrivados, noLeidosPriv, noLeidosCharacter, cargandoPriv,
+  conversacionCtxTarget, conversacionCtxX, conversacionCtxY, reproducirSonidoPM, cargarConversaciones,
+  abrirConversacionPrivada, seleccionarConversacion, cerrarConversacion, enviarMensajePrivadoWs,
+  handleSendPm, abrirContextMenuConversacion, cerrarContextMenuConversacion, eliminarConversacionPrivada,
+  eliminarConversacionDirecta,
+} = useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal, cerrarContextMenu })
+
+const {
+  miRolEnCanal, puedeSilenciarContextMenu, banTarget, banDuracion, opcionesBan, silenciarTarget,
+  silenciarDuracion, opcionesSilenciar, mostrarBaneados, baneados, cargandoBaneados, ascenderAMod,
+  descenderAMember, expulsarDelCanal, estaSilenciado, abrirBanModal, confirmarBan, abrirSilenciarModal,
+  confirmarSilenciar, desilenciar, abrirModalBaneados, desbanearPersonaje,
+} = useChatModeracion({ canalActivo, contextMenuTarget, cargarMiembrosOnline, cerrarContextMenu, mostrarConfirmModal, aviso })
+
+const {
+  denunciaTarget, denunciaMotivo, denunciaDetalle, enviandoDenuncia, denunciarMensaje,
+  denunciarCanalActivo, enviarDenunciaMensaje,
+} = useChatDenuncias({ canalActivo, cerrarContextMenu, aviso })
+
+// Lista de miembros (modal)
+const mostrarListaMiembros = ref(false)
+const miembrosLista = ref<any[]>([])
+const paginaMiembros = ref(0)
+const cargandoMiembros = ref(false)
+const hayMasMiembros = ref(true)
+
+async function abrirListaMiembros() {
+  if (!canalActivo.value) return
+  mostrarListaMiembros.value = true
+  miembrosLista.value = []
+  paginaMiembros.value = 0
+  hayMasMiembros.value = true
+  await cargarMasMiembros()
+}
+
+async function cargarMasMiembros() {
+  if (!canalActivo.value || cargandoMiembros.value) return
+  cargandoMiembros.value = true
+  try {
+    const { data } = await chatApi.listarMiembros(canalActivo.value.id, paginaMiembros.value, 10)
+    const content: any[] = data.content || []
+    miembrosLista.value.push(...content)
+    hayMasMiembros.value = !data.last
+    paginaMiembros.value++
+  } catch {} finally { cargandoMiembros.value = false }
+}
+
+// Lista de canales (modal)
 const mostrarListaCanales = ref(false)
 const pestanaLista = ref<'oficiales' | 'usuarios'>('oficiales')
 const canalesOficiales = ref<any[]>([])
 const canalesUsuarios = ref<any[]>([])
 const cargandoLista = ref(false)
 
+// Crear canal
 const mostrarModalCrear = ref(false)
 const nuevoCanalData = ref({ nombre: '', descripcion: '', privado: false })
 const errorCrear = ref('')
@@ -83,6 +154,7 @@ const imagenCanal = ref<File | null>(null)
 const imagenPreview = ref<string | null>(null)
 const inputImagenRef = ref<HTMLInputElement | null>(null)
 
+// Editar canal
 const mostrarModalEditarCanal = ref(false)
 const editarCanalData = ref({ nombre: '', descripcion: '', privado: false })
 const errorEditarCanal = ref('')
@@ -102,468 +174,7 @@ const imagenEdicionSrc = computed(() => {
   return canalAvatar({ nombre: editarCanalData.value.nombre, imagenUrl: p })
 })
 
-async function onImagenCanalChange(event: Event) {
-  const input = event.target as HTMLInputElement
-  const file = input.files?.[0]
-  if (!file) return
-  imagenCanal.value = file
-  const error = await validarImagenCanal(file)
-  if (error) {
-    errorCrear.value = error
-    return
-  }
-  if (imagenPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenPreview.value)
-  imagenPreview.value = URL.createObjectURL(file)
-  errorCrear.value = ''
-}
-
-function quitarImagenCanal() {
-  imagenCanal.value = null
-  if (imagenPreview.value) URL.revokeObjectURL(imagenPreview.value)
-  imagenPreview.value = null
-  errorCrear.value = ''
-}
-
-function obtenerDimensionesImagen(file: File): Promise<{ width: number; height: number } | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: img.naturalWidth, height: img.naturalHeight })
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve(null)
-    }
-    img.src = url
-  })
-}
-
-async function validarImagenCanal(file: File): Promise<string | null> {
-  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-    return 'Formato no permitido. Solo JPG, PNG y WEBP'
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    return 'La imagen no puede superar 10 MB'
-  }
-  const dims = await obtenerDimensionesImagen(file)
-  if (!dims) {
-    return 'El archivo no es una imagen válida'
-  }
-  if (dims.width > 400 || dims.height > 400) {
-    return `La imagen no puede superar 400x400 píxeles (la actual tiene ${dims.width}x${dims.height}). Reduce su tamaño o recorta la imagen antes de subirla.`
-  }
-  return null
-}
-
-function extraerError(e: any, fallback: string): string {
-  const data = e?.response?.data
-  if (!data) return fallback
-  if (typeof data === 'string') return data
-  return data.error || data.message || data.mensaje || data.imagenFile || fallback
-}
-
-const mostrarPerfil = ref(false)
-const perfilPersonajeId = ref<number | null>(null)
-
-// Context menu
-const contextMenuTarget = ref<any>(null)
-const contextMenuX = ref(0)
-const contextMenuY = ref(0)
-
-function abrirContextMenu(e: MouseEvent, m: any) {
-  e.preventDefault()
-  contextMenuTarget.value = m
-  const menuW = 180, menuH = 180
-  const maxX = window.innerWidth - menuW
-  const maxY = window.innerHeight - menuH
-  contextMenuX.value = Math.min(e.clientX, maxX)
-  contextMenuY.value = Math.min(e.clientY, maxY)
-}
-
-function cerrarContextMenu() {
-  contextMenuTarget.value = null
-}
-
-// Context menu for private conversations
-const conversacionCtxTarget = ref<any>(null)
-const conversacionCtxX = ref(0)
-const conversacionCtxY = ref(0)
-
-function abrirContextMenuConversacion(e: MouseEvent, conv: any) {
-  e.preventDefault()
-  conversacionCtxTarget.value = conv
-  const menuW = 200, menuH = 80
-  const maxX = window.innerWidth - menuW
-  const maxY = window.innerHeight - menuH
-  conversacionCtxX.value = Math.min(e.clientX, maxX)
-  conversacionCtxY.value = Math.min(e.clientY, maxY)
-}
-
-function cerrarContextMenuConversacion() {
-  conversacionCtxTarget.value = null
-}
-
-function eliminarConversacionPrivada() {
-  const conv = conversacionCtxTarget.value
-  if (!conv) return
-  eliminarConversacionDeLista(conv)
-  cerrarContextMenuConversacion()
-}
-
-function eliminarConversacionDirecta(conv: any) {
-  eliminarConversacionDeLista(conv)
-}
-
-async function eliminarConversacionDeLista(conv: any) {
-  try {
-    await chatApi.eliminarConversacion(conv.personajeId)
-  } catch {
-    return
-  }
-  if (conversacionActiva.value?.personajeId === conv.personajeId) {
-    cerrarConversacion()
-  }
-  conversacionesPrivadas.value = conversacionesPrivadas.value.filter(
-    c => c.personajeId !== conv.personajeId
-  )
-  noLeidosPriv.value.delete(conv.personajeId)
-  noLeidosPriv.value = new Map(noLeidosPriv.value)
-}
-
-const miRolEnCanal = computed(() => canalActivo.value?.miRol)
-
-const puedeSilenciarContextMenu = computed(() => {
-  const t = contextMenuTarget.value
-  if (!t) return false
-  if (miRolEnCanal.value !== 'OWNER' && miRolEnCanal.value !== 'ADMIN' && miRolEnCanal.value !== 'MOD') return false
-  if (t.rol !== 'MEMBER') return false
-  return t.personajeId !== characterSessionStore.sesionActual.value?.personajeId
-})
-
-async function ascenderAMod(m: any) {
-  cerrarContextMenu()
-  mostrarConfirmModal('Ascender a moderador', `¿Ascender a ${m.personajeNombre} a moderador?`, async () => {
-    try {
-      await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MOD')
-      await cargarMiembrosOnline()
-    } catch {}
-  })
-}
-
-async function descenderAMember(m: any) {
-  cerrarContextMenu()
-  mostrarConfirmModal('Descender a miembro', `¿Descender a ${m.personajeNombre} a miembro?`, async () => {
-    try {
-      await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MEMBER')
-      await cargarMiembrosOnline()
-    } catch {}
-  })
-}
-
-async function expulsarDelCanal(m: any) {
-  cerrarContextMenu()
-  mostrarConfirmModal('Expulsar del canal', `¿Expulsar a ${m.personajeNombre} del canal?`, async () => {
-    try {
-      await chatApi.expulsarMiembro(canalActivo.value!.id, m.personajeId)
-      await cargarMiembrosOnline()
-    } catch {}
-  })
-}
-
-const denunciaTarget = ref<{ tipo: 'MENSAJE_CANAL' | 'CANAL', tipoId: number } | null>(null)
-const denunciaMotivo = ref('')
-const denunciaDetalle = ref('')
-const enviandoDenuncia = ref(false)
-
-function denunciarMensaje(msg: any) {
-  cerrarContextMenu()
-  denunciaTarget.value = { tipo: 'MENSAJE_CANAL', tipoId: msg.id }
-  denunciaMotivo.value = ''
-  denunciaDetalle.value = ''
-}
-
-function denunciarCanalActivo() {
-  if (!canalActivo.value) return
-  denunciaTarget.value = { tipo: 'CANAL', tipoId: canalActivo.value.id }
-  denunciaMotivo.value = ''
-  denunciaDetalle.value = ''
-}
-
-const aviso = ref<string | null>(null)
-
-async function enviarDenunciaMensaje() {
-  if (!denunciaTarget.value) return
-  if (!denunciaMotivo.value.trim()) {
-    aviso.value = 'El motivo es obligatorio para enviar la denuncia.'
-    return
-  }
-  enviandoDenuncia.value = true
-  try {
-    await api.post('/denuncias', {
-      tipo: denunciaTarget.value.tipo,
-      tipoId: denunciaTarget.value.tipoId,
-      motivo: denunciaMotivo.value.trim(),
-      detalle: denunciaDetalle.value.trim() || null,
-    })
-    denunciaTarget.value = null
-    denunciaMotivo.value = ''
-    denunciaDetalle.value = ''
-    aviso.value = 'Denuncia enviada. Gracias por ayudar a mantener el canal seguro.'
-  } catch (e: any) {
-    const data = e?.response?.data
-    const mensaje = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
-    aviso.value = mensaje
-  } finally {
-    enviandoDenuncia.value = false
-  }
-}
-
-const banTarget = ref<any>(null)
-const banDuracion = ref('PERMANENTE')
-
-function abrirBanModal(m: any) {
-  cerrarContextMenu()
-  banTarget.value = m
-  banDuracion.value = 'PERMANENTE'
-}
-
-async function confirmarBan() {
-  if (!banTarget.value || !canalActivo.value) return
-  try {
-    await chatApi.banearMiembro(canalActivo.value.id, banTarget.value.personajeId, banDuracion.value)
-    banTarget.value = null
-    await cargarMiembrosOnline()
-  } catch {}
-}
-
-const opcionesBan = [
-  { value: '1H', label: '1 hora' },
-  { value: '24H', label: '24 horas' },
-  { value: '7D', label: '7 días' },
-  { value: 'PERMANENTE', label: 'Permanente' },
-]
-
-// Silenciar miembro
-const silenciarTarget = ref<any>(null)
-const silenciarDuracion = ref('1H')
-const opcionesSilenciar = [
-  { value: '1H', label: '1 hora' },
-  { value: '24H', label: '24 horas' },
-  { value: '7D', label: '7 días' },
-]
-
-function estaSilenciado(m: any): boolean {
-  return !!m?.silenciadoHasta && new Date(m.silenciadoHasta).getTime() > Date.now()
-}
-
-function abrirSilenciarModal(m: any) {
-  cerrarContextMenu()
-  silenciarTarget.value = m
-  silenciarDuracion.value = '1H'
-}
-
-async function confirmarSilenciar() {
-  if (!silenciarTarget.value || !canalActivo.value) return
-  try {
-    await chatApi.silenciarMiembro(canalActivo.value.id, silenciarTarget.value.personajeId, silenciarDuracion.value)
-    silenciarTarget.value = null
-    await cargarMiembrosOnline()
-  } catch {}
-}
-
-async function desilenciar(m: any) {
-  cerrarContextMenu()
-  if (!canalActivo.value) return
-  mostrarConfirmModal(
-    'Desilenciar personaje',
-    `¿Desilenciar a ${m.personajeNombre} de este canal?`,
-    async () => {
-      try {
-        await chatApi.desilenciarMiembro(canalActivo.value!.id, m.personajeId)
-        await cargarMiembrosOnline()
-      } catch {}
-    }
-  )
-}
-
-// Modal de baneados del canal
-const mostrarBaneados = ref(false)
-const baneados = ref<any[]>([])
-const cargandoBaneados = ref(false)
-
-async function abrirModalBaneados() {
-  if (!canalActivo.value) return
-  mostrarBaneados.value = true
-  cargandoBaneados.value = true
-  try {
-    const { data } = await chatApi.listarBaneados(canalActivo.value.id)
-    baneados.value = data
-  } catch {
-    baneados.value = []
-  } finally {
-    cargandoBaneados.value = false
-  }
-}
-
-function desbanearPersonaje(p: any) {
-  if (!canalActivo.value) return
-  mostrarConfirmModal(
-    'Desbanear personaje',
-    `¿Desbanear a ${p.personajeNombre} de este canal?`,
-    async () => {
-      try {
-        await chatApi.desbanearMiembro(canalActivo.value!.id, p.personajeId)
-        baneados.value = baneados.value.filter((b: any) => b.personajeId !== p.personajeId)
-      } catch {
-        aviso.value = 'Error al desbanear al personaje.'
-      }
-    }
-  )
-}
-
-// Private messages
-const conversacionesPrivadas = ref<any[]>([])
-const conversacionActiva = ref<any>(null)
-const mensajesPrivados = ref<any[]>([])
-const noLeidosPriv = ref<Map<number, number>>(new Map())
-const noLeidosCharacter = ref<Map<number, number>>(new Map())
-const cargandoPriv = ref(false)
-
-function reproducirSonidoPM() {
-  try {
-    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.frequency.value = 880
-    osc.type = 'sine'
-    gain.gain.setValueAtTime(0.25, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.12)
-  } catch { /* ignore */ }
-}
-
-async function cargarConversaciones() {
-  try {
-    const { data } = await chatApi.obtenerConversaciones()
-    const pid = characterSessionStore.sesionActual.value?.personajeId
-    const grouped = new Map<number, any>()
-    for (const msg of data) {
-      const esReceptor = msg.receptorId === pid
-      const otroId = esReceptor ? msg.emisorId : msg.receptorId
-      if (!grouped.has(otroId)) {
-        grouped.set(otroId, {
-          personajeId: otroId,
-          personajeNombre: esReceptor ? msg.emisorNombre : msg.receptorNombre,
-          personajeAvatar: esReceptor ? msg.emisorAvatar : msg.receptorAvatar,
-          ultimoMensaje: msg.contenido,
-          fecha: msg.fechaEnvio,
-          noLeidos: 0,
-        })
-      }
-      if (esReceptor && !msg.leido) {
-        grouped.get(otroId)!.noLeidos++
-      }
-    }
-    conversacionesPrivadas.value = Array.from(grouped.values())
-    noLeidosPriv.value = new Map(
-      Array.from(grouped.values()).map(c => [c.personajeId, c.noLeidos])
-    )
-  } catch {}
-}
-
-function abrirConversacionPrivada(otroId: number, otroNombre: string, otroAvatar: string) {
-  cerrarContextMenu()
-  let conv = conversacionesPrivadas.value.find(c => c.personajeId === otroId)
-  if (!conv) {
-    conv = { personajeId: otroId, personajeNombre: otroNombre, personajeAvatar: otroAvatar, ultimoMensaje: '', noLeidos: 0 }
-    conversacionesPrivadas.value.unshift(conv)
-  }
-  seleccionarConversacion(conv)
-}
-
-async function seleccionarConversacion(conv: any) {
-  canalActivo.value = null
-  conversacionActiva.value = conv
-  noLeidosPriv.value.set(conv.personajeId, 0)
-  noLeidosPriv.value = new Map(noLeidosPriv.value)
-  const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid != null) {
-    noLeidosCharacter.value.set(pid, 0)
-    noLeidosCharacter.value = new Map(noLeidosCharacter.value)
-  }
-  cargandoPriv.value = true
-  try {
-    const { data } = await chatApi.obtenerConversacion(conv.personajeId)
-    mensajesPrivados.value = data || []
-    await nextTick()
-    scrollAlFinal()
-  } catch { mensajesPrivados.value = [] }
-  finally { cargandoPriv.value = false }
-}
-
-function cerrarConversacion() {
-  conversacionActiva.value = null
-  mensajesPrivados.value = []
-}
-
-function enviarMensajePrivadoWs(texto: string) {
-  if (!texto || !conversacionActiva.value) return
-  const tempMsg: any = {
-    id: Date.now(),
-    emisorId: characterSessionStore.sesionActual.value?.personajeId,
-    receptorId: conversacionActiva.value.personajeId,
-    contenido: texto,
-    fechaEnvio: new Date().toISOString(),
-    esMio: true,
-    leido: false,
-  }
-  mensajesPrivados.value.push(tempMsg)
-  nextTick(() => scrollAlFinal())
-  const receptorId = conversacionActiva.value.personajeId
-  websocketService.sendPrivateMessage(receptorId, texto)
-  if (characterSessionStore.sesiones.value.some(s => s.personajeId === receptorId)) {
-    const charCount = noLeidosCharacter.value.get(receptorId) || 0
-    noLeidosCharacter.value.set(receptorId, charCount + 1)
-    noLeidosCharacter.value = new Map(noLeidosCharacter.value)
-    reproducirSonidoPM()
-    notificarPush('Mensaje privado', truncarTexto(texto))
-  }
-  const conv = conversacionesPrivadas.value.find(c => c.personajeId === receptorId)
-  if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
-}
-
-function handleSendPm(texto: string) {
-  enviarMensajePrivadoWs(texto)
-}
-
-const mostrarConfirmacionDesconectar = ref(false)
-const mensajeModal = ref<{ titulo: string; texto: string } | null>(null)
-function mostrarMensajeModal(titulo: string, texto: string) { mensajeModal.value = { titulo, texto } }
-const confirmModal = ref<{ titulo: string; texto: string; onConfirm: () => void } | null>(null)
-function mostrarConfirmModal(titulo: string, texto: string, onConfirm: () => void) { confirmModal.value = { titulo, texto, onConfirm } }
-const personajeDesconectarIdx = ref(-1)
-
-const mostrarConfirmacionEliminar = ref(false)
-const mensajeAEliminarId = ref<number | null>(null)
-
-const mostrarSelectorPersonajes = ref(false)
-
-const unreadCountMap = ref<Map<number, number>>(new Map())
-const channelMentionedMap = ref<Map<number, boolean>>(new Map())
-const channelLastSeenIds = ref<Record<number, number>>({})
-
-const mostrarListaMiembros = ref(false)
-const miembrosLista = ref<any[]>([])
-const paginaMiembros = ref(0)
-const cargandoMiembros = ref(false)
-const hayMasMiembros = ref(true)
-
-const cualquierModalAbierto = computed(() =>
+const cualquieraModalAbierto = computed(() =>
   mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
@@ -577,19 +188,6 @@ let wsSubscriptions: string[] = []
 let persistentSubscriptions: string[] = []
 let channelPresenceSubscription: string | null = null
 let pollingInterval: number | null = null
-
-function scrollAlFinal() {
-  nextTick(() => {
-    if (mensajesContainer.value) {
-      mensajesContainer.value.scrollTop = mensajesContainer.value.scrollHeight
-    }
-  })
-}
-
-function scrollAlFinalForzado() {
-  usuarioScrolledUp.value = false
-  scrollAlFinal()
-}
 
 async function cargarPersonajes() {
   if (!userStore.usuario.value?.id) return
@@ -935,36 +533,6 @@ async function actualizarNoLeidos() {
   unreadCountMap.value = new Map(unreadCountMap.value)
 }
 
-async function refrescarMensajesActivos() {
-  if (!canalActivo.value || canalActivo.value.id == null) return
-  try {
-    const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
-    const content: any[] = data.content || []
-    const servidor = new Map(content.map((m: any) => [m.id, m]))
-    const pid = characterSessionStore.sesionActual.value?.personajeId
-    const nuevo: any[] = []
-    for (const m of mensajes.value) {
-      const srv = servidor.get(m.id)
-      if (srv) {
-        srv.esMio = srv.personajeId === pid
-        nuevo.push(srv)
-        servidor.delete(m.id)
-      } else {
-        nuevo.push(m)
-      }
-    }
-    const nuevosArr = [...servidor.values()]
-      .map((m: any) => { m.esMio = m.personajeId === pid; return m })
-      .sort((a: any, b: any) => new Date(a.fechaEnvio).getTime() - new Date(b.fechaEnvio).getTime())
-    for (const m of nuevosArr) {
-      const idx = nuevo.findIndex((x: any) => new Date(x.fechaEnvio).getTime() > new Date(m.fechaEnvio).getTime())
-      if (idx >= 0) nuevo.splice(idx, 0, m)
-      else nuevo.push(m)
-    }
-    mensajes.value = nuevo
-  } catch {}
-}
-
 async function reconectarSesion(conCache = false) {
   await websocketService.disconnect()
   persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
@@ -1087,133 +655,6 @@ async function seleccionarCanal(canal: any) {
   }
 }
 
-function handleMentionClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  const anchor = target.closest('a')
-  if (!anchor) return
-  const href = anchor.getAttribute('href') || ''
-  const match = href.match(/^profile:(\d+)$/)
-  if (match) {
-    e.preventDefault()
-    verPerfil(parseInt(match[1]))
-  }
-}
-
-function handleSendCanal(texto: string) {
-  if (modoEdicion.value) {
-    ejecutarEdicion(texto)
-  } else {
-    enviarMensaje(texto)
-  }
-}
-
-async function enviarMensaje(texto: string) {
-  if (!texto || enviando.value || !canalActivo.value) return
-  channelMentionedMap.value.set(canalActivo.value.id, false)
-  channelMentionedMap.value = new Map(channelMentionedMap.value)
-  enviando.value = true
-  const mensajePadreId = mensajeEnRespuesta.value?.id ?? null
-  const token = characterSessionStore.getToken()
-  if (websocketService.connected.value && token) {
-    websocketService.sendChannelMessage(canalActivo.value.id, texto, mensajePadreId)
-    mensajeEnRespuesta.value = null
-    enviando.value = false
-  } else {
-    try {
-      await chatApi.enviarMensajeCanal(canalActivo.value.id, texto, mensajePadreId)
-      mensajeEnRespuesta.value = null
-      pagina.value = 0
-      const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
-      hayMasMensajes.value = !data.last
-      mensajes.value = (data.content || []).reverse()
-      usuarioScrolledUp.value = false
-      scrollAlFinal()
-    } catch {} finally { enviando.value = false }
-  }
-}
-
-function iniciarRespuesta(msg: any) {
-  mensajeEnRespuesta.value = msg
-  modoEdicion.value = null
-  nextTick(() => chatEditorRef.value?.enfocar())
-}
-
-function iniciarEdicion(msg: any) {
-  modoEdicion.value = msg
-  mensajeEnRespuesta.value = null
-  nextTick(() => {
-    chatEditorRef.value?.setContenido(msg.contenido)
-    chatEditorRef.value?.enfocar()
-  })
-}
-
-function copiarMensaje(msg: any) {
-  copiarTexto(msg.contenido || '')
-}
-
-function cancelarEdicion() {
-  modoEdicion.value = null
-  chatEditorRef.value?.limpiar()
-}
-
-async function ejecutarEdicion(texto: string) {
-  const msg = modoEdicion.value
-  if (!texto || enviando.value || !canalActivo.value || !msg) return
-  if (msg.contenido === texto) {
-    modoEdicion.value = null
-    chatEditorRef.value?.limpiar()
-    return
-  }
-  enviando.value = true
-  try {
-    await chatApi.editarMensajeCanal(canalActivo.value.id, msg.id, texto)
-    const idx = mensajes.value.findIndex((m: any) => m.id === msg.id)
-    if (idx >= 0) {
-      mensajes.value[idx] = { ...mensajes.value[idx], contenido: texto, editado: true }
-    }
-  } catch {}
-  enviando.value = false
-  modoEdicion.value = null
-  chatEditorRef.value?.limpiar()
-}
-
-function scrollAMensaje(mensajeId: number) {
-  const el = document.querySelector<HTMLElement>(`.msg-row[data-msg-id="${mensajeId}"]`)
-  if (!el) return
-  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
-  mensajeDestacado.value = null
-  nextTick(() => {
-    mensajeDestacado.value = mensajeId
-    setTimeout(() => {
-      if (mensajeDestacado.value === mensajeId) mensajeDestacado.value = null
-    }, 2000)
-  })
-}
-
-async function eliminarMensaje(mensajeId: number) {
-  if (modoEdicion.value?.id === mensajeId) {
-    modoEdicion.value = null
-    chatEditorRef.value?.limpiar()
-  }
-  mensajeAEliminarId.value = mensajeId
-  mostrarConfirmacionEliminar.value = true
-}
-
-async function ejecutarEliminarMensaje() {
-  const mensajeId = mensajeAEliminarId.value
-  if (!mensajeId || !canalActivo.value) return
-  try {
-    await chatApi.eliminarMensajeCanal(canalActivo.value.id, mensajeId)
-    const msg = mensajes.value.find((m: any) => m.id === mensajeId)
-    if (msg) {
-      msg.eliminado = true
-      msg.eliminadoPorModerador = esAdminOrOwner()
-    }
-  } catch {}
-  mostrarConfirmacionEliminar.value = false
-  mensajeAEliminarId.value = null
-}
-
 async function abrirListaCanales() {
   mostrarListaCanales.value = true
   cargandoLista.value = true
@@ -1259,6 +700,68 @@ function cerrarModalCrear() {
   quitarImagenCanal()
   errorCrear.value = ''
   mostrarModalCrear.value = false
+}
+
+function obtenerDimensionesImagen(file: File): Promise<{ width: number; height: number } | null> {
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      URL.revokeObjectURL(url)
+      resolve({ width: img.naturalWidth, height: img.naturalHeight })
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      resolve(null)
+    }
+    img.src = url
+  })
+}
+
+async function validarImagenCanal(file: File): Promise<string | null> {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+    return 'Formato no permitido. Solo JPG, PNG y WEBP'
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return 'La imagen no puede superar 10 MB'
+  }
+  const dims = await obtenerDimensionesImagen(file)
+  if (!dims) {
+    return 'El archivo no es una imagen válida'
+  }
+  if (dims.width > 400 || dims.height > 400) {
+    return `La imagen no puede superar 400x400 píxeles (la actual tiene ${dims.width}x${dims.height}). Reduce su tamaño o recorta la imagen antes de subirla.`
+  }
+  return null
+}
+
+async function onImagenCanalChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  imagenCanal.value = file
+  const error = await validarImagenCanal(file)
+  if (error) {
+    errorCrear.value = error
+    return
+  }
+  if (imagenPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenPreview.value)
+  imagenPreview.value = URL.createObjectURL(file)
+  errorCrear.value = ''
+}
+
+function quitarImagenCanal() {
+  imagenCanal.value = null
+  if (imagenPreview.value) URL.revokeObjectURL(imagenPreview.value)
+  imagenPreview.value = null
+  errorCrear.value = ''
+}
+
+function extraerError(e: any, fallback: string): string {
+  const data = e?.response?.data
+  if (!data) return fallback
+  if (typeof data === 'string') return data
+  return data.error || data.message || data.mensaje || data.imagenFile || fallback
 }
 
 async function crearCanal() {
@@ -1392,38 +895,6 @@ async function eliminarCanalConfirmado() {
   }
 }
 
-async function cargarMensajesAntiguos() {
-  if (cargandoMas.value || !hayMasMensajes.value || !canalActivo.value) return
-  cargandoMas.value = true
-  const nextPage = pagina.value + 1
-  try {
-    const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, nextPage, PAGE_SIZE)
-    const content: any[] = data.content || []
-    if (content.length === 0) { hayMasMensajes.value = false; return }
-    hayMasMensajes.value = !data.last
-    pagina.value = nextPage
-    const container = mensajesContainer.value
-    const prevScrollHeight = container?.scrollHeight ?? 0
-    const prevScrollTop = container?.scrollTop ?? 0
-    content.reverse().forEach((msg: any) => {
-      if (!mensajes.value.some((m: any) => m.id === msg.id)) {
-        mensajes.value.unshift(msg)
-      }
-    })
-    if (container) {
-      await nextTick()
-      container.scrollTop = container.scrollHeight - prevScrollHeight + prevScrollTop
-    }
-  } catch {} finally { cargandoMas.value = false }
-}
-
-function handleScroll() {
-  const container = mensajesContainer.value
-  if (!container) return
-  usuarioScrolledUp.value = container.scrollTop < container.scrollHeight - container.clientHeight - 100
-  if (container.scrollTop <= 60) cargarMensajesAntiguos()
-}
-
 async function salirDelCanal() {
   if (!canalActivo.value) return
   mostrarConfirmModal('Salir del canal', '¿Salir del canal?', async () => {
@@ -1439,58 +910,6 @@ async function salirDelCanal() {
       suscribirCanales()
     } catch (e: any) { errorMsg.value = e.response?.data?.mensaje || e.response?.data?.error || 'Error al salir del canal' }
   })
-}
-
-function verPerfil(personajeId: number) {
-  perfilPersonajeId.value = personajeId
-  mostrarPerfil.value = true
-}
-
-function esAdminOrOwner(): boolean {
-  const rol = canalActivo.value?.miRol
-  return rol === 'OWNER' || rol === 'ADMIN' || rol === 'MOD'
-}
-
-async function abrirListaMiembros() {
-  if (!canalActivo.value) return
-  mostrarListaMiembros.value = true
-  miembrosLista.value = []
-  paginaMiembros.value = 0
-  hayMasMiembros.value = true
-  await cargarMasMiembros()
-}
-
-async function cargarMasMiembros() {
-  if (!canalActivo.value || cargandoMiembros.value) return
-  cargandoMiembros.value = true
-  try {
-    const { data } = await chatApi.listarMiembros(canalActivo.value.id, paginaMiembros.value, 10)
-    const content: any[] = data.content || []
-    miembrosLista.value.push(...content)
-    hayMasMiembros.value = !data.last
-    paginaMiembros.value++
-  } catch {} finally { cargandoMiembros.value = false }
-}
-
-const cargandoMiembrosOnline = ref(false)
-
-async function cargarMiembrosOnline(silent = false) {
-  if (!canalActivo.value) return
-  if (!silent) cargandoMiembrosOnline.value = true
-  try {
-    const localActiveIds = new Set(characterSessionStore.sesiones.value.map(s => s.personajeId))
-    const { data } = await chatApi.listarMiembros(canalActivo.value.id, 0, 100)
-    const members: any[] = data.content || []
-    miembrosOnline.value = sortByRole(members.filter((m: any) => m.online || localActiveIds.has(m.personajeId)))
-    for (const m of members) {
-      onlineMap.value.set(m.personajeId, m.online || localActiveIds.has(m.personajeId))
-      if (m.status) {
-        statusMap.value.set(m.personajeId, m.status)
-      }
-    }
-    onlineMap.value = new Map(onlineMap.value)
-    statusMap.value = new Map(statusMap.value)
-  } catch {} finally { cargandoMiembrosOnline.value = false }
 }
 
 function handleBeforeUnload() {
