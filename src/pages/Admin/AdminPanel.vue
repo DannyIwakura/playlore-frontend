@@ -9,6 +9,7 @@ import UsuariosLista from '../Admin/Usuarios/UsuariosLista.vue'
 import PersonajesLista from '../Admin/Personajes/PersonajesLista.vue'
 import DenunciasLista from '../Admin/Denuncias/DenunciasLista.vue'
 import BaneosLista from '../Admin/Baneos/BaneosLista.vue'
+import AuditoriaLista from '../Admin/Auditoria/AuditoriaLista.vue'
 
 const usuario = userStore.usuario
 const esAdmin = usuario.value?.role === 'ADMIN'
@@ -72,6 +73,14 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
           >
             Baneos globales
           </button>
+          <button
+            v-if="esAdmin || esModerador"
+            class="list-group-item list-group-item-action"
+            :class="{ active: pestanaActiva === 'auditoria' }"
+            @click="pestanaActiva = 'auditoria'"
+          >
+            Auditoría de moderación
+          </button>
         </div>
       </div>
 
@@ -107,6 +116,12 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
         <div v-if="pestanaActiva === 'baneos' && (esAdmin || esModerador)">
           <h2 class="mb-3">Baneos globales</h2>
           <BaneosLista />
+        </div>
+
+        <!-- Auditoría de moderación -->
+        <div v-if="pestanaActiva === 'auditoria' && (esAdmin || esModerador)">
+          <h2 class="mb-3">Auditoría de moderación</h2>
+          <AuditoriaLista />
         </div>
       </div>
     </div>
