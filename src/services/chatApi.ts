@@ -105,6 +105,20 @@ export const chatApi = {
     return api.delete(`/canales/${canalId}/mensajes/${mensajeId}`, { headers: getAuthHeaders() })
   },
 
+  buscarMensajesCanal(canalId: number, q: string, page = 0, size = 15) {
+    return api.get(`/canales/${canalId}/mensajes/buscar`, {
+      params: { q, page, size },
+      headers: getAuthHeaders(),
+    })
+  },
+
+  paginaDeMensaje(canalId: number, mensajeId: number, size = 15) {
+    return api.get(`/canales/${canalId}/mensajes/${mensajeId}/pagina`, {
+      params: { size },
+      headers: getAuthHeaders(),
+    })
+  },
+
   // Mensajes privados entre personajes
   obtenerConversaciones() {
     return api.get('/chat/privado/conversaciones', { headers: getAuthHeaders() })

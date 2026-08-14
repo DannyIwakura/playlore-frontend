@@ -8,13 +8,14 @@ import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
 import { useChatPresencia } from './composables/useChatPresencia'
 import { useChatMensajes } from './composables/useChatMensajes'
+import { useChatBusqueda } from './composables/useChatBusqueda'
 import { useChatPrivado } from './composables/useChatPrivado'
 import { useChatModeracion } from './composables/useChatModeracion'
 import { useChatDenuncias } from './composables/useChatDenuncias'
@@ -39,6 +40,18 @@ const channelMentionedMap = ref<Map<number, boolean>>(new Map())
 const channelLastSeenIds = ref<Record<number, number>>({})
 
 const chatEditorRef = ref<InstanceType<typeof ChatEditor> | null>(null)
+const buscadorInputRef = ref<HTMLInputElement | null>(null)
+
+function abrirBuscador() {
+  if (!canalActivo.value) return
+  busquedaAbierta.value = true
+  nextTick(() => buscadorInputRef.value?.focus())
+}
+
+function cerrarBuscador() {
+  cerrarBusqueda()
+  mensajeDestacado.value = null
+}
 
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
@@ -110,6 +123,38 @@ const {
   denunciaTarget, denunciaMotivo, denunciaDetalle, enviandoDenuncia, denunciarMensaje,
   denunciarCanalActivo, enviarDenunciaMensaje,
 } = useChatDenuncias({ canalActivo, cerrarContextMenu, aviso })
+
+const {
+  busquedaAbierta, terminoBusqueda, buscando, cargandoMas: cargandoMasResultados, resultados, hayMasResultados, errorBusqueda,
+  buscar, cargarMasResultados, cerrarBusqueda, irAResultado: cerrarPanelBusqueda,
+} = useChatBusqueda({ canalActivo })
+
+async function saltarAResultado(resultado: any) {
+  cerrarPanelBusqueda(resultado)
+  if (!canalActivo.value || resultado?.id == null) return
+  const yaCargado = mensajes.value.some((m: any) => m.id === resultado.id)
+  if (yaCargado) {
+    scrollAMensaje(resultado.id)
+    return
+  }
+  try {
+    const { data } = await chatApi.paginaDeMensaje(canalActivo.value.id, resultado.id, PAGE_SIZE)
+    const paginaObjetivo = data.pagina ?? 0
+    const res = await chatApi.obtenerMensajesCanal(canalActivo.value.id, paginaObjetivo, PAGE_SIZE)
+    const content: any[] = res.data.content || []
+    pagina.value = paginaObjetivo
+    hayMasMensajes.value = !res.data.last
+    usuarioScrolledUp.value = false
+    mensajes.value = content.reverse()
+    await nextTick()
+    scrollAMensaje(resultado.id)
+    if (!mensajes.value.some((m: any) => m.id === resultado.id)) {
+      aviso.value = 'No se pudo localizar el mensaje en el historial'
+    }
+  } catch {
+    aviso.value = 'No se pudo saltar al mensaje'
+  }
+}
 
 // Lista de miembros (modal)
 const mostrarListaMiembros = ref(false)
@@ -607,6 +652,7 @@ async function seleccionarCanal(canal: any) {
   canalActivo.value = canal
   mensajeEnRespuesta.value = null
   modoEdicion.value = null
+  cerrarBusqueda()
   unreadCountMap.value.set(canal.id, 0)
   unreadCountMap.value = new Map(unreadCountMap.value)
   channelMentionedMap.value.set(canal.id, false)
@@ -1166,6 +1212,9 @@ onUnmounted(() => {
             <button class="btn btn-sm btn-outline-secondary" @click="mostrarConectados = !mostrarConectados" title="Conectados">
               <i class="bi bi-person-check"></i>
             </button>
+            <button class="btn btn-sm btn-outline-secondary" @click="abrirBuscador" title="Buscar mensajes">
+              <i class="bi bi-search"></i>
+            </button>
             <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-warning" @click="denunciarCanalActivo" title="Denunciar canal">
               <i class="bi bi-flag"></i>
             </button>
@@ -1178,6 +1227,58 @@ onUnmounted(() => {
             <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-danger" @click="salirDelCanal" title="Salir del canal">
               <i class="bi bi-box-arrow-left"></i>
             </button>
+          </div>
+
+          <!-- Buscador de mensajes -->
+          <div v-if="busquedaAbierta" class="busqueda-panel position-absolute start-0 end-0 z-3 bg-white shadow-sm border-bottom">
+            <div class="d-flex align-items-center gap-2 px-3 py-2">
+              <i class="bi bi-search text-muted"></i>
+              <input ref="buscadorInputRef"
+                     v-model="terminoBusqueda"
+                     type="text"
+                     class="form-control form-control-sm"
+                     placeholder="Buscar en el canal..."
+                     @keydown.enter.prevent="buscar(terminoBusqueda)"
+                     @keydown.esc.prevent="cerrarBuscador" />
+              <button class="btn btn-sm btn-outline-secondary" :disabled="buscando || !terminoBusqueda.trim()" @click="buscar(terminoBusqueda)" title="Buscar">
+                <span v-if="buscando" class="spinner-border spinner-border-sm"></span>
+                <i v-else class="bi bi-arrow-return-left"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-danger" @click="cerrarBuscador" title="Cerrar">
+                <i class="bi bi-x-lg"></i>
+              </button>
+            </div>
+            <div class="busqueda-resultados overflow-auto" style="max-height: 320px;">
+              <div v-if="buscando" class="text-center text-muted py-4">
+                <div class="spinner-border spinner-border-sm text-primary"></div>
+                <div class="small mt-1">Buscando...</div>
+              </div>
+              <div v-else-if="errorBusqueda" class="text-center text-danger small py-4">{{ errorBusqueda }}</div>
+              <div v-else-if="resultados.length === 0 && terminoBusqueda" class="text-center text-muted small py-4">
+                Sin resultados para "{{ terminoBusqueda }}"
+              </div>
+              <div v-else>
+                <button v-for="r in resultados" :key="r.id"
+                        class="busqueda-resultado w-100 d-flex align-items-start gap-2 text-start border-0 bg-transparent px-3 py-2"
+                        :title="'Saltar al mensaje de ' + (r.personajeNombre || '')"
+                        @click="saltarAResultado(r)">
+                  <img :src="avatarUrl(r.personajeAvatar)" class="rounded-circle flex-shrink-0" width="24" height="24" style="object-fit:cover;" />
+                  <span class="flex-grow-1 min-w-0">
+                    <span class="d-flex justify-content-between gap-2">
+                      <small class="fw-bold text-truncate">{{ r.personajeNombre }}</small>
+                      <small class="text-muted flex-shrink-0" style="font-size:0.7rem;">{{ formatFecha(r.fechaEnvio) }}</small>
+                    </span>
+                    <span class="d-block text-body small text-truncate">{{ truncarTexto(r.contenido || '', 120) }}</span>
+                  </span>
+                </button>
+                <div v-if="hayMasResultados" class="text-center py-2">
+                  <button class="btn btn-sm btn-outline-secondary" :disabled="cargandoMasResultados" @click="cargarMasResultados">
+                    <span v-if="cargandoMasResultados" class="spinner-border spinner-border-sm"></span>
+                    <template v-else>Cargar más resultados</template>
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Mensajes -->
@@ -1962,6 +2063,10 @@ onUnmounted(() => {
 }
 
 .chat-header { min-height: 52px; }
+
+.busqueda-panel { top: 52px; }
+.busqueda-resultado:hover { background: #f0f6ff; }
+.busqueda-resultado + .busqueda-resultado { border-top: 1px solid #eee; }
 
 .chat-mensajes { background: #fff; }
 .chat-mensajes .msg-row { scroll-margin-block: 80px; }
