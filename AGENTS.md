@@ -21,10 +21,13 @@ Frontend de PlayLore/PlayRole. Vite + Vue 3 + TypeScript + Bootstrap 5. Reposito
 - Los botones decorativos/interactivos deben llevar `type="button"` (evita submits accidentales).
 - Imágenes decorativas: `alt=""`; imágenes con significado: `alt` descriptivo. Añadir `aria-label` a controles de carrusel.
 - No añadir dependencias nuevas sin justificarlo en la tarea.
+- Notificaciones nativas: `notificarPush(titulo, cuerpo)` solo muestra la notificación cuando la pestaña está
+  fuera de foco (`document.hidden`) y el permiso está concedido; no notificar con la pestaña activa.
+  Web Push con Service Worker (notificar con la pestaña cerrada) es deuda documentada en el ROADMAP.
 
 ## Estructura destacada
 
-- `src/pages/Admin/`: paneles de administración (Usuarios, Baneos, Denuncias, Categorías, Personajes)
+- `src/pages/Admin/`: paneles de administración (Usuarios, Baneos, Denuncias, Auditoría, Categorías, Personajes)
 - `src/pages/Chat/`: ChatWindow, ChatEditor, ChatMessage, emojiData, chatUtils
 - `src/components/`: modales compartidos, NavBar, Footer, RichTextEditor (Tiptap), Paginador, etc.
 - `src/services/`: `api.ts` (axios con interceptor JWT), `chatApi.ts`, `websocket.ts`

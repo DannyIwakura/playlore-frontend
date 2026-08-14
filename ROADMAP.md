@@ -11,7 +11,7 @@
 | F2 — Chat por canales/WebSocket (UI) | ✅ Completada |
 | F3 — Mejora continua (lotes 0-6) | ✅ Completada |
 | F4 — Deuda diferida (lotes 0-7) | ✅ Completada |
-| F5 — Calidad de ingeniería + mejoras de producto (en curso) | 🚧 |
+| F5 — Calidad de ingeniería + mejoras de producto | ✅ Completada |
 
 ## Fase 5 — checklist por lote
 
@@ -23,7 +23,7 @@
 | L3 | Búsqueda de mensajes por canal: buscador en la cabecera de `ChatWindow` con salto al resultado (`useChatBusqueda`) | ✅ |
 | L4 | Notificaciones fuera de foco: `notificarPush` solo cuando `document.hidden` + auto-eliminación de cuenta con contraseña en "Zona de peligro" (`ModalInput` type password) | ✅ |
 | L5 | Auditoría de moderación (backend + vista `AuditoriaLista` en `AdminPanel` con filtro por acción) | ✅ |
-| L6 | Roadmap/AGENTS: cierre de fases y deuda documentada | ⏳ |
+| L6 | Roadmap/AGENTS: cierre de fases y deuda documentada | ✅ |
 
 ## Decisiones de alcance (Fase 5)
 
