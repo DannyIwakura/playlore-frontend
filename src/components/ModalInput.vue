@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch, nextTick } from 'vue'
+import { useModalFocus } from '../composables/useModalFocus'
 
 const props = withDefaults(
   defineProps<{
@@ -27,6 +28,13 @@ const emit = defineEmits<{
   (e: 'cancelar'): void
 }>()
 
+const containerRef = ref<HTMLElement | null>(null)
+
+useModalFocus({
+  containerRef,
+  cerrar: cancelar,
+})
+
 const valor = ref(props.valorInicial)
 const inputRef = ref<HTMLInputElement | null>(null)
 
@@ -50,11 +58,11 @@ function cancelar() {
 </script>
 
 <template>
-  <div class="modal-backdrop-custom" @click.self="cancelar">
-    <div class="modal-content-custom shadow rounded-3 p-4">
+  <div ref="containerRef" class="modal-backdrop-custom" @click.self="cancelar">
+    <div class="modal-content-custom shadow rounded-3 p-4" role="dialog" aria-modal="true" :aria-label="titulo" tabindex="-1">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>{{ titulo }}</h5>
-        <button class="btn-close" type="button" @click="cancelar"></button>
+        <button class="btn-close" type="button" aria-label="Cerrar" @click="cancelar"></button>
       </div>
       <p v-if="mensaje" class="mb-3" style="white-space: pre-wrap">{{ mensaje }}</p>
       <form @submit.prevent="confirmar">
