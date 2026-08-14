@@ -7,8 +7,9 @@ Frontend de PlayLore/PlayRole. Vite + Vue 3 + TypeScript + Bootstrap 5. Reposito
 - Build: `npm run build` (debe pasar sin errores)
 - Type-check: `npm run typecheck` (`vue-tsc --noEmit`; debe dar 0 errores — el build por sí solo NO valida tipos)
 - Lint: `npm run lint` (ESLint, `--max-warnings 0`; debe quedar en 0)
+- Tests: `npm run test` (Vitest + Vue Test Utils, entorno jsdom; los tests viven junto al módulo como `*.test.ts`)
 - Dev: `npm run dev` (espera el backend en `http://localhost:8080`; base API en `VITE_API_URL`)
-- CI: `.github/workflows/ci.yml` ejecuta `npm ci` + typecheck + lint + build en cada push/PR a `main` (runner Linux, Node 22).
+- CI: `.github/workflows/ci.yml` ejecuta `npm ci` + typecheck + lint + test + build en cada push/PR a `main` (runner Linux, Node 22).
 
 ## Convenciones de seguridad / UI
 

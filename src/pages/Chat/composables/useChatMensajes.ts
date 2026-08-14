@@ -109,7 +109,7 @@ export function useChatMensajes({
   }
 
   async function enviarMensaje(texto: string) {
-    if (!texto || enviando.value || !canalActivo.value) return
+    if (!texto.trim() || enviando.value || !canalActivo.value) return
     channelMentionedMap.value.set(canalActivo.value.id, false)
     channelMentionedMap.value = new Map(channelMentionedMap.value)
     enviando.value = true
