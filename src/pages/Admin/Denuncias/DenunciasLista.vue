@@ -581,21 +581,10 @@ onBeforeUnmount(() => window.removeEventListener('resize', manejarResize))
 
 <style scoped>
 .modal-backdrop-custom {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
   z-index: 1055;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .modal-content-custom {
-  background: #fff;
-  width: 100%;
   max-width: 560px;
-  margin: 1rem;
-  max-height: 90vh;
-  overflow-y: auto;
 }
 .preview-clamp {
   display: -webkit-box;

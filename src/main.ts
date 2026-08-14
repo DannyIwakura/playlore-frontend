@@ -5,6 +5,7 @@ import router from './router'
 
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
+import './style.css'
 import { userStore } from './store/userStore'
 
 userStore.cargarDesdeToken()

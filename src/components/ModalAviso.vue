@@ -23,23 +23,3 @@ const emit = defineEmits<{
     </div>
   </div>
 </template>
-
-<style scoped>
-.modal-backdrop-custom {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
-  z-index: 1060;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.modal-content-custom {
-  background: #fff;
-  width: 100%;
-  max-width: 440px;
-  margin: 1rem;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-</style>

@@ -709,20 +709,11 @@ onUnmounted(() => {
 
 .modal-backdrop-custom {
   position: absolute;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.45);
   z-index: 2000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .modal-content-custom {
-  background: #fff;
-  width: 100%;
   max-width: 520px;
-  margin: 1rem;
   max-height: 80vh;
-  overflow-y: auto;
 }
 .help-grid {
   display: grid;

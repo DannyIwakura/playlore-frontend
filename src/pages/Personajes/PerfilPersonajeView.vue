@@ -766,15 +766,6 @@ onMounted(async () => {
 }
 
 /* ---- Estilos para el modal de mensaje ---- */
-.modal-backdrop-custom {
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.45);
-  z-index: 1050;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
 .modal-dialog-custom {
   background: #fff;
   width: 100%;
