@@ -55,7 +55,7 @@ export function solicitarPermisoNotificacion(): void {
 
 export function notificarPush(titulo: string, cuerpo: string): void {
   if (!('Notification' in window)) return
-  if (Notification.permission === 'granted') {
+  if (document.hidden && Notification.permission === 'granted') {
     try {
       new Notification(titulo, { body: cuerpo, icon: '/favicon.ico' })
     } catch { /* ignore */ }

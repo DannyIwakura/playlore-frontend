@@ -1,9 +1,10 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   avatarUrl,
   canalAvatar,
   formatFecha,
   getStatusColor,
+  notificarPush,
   sortByRole,
   truncarTexto,
   roleOrder,
@@ -111,6 +112,53 @@ describe('chatUtils', () => {
       const out = truncarTexto(largo, 100)
       expect(out).toHaveLength(101)
       expect(out.endsWith('…')).toBe(true)
+    })
+  })
+
+  describe('notificarPush', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+      delete (window as any).Notification
+    })
+
+    function conNotificaciones(permission: string) {
+      const ctor = vi.fn()
+      ;(window as any).Notification = Object.assign(ctor, { permission, requestPermission: vi.fn() })
+      return ctor
+    }
+
+    it('no hace nada si el navegador no soporta Notification', () => {
+      expect(() => notificarPush('T', 'C')).not.toThrow()
+    })
+
+    it('no notifica si la pestaña está en foco', () => {
+      Object.defineProperty(document, 'hidden', { value: false, configurable: true })
+      const ctor = conNotificaciones('granted')
+
+      notificarPush('Título', 'Cuerpo')
+
+      expect(ctor).not.toHaveBeenCalled()
+    })
+
+    it('notifica solo con la pestaña fuera de foco y permiso concedido', () => {
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+      const ctor = conNotificaciones('granted')
+
+      notificarPush('Nuevo mensaje', 'Hola')
+
+      expect(ctor).toHaveBeenCalledTimes(1)
+      expect(ctor.mock.calls[0][0]).toBe('Nuevo mensaje')
+      expect(ctor.mock.calls[0][1]).toMatchObject({ body: 'Hola' })
+    })
+
+    it('no notifica sin permiso concedido aunque esté fuera de foco', () => {
+      Object.defineProperty(document, 'hidden', { value: true, configurable: true })
+      const ctor = conNotificaciones('denied')
+
+      notificarPush('Título', 'Cuerpo')
+
+      expect(ctor).not.toHaveBeenCalled()
     })
   })
 })

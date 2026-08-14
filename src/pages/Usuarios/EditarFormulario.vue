@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
+import ModalInput from '../../components/ModalInput.vue'
 import { userStore } from '../../store/userStore'
 import api from '../../services/api'
 
@@ -31,22 +32,27 @@ const exito     = ref(false)
 
 // Eliminación de cuenta
 const confirmarEliminacion = ref(false)
+const pedirPassword      = ref(false)
 const eliminando           = ref(false)
 const errorEliminar        = ref<string | null>(null)
 
-async function eliminarCuenta() {
+async function eliminarCuenta(password: string) {
   errorEliminar.value = null
   eliminando.value = true
   try {
-    await api.delete(`/usuarios/${miId.value}`)
+    await api.delete(`/usuarios/${miId.value}`, { data: { password } })
     localStorage.removeItem('token')
     userStore.setUsuario(null)
     router.push('/login')
   } catch (e: any) {
     errorEliminar.value = e.response?.data?.error ?? 'No se pudo eliminar la cuenta.'
-  } finally {
     eliminando.value = false
   }
+}
+
+function confirmarPrimerPaso() {
+  confirmarEliminacion.value = false
+  pedirPassword.value = true
 }
 
 function avatarUrl(avatar: string | null | undefined): string {
@@ -272,10 +278,21 @@ onMounted(async () => {
     v-if="confirmarEliminacion"
     titulo="Eliminar cuenta"
     mensaje="¿Seguro que quieres eliminar tu cuenta? Se borrarán todos tus datos (personajes, mensajes, canales e imágenes) de forma permanente.\n\nEsta acción no se puede deshacer."
-    botonConfirmar="Eliminar definitivamente"
+    botonConfirmar="Continuar"
     peligro
-    @confirmar="eliminarCuenta"
+    @confirmar="confirmarPrimerPaso"
     @cancelar="confirmarEliminacion = false"
+  />
+
+  <ModalInput
+    v-if="pedirPassword"
+    titulo="Confirmar con contraseña"
+    mensaje="Introduce tu contraseña para eliminar la cuenta de forma definitiva."
+    etiqueta="Contraseña"
+    type="password"
+    botonConfirmar="Eliminar definitivamente"
+    @confirmar="(password: string) => { pedirPassword = false; eliminarCuenta(password) }"
+    @cancelar="pedirPassword = false"
   />
 
   <Footer />
