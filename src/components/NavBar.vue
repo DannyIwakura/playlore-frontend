@@ -85,7 +85,7 @@ onUnmounted(() => {
         class="navbar-brand"
         :to="props.logeado ? '/dashboard' : '/'"
       >
-        <img src="../assets/img/lOGOpLAYlORE.png" height="40" />
+        <img src="../assets/img/lOGOpLAYlORE.png" height="40" alt="PlayLore" />
       </router-link>
 
       <button
@@ -122,6 +122,7 @@ onUnmounted(() => {
 
           <li class="nav-item dropdown-personajes" ref="dropdownPersonajesRef">
             <button
+              type="button"
               class="nav-link btn-nav-dropdown"
               @click.stop="dropdownPersonajesAbierto = !dropdownPersonajesAbierto"
             >
@@ -179,7 +180,7 @@ onUnmounted(() => {
     />
 
 
-    <button class="user-trigger" @click.stop="dropdownAbierto = !dropdownAbierto">
+    <button type="button" class="user-trigger" @click.stop="dropdownAbierto = !dropdownAbierto">
       Hola, {{ usuario.username }}
       <span class="caret" :class="{ open: dropdownAbierto }">▼</span>
     </button>
@@ -206,6 +207,7 @@ onUnmounted(() => {
           <!-- BOTONES -->
           <button
             v-if="props.logeado"
+            type="button"
             class="btn btn-outline-danger"
             @click="logout"
           >

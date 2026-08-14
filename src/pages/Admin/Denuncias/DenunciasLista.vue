@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import axios from '../../../services/api'
 import PaginadorComponent from '../../../components/PaginadorComponent.vue'
 import ModalAviso from '../../../components/ModalAviso.vue'
@@ -81,6 +81,46 @@ function abrirDetalle(d: Denuncia) {
 const cerrarDetalle = () => {
   denunciaDetalle.value = null
   notaDecision.value = ''
+}
+
+// Cuenta baneable desde una denuncia pendiente (USUARIO o PERSONAJE con cuenta)
+const objetivoBaneo = computed(() => {
+  const d = denunciaDetalle.value
+  if (!d) return null
+  if (d.tipo === 'USUARIO') {
+    return { id: d.tipoId, nombre: d.objetivoNombre || `#${d.tipoId}` }
+  }
+  if (d.tipo === 'PERSONAJE' && d.autorUsuarioId) {
+    return { id: d.autorUsuarioId, nombre: d.autorUsuarioNombre || `#${d.autorUsuarioId}` }
+  }
+  return null
+})
+
+const banearObjetivo = () => {
+  const d = denunciaDetalle.value
+  const objetivo = objetivoBaneo.value
+  if (!d || !objetivo) return
+  confirmacion.value = {
+    mensaje: `¿Banear de forma permanente a ${objetivo.nombre} por la denuncia #${d.idDenuncia}?`,
+    ejecutar: async () => {
+      resolviendo.value = true
+      try {
+        await axios.post('/moderacion/baneos', {
+          tipo: 'USUARIO',
+          id: objetivo.id,
+          duracion: 'PERMANENTE',
+          motivo: `Baneado por denuncia #${d.idDenuncia}: ${d.motivo}`.slice(0, 255),
+        })
+        cerrarDetalle()
+        aviso.value = `El usuario ${objetivo.nombre} fue baneado.`
+        await cargarDenuncias(paginaActual.value)
+      } catch (e: any) {
+        aviso.value = e?.response?.data?.error || 'Error al banear al usuario.'
+      } finally {
+        resolviendo.value = false
+      }
+    },
+  }
 }
 
 const resolver = async () => {
@@ -509,11 +549,14 @@ onBeforeUnmount(() => window.removeEventListener('resize', manejarResize))
           <textarea v-model="notaDecision" class="form-control" rows="2" maxlength="255" placeholder="Ej: mensaje retirado, advertencia al usuario..."></textarea>
         </div>
         <div class="d-flex justify-content-end gap-2">
-          <button class="btn btn-outline-secondary" @click="cerrarDetalle">Cerrar</button>
-          <button class="btn btn-outline-secondary" :disabled="resolviendo" @click="ignorar">
+          <button type="button" class="btn btn-outline-secondary" @click="cerrarDetalle">Cerrar</button>
+          <button v-if="objetivoBaneo" type="button" class="btn btn-outline-danger" :disabled="resolviendo" @click="banearObjetivo">
+            <i class="bi bi-person-x me-1"></i> Banear objetivo
+          </button>
+          <button type="button" class="btn btn-outline-secondary" :disabled="resolviendo" @click="ignorar">
             <i class="bi bi-x-circle me-1"></i> Ignorar
           </button>
-          <button class="btn btn-success" :disabled="resolviendo" @click="resolver">
+          <button type="button" class="btn btn-success" :disabled="resolviendo" @click="resolver">
             <span v-if="resolviendo" class="spinner-border spinner-border-sm me-1"></span>
             <i v-else class="bi bi-check-circle me-1"></i> Resolver
           </button>

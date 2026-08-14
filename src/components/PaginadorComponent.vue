@@ -13,7 +13,7 @@ const emit = defineEmits<{
   <nav v-if="totalPaginas > 1" class="d-flex justify-content-center mt-4">
     <ul class="pagination">
       <li class="page-item" :class="{ disabled: paginaActual === 0 }">
-        <button class="page-link" @click="emit('cambiar', paginaActual - 1)">
+        <button type="button" class="page-link" @click="emit('cambiar', paginaActual - 1)">
           &laquo;
         </button>
       </li>
@@ -23,12 +23,12 @@ const emit = defineEmits<{
         class="page-item"
         :class="{ active: paginaActual === p - 1 }"
       >
-        <button class="page-link" @click="emit('cambiar', p - 1)">
+        <button type="button" class="page-link" @click="emit('cambiar', p - 1)">
           {{ p }}
         </button>
       </li>
       <li class="page-item" :class="{ disabled: paginaActual === totalPaginas - 1 }">
-        <button class="page-link" @click="emit('cambiar', paginaActual + 1)">
+        <button type="button" class="page-link" @click="emit('cambiar', paginaActual + 1)">
           &raquo;
         </button>
       </li>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Image from '@tiptap/extension-image'
@@ -9,6 +9,7 @@ import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import { Extension } from '@tiptap/core'
 import { Bold, Italic, List, AlignLeft, AlignCenter, AlignRight, ImagesIcon } from 'lucide-vue-next'
+import ModalInput from './ModalInput.vue'
 
 const props = defineProps<{
   modelValue: string
@@ -85,10 +86,17 @@ function setFontSize(event: Event) {
   }
 }
 
+const mostrarModalImagen = ref(false)
+
 function addImage() {
-  const url = prompt("URL de la imagen")
-  if (!url) return
-  editor.value?.chain().focus().setImage({ src: url }).run()
+  mostrarModalImagen.value = true
+}
+
+function confirmarImagen(url: string) {
+  if (url) {
+    editor.value?.chain().focus().setImage({ src: url }).run()
+  }
+  mostrarModalImagen.value = false
 }
 </script>
 
@@ -127,6 +135,16 @@ function addImage() {
   </div>
 
   <EditorContent :editor="editor" class="editor-content" />
+
+  <ModalInput
+    v-if="mostrarModalImagen"
+    titulo="Insertar imagen"
+    etiqueta="URL de la imagen"
+    placeholder="https://..."
+    botonConfirmar="Insertar"
+    @confirmar="confirmarImagen"
+    @cancelar="mostrarModalImagen = false"
+  />
 </template>
 
 <style scoped>

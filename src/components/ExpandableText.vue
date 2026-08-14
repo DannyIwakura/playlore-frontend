@@ -3,7 +3,7 @@
     <div ref="contentRef" class="expandable-content" :class="{ expanded }" :style="contentStyle">
       {{ text || fallback }}
     </div>
-    <button v-if="isLong" class="expand-btn" @click.stop="expanded = !expanded">
+    <button v-if="isLong" type="button" class="expand-btn" @click.stop="expanded = !expanded">
       {{ expanded ? 'Contraer' : 'Expandir' }}
     </button>
   </div>

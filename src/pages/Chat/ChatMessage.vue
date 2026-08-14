@@ -30,6 +30,7 @@ const emit = defineEmits<{
        :data-msg-id="msg.id"
        :style="esMio ? 'margin-left:auto;max-width:85%;' : 'max-width:85%;'">
     <img :src="avatarSrc ?? avatarUrl(msg.personajeAvatar)"
+         alt=""
          class="rounded-circle flex-shrink-0"
          width="32" height="32" style="object-fit: cover; cursor:pointer;"
          @click="emit('verPerfil', msg.emisorId ?? msg.personajeId)" />

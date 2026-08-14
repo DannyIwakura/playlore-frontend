@@ -12,9 +12,9 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
     
     <!-- Indicadores -->
     <div class="carousel-indicators">
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="0" class="active"></button>
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="1"></button>
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="2"></button>
+      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="0" class="active" aria-label="Ir a la diapositiva 1"></button>
+      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="1" aria-label="Ir a la diapositiva 2"></button>
+      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="2" aria-label="Ir a la diapositiva 3"></button>
     </div>
 
     <!-- Slides -->
@@ -22,7 +22,7 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
 
       <!-- Slide 1 -->
       <div class="carousel-item active position-relative">
-        <img :src="carrusel" class="d-block w-100" />
+        <img :src="carrusel" class="d-block w-100" alt="Hero PlayRole" />
 
         <!-- Overlay oscuro -->
         <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
@@ -40,7 +40,7 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
 
       <!-- Slide 2 -->
       <div class="carousel-item position-relative">
-        <img :src="carrusel2" class="d-block w-100" />
+        <img :src="carrusel2" class="d-block w-100" alt="Hero personajes PlayRole" />
 
         <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
 
@@ -56,7 +56,7 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
 
       <!-- Slide 3 -->
       <div class="carousel-item position-relative">
-        <img :src="carrusel3" class="d-block w-100" />
+        <img :src="carrusel3" class="d-block w-100" alt="Hero comunidad PlayRole" />
 
         <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
 
@@ -73,11 +73,11 @@ import carrusel3 from '../assets/img/carrusel3.jpg'
     </div>
 
     <!-- Controles -->
-    <button class="carousel-control-prev" type="button" data-bs-target="#carouselHero" data-bs-slide="prev">
+    <button class="carousel-control-prev" type="button" data-bs-target="#carouselHero" data-bs-slide="prev" aria-label="Anterior">
       <span class="carousel-control-prev-icon"></span>
     </button>
 
-    <button class="carousel-control-next" type="button" data-bs-target="#carouselHero" data-bs-slide="next">
+    <button class="carousel-control-next" type="button" data-bs-target="#carouselHero" data-bs-slide="next" aria-label="Siguiente">
       <span class="carousel-control-next-icon"></span>
     </button>
   </div>

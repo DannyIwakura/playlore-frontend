@@ -128,23 +128,39 @@ function clearFormat() {
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
+const mostrarModalEnlace = ref(false)
+const urlEnlace = ref('https://')
+const textoEnlace = ref('')
+let rangoEnlaceGuardado: Range | null = null
+
 function insertLink() {
   const sel = window.getSelection()
-  const selectedText = sel.toString().trim()
-  const url = prompt('URL:', 'https://')
-  if (!url) return
-  const linkText = selectedText || prompt('Texto del enlace:') || url
-  if (!linkText) return
+  rangoEnlaceGuardado = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null
+  textoEnlace.value = sel?.toString().trim() ?? ''
+  urlEnlace.value = 'https://'
+  mostrarModalEnlace.value = true
+}
+
+function confirmarEnlace() {
+  const url = urlEnlace.value.trim()
+  const linkText = textoEnlace.value.trim() || url
   const el = editorRef.value
   if (!el) return
   el.focus()
-  const range = sel.getRangeAt(0)
+  const sel = window.getSelection()
+  sel?.removeAllRanges()
+  if (rangoEnlaceGuardado && rangoEnlaceGuardado.commonAncestorContainer) {
+    sel?.addRange(rangoEnlaceGuardado)
+  }
+  const range = sel && sel.rangeCount > 0 ? sel.getRangeAt(0) : document.createRange()
   range.deleteContents()
   const anchor = document.createElement('a')
   anchor.href = url
   anchor.textContent = linkText
   range.insertNode(anchor)
-  sel.removeAllRanges()
+  sel?.removeAllRanges()
+  rangoEnlaceGuardado = null
+  mostrarModalEnlace.value = false
   el.dispatchEvent(new Event('input', { bubbles: true }))
 }
 
@@ -465,6 +481,7 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
 function onDocumentKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
   if (mostrarAyudaEditor.value) mostrarAyudaEditor.value = false
+  if (mostrarModalEnlace.value) mostrarModalEnlace.value = false
   if (mostrarEmojiPicker.value) closeEmojiPicker()
   if (mostrarDicePicker.value) closeDicePicker()
   if (mostrarMentionPicker.value) closeMentionPicker()
@@ -562,7 +579,7 @@ onUnmounted(() => {
               :class="{ 'mention-highlight': mi === mentionHighlightIndex }"
               @mousedown.prevent="insertMention(m.personajeNombre)"
               @mouseenter="mentionHighlightIndex = mi">
-        <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
+        <img :src="avatarUrl(m.personajeAvatar)" alt="" class="rounded-circle me-2" width="20" height="20" style="object-fit:cover;" />
         {{ m.personajeNombre }}
       </button>
     </div>
@@ -619,6 +636,30 @@ onUnmounted(() => {
         <div class="text-muted small mt-3">
           También puedes usar <kbd>Tab</kbd> para completar una mención si hay resultados disponibles.
         </div>
+      </div>
+    </div>
+
+    <!-- Modal insertar enlace -->
+    <div v-if="mostrarModalEnlace" class="modal-backdrop-custom" @click.self="mostrarModalEnlace = false">
+      <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:440px;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="mb-0"><i class="bi bi-link-45deg me-2 text-primary"></i>Insertar enlace</h5>
+          <button class="btn-close" @click="mostrarModalEnlace = false"></button>
+        </div>
+        <form @submit.prevent="confirmarEnlace">
+          <div class="mb-3">
+            <label class="form-label small text-muted" for="enlace-url">URL</label>
+            <input id="enlace-url" v-model="urlEnlace" class="form-control" type="text" placeholder="https://..." autofocus />
+          </div>
+          <div class="mb-4">
+            <label class="form-label small text-muted" for="enlace-texto">Texto del enlace</label>
+            <input id="enlace-texto" v-model="textoEnlace" class="form-control" type="text" placeholder="Texto visible" />
+          </div>
+          <div class="d-flex justify-content-end gap-2">
+            <button type="button" class="btn btn-outline-secondary" @click="mostrarModalEnlace = false">Cancelar</button>
+            <button type="submit" class="btn btn-primary" :disabled="!urlEnlace.trim()">Insertar</button>
+          </div>
+        </form>
       </div>
     </div>
   </div>
