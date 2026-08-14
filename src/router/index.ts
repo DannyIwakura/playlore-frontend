@@ -1,47 +1,31 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import Home from '../pages/Home.vue';
-import Login from '../pages/Login.vue';
-import Registro from '../pages/Registro.vue';
-import Dashboard from '../pages/Dashboard.vue';
-import PersonajesList from '../pages/Personajes/PersonajesList.vue';
-import NuevoPersonajeForm from '../pages/Personajes/NuevoPersonajeForm.vue';
-import EditarPersonajeForm from '../pages/Personajes/EditarPersonajeForm.vue';
-import CategoriaNueva from '../pages/Admin/Categorias/CategoriaNueva.vue';
-import CategoriasLista from '../pages/Admin/Categorias/CategoriasLista.vue';
-import AdminPanel from '../pages/Admin/AdminPanel.vue';
 import { userStore } from '../store/userStore';
-import EditarFormulario from '../pages/Usuarios/EditarFormulario.vue';
-import PerfilUsuario from '../pages/Usuarios/PerfilUsuario.vue';
-import PerfilPersonajeView from '../pages/Personajes/PerfilPersonajeView.vue';
-import AmigosList from '../pages/Usuarios/AmigosList.vue';
-import BuscarPersonaje from '../pages/Personajes/BuscarPersonajes.vue';
-import ChatWindow from '../pages/Chat/ChatWindow.vue';
 
 const routes = [
   //rutas públicas
-  { path: '/', component: Home },
-  { path: '/login', component: Login },
-  { path: '/registro', component: Registro },
+  { path: '/', component: () => import('../pages/Home.vue') },
+  { path: '/login', component: () => import('../pages/Login.vue') },
+  { path: '/registro', component: () => import('../pages/Registro.vue') },
   //rutas protegidas
-  { path: '/dashboard', component: Dashboard, meta: { requiresAuth: true } },
-  { path: '/usuario/editar/:id', component: EditarFormulario, meta: { requiresAuth: true } },
-  { path: '/personajes', component: PersonajesList, meta: { requiresAuth: true } },
-  { path: '/personajes/crear', component: NuevoPersonajeForm, meta: { requiresAuth: true } },
-  { path: '/personajes/editar/:id', component: EditarPersonajeForm, meta: { requiresAuth: true } },
-  { path: '/personajes/categorias/:id', component: CategoriasLista, meta: { requiresAuth: true } },
-  { path: '/personajes/buscar',component: BuscarPersonaje, meta: { requiresAuth: true } },
-  { path: '/perfil/:id', component: PerfilUsuario, meta: { requiresAuth: true } },
-  { path: '/personaje/:id', component: PerfilPersonajeView, meta: { requiresAuth: true } },
-  { path: '/amigos/', component: AmigosList, meta: { requiresAuth: true } },
+  { path: '/dashboard', component: () => import('../pages/Dashboard.vue'), meta: { requiresAuth: true } },
+  { path: '/usuario/editar/:id', component: () => import('../pages/Usuarios/EditarFormulario.vue'), meta: { requiresAuth: true } },
+  { path: '/personajes', component: () => import('../pages/Personajes/PersonajesList.vue'), meta: { requiresAuth: true } },
+  { path: '/personajes/crear', component: () => import('../pages/Personajes/NuevoPersonajeForm.vue'), meta: { requiresAuth: true } },
+  { path: '/personajes/editar/:id', component: () => import('../pages/Personajes/EditarPersonajeForm.vue'), meta: { requiresAuth: true } },
+  { path: '/personajes/categorias/:id', component: () => import('../pages/Admin/Categorias/CategoriasLista.vue'), meta: { requiresAuth: true } },
+  { path: '/personajes/buscar', component: () => import('../pages/Personajes/BuscarPersonajes.vue'), meta: { requiresAuth: true } },
+  { path: '/perfil/:id', component: () => import('../pages/Usuarios/PerfilUsuario.vue'), meta: { requiresAuth: true } },
+  { path: '/personaje/:id', component: () => import('../pages/Personajes/PerfilPersonajeView.vue'), meta: { requiresAuth: true } },
+  { path: '/amigos/', component: () => import('../pages/Usuarios/AmigosList.vue'), meta: { requiresAuth: true } },
   //rutas de chat
-  { path: '/chat', component: ChatWindow, meta: { requiresAuth: true } },
+  { path: '/chat', component: () => import('../pages/Chat/ChatWindow.vue'), meta: { requiresAuth: true } },
   // Los canales solo se gestionan desde /chat (todo el sistema de chat está ahí)
   { path: '/canales', redirect: '/chat' },
   { path: '/canales/:id', redirect: '/chat' },
   //rutas protegidas por roles
-  { path: '/admin', component: AdminPanel, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/admin/categorias', component: CategoriasLista, meta: { requiresAuth: true, requiresAdmin: true } },
-  { path: '/admin/categorias/nueva', component: CategoriaNueva, meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin', component: () => import('../pages/Admin/AdminPanel.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/categorias', component: () => import('../pages/Admin/Categorias/CategoriasLista.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
+  { path: '/admin/categorias/nueva', component: () => import('../pages/Admin/Categorias/CategoriaNueva.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
 ];
 
 const router = createRouter({
@@ -67,7 +51,7 @@ router.beforeEach((to, _from, next) => {
 
   // Comprobación de rol ADMIN y MOD
   if (to.meta.requiresAdmin) {
-  userStore.cargarDesdeToken();
+    userStore.cargarDesdeToken();
     const role = userStore.usuario.value?.role
     if (role !== 'ADMIN' && role !== 'MOD') {
       next('/dashboard');
