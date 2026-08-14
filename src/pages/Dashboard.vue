@@ -4,7 +4,6 @@ import Footer from '../components/Footer.vue';
 import NavBar from '../components/NavBar.vue';
 import api from '../services/api'
 import { userStore } from '../store/userStore'
-import 'bootstrap-icons/font/bootstrap-icons.css'
 
 let refreshInterval: ReturnType<typeof setInterval> | undefined
 
