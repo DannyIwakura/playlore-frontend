@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
+import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
 import { userStore } from '../../store/userStore'
 import api from '../../services/api'
 
@@ -27,6 +28,26 @@ const cargando  = ref(true)
 const guardando = ref(false)
 const error     = ref<string | null>(null)
 const exito     = ref(false)
+
+// Eliminación de cuenta
+const confirmarEliminacion = ref(false)
+const eliminando           = ref(false)
+const errorEliminar        = ref<string | null>(null)
+
+async function eliminarCuenta() {
+  errorEliminar.value = null
+  eliminando.value = true
+  try {
+    await api.delete(`/usuarios/${miId.value}`)
+    localStorage.removeItem('token')
+    userStore.setUsuario(null)
+    router.push('/login')
+  } catch (e: any) {
+    errorEliminar.value = e.response?.data?.error ?? 'No se pudo eliminar la cuenta.'
+  } finally {
+    eliminando.value = false
+  }
+}
 
 function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png')) {
@@ -220,7 +241,42 @@ onMounted(async () => {
         </div>
       </div>
     </div>
+
+    <!-- Zona de peligro -->
+    <div class="card border border-danger shadow-sm rounded-3 mt-4">
+      <div class="card-body p-4">
+        <h5 class="text-danger fw-semibold mb-1"><i class="bi bi-exclamation-octagon me-2"></i>Zona de peligro</h5>
+        <p class="text-muted mb-3">
+          Al eliminar tu cuenta se borrarán definitivamente tu perfil, tus personajes, sus mensajes,
+          canales e imágenes asociadas. Esta acción no se puede deshacer.
+        </p>
+
+        <div v-if="errorEliminar" class="alert alert-danger py-2">
+          <i class="bi bi-exclamation-circle me-1"></i>{{ errorEliminar }}
+        </div>
+
+        <button
+          class="btn btn-outline-danger"
+          :disabled="eliminando"
+          @click="confirmarEliminacion = true"
+        >
+          <span v-if="eliminando" class="spinner-border spinner-border-sm me-1"></span>
+          <i v-else class="bi bi-trash3 me-1"></i>
+          Eliminar mi cuenta
+        </button>
+      </div>
+    </div>
   </section>
+
+  <ModalConfirmacion
+    v-if="confirmarEliminacion"
+    titulo="Eliminar cuenta"
+    mensaje="¿Seguro que quieres eliminar tu cuenta? Se borrarán todos tus datos (personajes, mensajes, canales e imágenes) de forma permanente.\n\nEsta acción no se puede deshacer."
+    botonConfirmar="Eliminar definitivamente"
+    peligro
+    @confirmar="eliminarCuenta"
+    @cancelar="confirmarEliminacion = false"
+  />
 
   <Footer />
 </template>
