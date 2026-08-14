@@ -56,6 +56,14 @@ export const chatApi = {
     return api.delete(`/canales/${canalId}/miembros/${personajeId}/ban`, { headers: getAuthHeaders() })
   },
 
+  silenciarMiembro(canalId: number, personajeId: number, duracion: string) {
+    return api.post(`/canales/${canalId}/miembros/${personajeId}/silenciar`, { duracion }, { headers: getAuthHeaders() })
+  },
+
+  desilenciarMiembro(canalId: number, personajeId: number) {
+    return api.delete(`/canales/${canalId}/miembros/${personajeId}/silenciar`, { headers: getAuthHeaders() })
+  },
+
   listarBaneados(canalId: number) {
     return api.get(`/canales/${canalId}/baneados`, { headers: getAuthHeaders() })
   },

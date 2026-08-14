@@ -234,6 +234,14 @@ async function eliminarConversacionDeLista(conv: any) {
 
 const miRolEnCanal = computed(() => canalActivo.value?.miRol)
 
+const puedeSilenciarContextMenu = computed(() => {
+  const t = contextMenuTarget.value
+  if (!t) return false
+  if (miRolEnCanal.value !== 'OWNER' && miRolEnCanal.value !== 'ADMIN' && miRolEnCanal.value !== 'MOD') return false
+  if (t.rol !== 'MEMBER') return false
+  return t.personajeId !== characterSessionStore.sesionActual.value?.personajeId
+})
+
 async function ascenderAMod(m: any) {
   cerrarContextMenu()
   mostrarConfirmModal('Ascender a moderador', `¿Ascender a ${m.personajeNombre} a moderador?`, async () => {
@@ -336,6 +344,49 @@ const opcionesBan = [
   { value: '7D', label: '7 días' },
   { value: 'PERMANENTE', label: 'Permanente' },
 ]
+
+// Silenciar miembro
+const silenciarTarget = ref<any>(null)
+const silenciarDuracion = ref('1H')
+const opcionesSilenciar = [
+  { value: '1H', label: '1 hora' },
+  { value: '24H', label: '24 horas' },
+  { value: '7D', label: '7 días' },
+]
+
+function estaSilenciado(m: any): boolean {
+  return !!m?.silenciadoHasta && new Date(m.silenciadoHasta).getTime() > Date.now()
+}
+
+function abrirSilenciarModal(m: any) {
+  cerrarContextMenu()
+  silenciarTarget.value = m
+  silenciarDuracion.value = '1H'
+}
+
+async function confirmarSilenciar() {
+  if (!silenciarTarget.value || !canalActivo.value) return
+  try {
+    await chatApi.silenciarMiembro(canalActivo.value.id, silenciarTarget.value.personajeId, silenciarDuracion.value)
+    silenciarTarget.value = null
+    await cargarMiembrosOnline()
+  } catch {}
+}
+
+async function desilenciar(m: any) {
+  cerrarContextMenu()
+  if (!canalActivo.value) return
+  mostrarConfirmModal(
+    'Desilenciar personaje',
+    `¿Desilenciar a ${m.personajeNombre} de este canal?`,
+    async () => {
+      try {
+        await chatApi.desilenciarMiembro(canalActivo.value!.id, m.personajeId)
+        await cargarMiembrosOnline()
+      } catch {}
+    }
+  )
+}
 
 // Modal de baneados del canal
 const mostrarBaneados = ref(false)
@@ -516,7 +567,7 @@ const cualquierModalAbierto = computed(() =>
   mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
-  mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value
+  mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -673,6 +724,18 @@ async function conectarWebSocket() {
     const charId = characterSessionStore.sesionActual.value?.personajeId
     if (charId == null) return
     const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
+      if (data.tipo === 'SILENCIADO' || data.tipo === 'DESILENCIADO') {
+        if (canalActivo.value?.id === data.canalId) cargarMiembrosOnline()
+        if (data.tipo === 'SILENCIADO' && data.silenciadoHasta) {
+          mostrarMensajeModal(
+            'Has sido silenciado',
+            `Has sido silenciado en ${data.canalNombre || 'el canal'} hasta ${new Date(data.silenciadoHasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}.`
+          )
+        } else if (data.tipo === 'DESILENCIADO') {
+          mostrarMensajeModal('Silencio terminado', `Ya puedes volver a escribir en ${data.canalNombre || 'el canal'}.`)
+        }
+        return
+      }
       if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO' || data.tipo === 'CANAL_ELIMINADO') {
         const canalIdExp = data.canalId
         canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalIdExp)
@@ -1829,6 +1892,8 @@ onUnmounted(() => {
             <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning" title="Dueño del canal"></i>
             <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success" title="Moderador"></i>
             <small class="text-truncate" style="cursor:pointer;" @click="verPerfil(m.personajeId)">{{ m.personajeNombre }}</small>
+            <i v-if="estaSilenciado(m)" class="bi bi-volume-mute-fill text-danger ms-auto"
+               :title="'Silenciado hasta ' + new Date(m.silenciadoHasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })"></i>
           </div>
         </div>
       </aside>
@@ -2119,6 +2184,14 @@ onUnmounted(() => {
             class="context-menu-item text-danger" @click="abrirBanModal(contextMenuTarget)">
       <i class="bi bi-hammer me-2"></i> Banear del canal
     </button>
+    <div v-if="puedeSilenciarContextMenu" class="context-menu-divider"></div>
+    <button v-if="puedeSilenciarContextMenu" class="context-menu-item"
+            :class="estaSilenciado(contextMenuTarget) ? '' : 'text-danger'"
+            @click="estaSilenciado(contextMenuTarget) ? desilenciar(contextMenuTarget) : abrirSilenciarModal(contextMenuTarget)">
+      <i v-if="estaSilenciado(contextMenuTarget)" class="bi bi-volume-up me-2"></i>
+      <i v-else class="bi bi-volume-mute me-2"></i>
+      {{ estaSilenciado(contextMenuTarget) ? 'Desilenciar' : 'Silenciar' }}
+    </button>
   </div>
 
   <!-- Modal: Banear personaje -->
@@ -2141,6 +2214,31 @@ onUnmounted(() => {
         <button class="btn btn-outline-secondary btn-sm" @click="banTarget = null">Cancelar</button>
         <button class="btn btn-danger btn-sm" @click="confirmarBan">
           <i class="bi bi-hammer me-1"></i> Banear
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Silenciar personaje -->
+  <div v-if="silenciarTarget" class="modal-backdrop-custom" @click.self="silenciarTarget = null">
+    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h5 class="mb-0"><i class="bi bi-volume-mute text-danger me-2"></i>Silenciar a {{ silenciarTarget.personajeNombre }}</h5>
+        <button class="btn-close" @click="silenciarTarget = null"></button>
+      </div>
+      <p class="text-muted small mb-3">El personaje no podrá enviar mensajes al canal durante la duración seleccionada:</p>
+      <div class="d-flex flex-column gap-2 mb-4">
+        <label v-for="op in opcionesSilenciar" :key="op.value"
+               class="d-flex align-items-center gap-2 p-2 border rounded cursor-pointer"
+               :class="silenciarDuracion === op.value ? 'border-primary bg-primary bg-opacity-10' : ''">
+          <input type="radio" :value="op.value" v-model="silenciarDuracion" class="form-check-input m-0" />
+          <span>{{ op.label }}</span>
+        </label>
+      </div>
+      <div class="d-flex justify-content-end gap-2">
+        <button class="btn btn-outline-secondary btn-sm" @click="silenciarTarget = null">Cancelar</button>
+        <button class="btn btn-danger btn-sm" @click="confirmarSilenciar">
+          <i class="bi bi-volume-mute me-1"></i> Silenciar
         </button>
       </div>
     </div>
