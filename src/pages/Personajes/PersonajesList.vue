@@ -30,7 +30,6 @@ const cargarPersonajes = async (pagina = 0) => {
     totalPaginas.value = response.data.totalPages
     paginaActual.value = pagina
   } catch (error) {
-    console.error('Error cargando personajes:', error)
   }
 }
 
@@ -50,7 +49,6 @@ const eliminarPersonaje = (idPersonaje: number) => {
           (p) => p.idPersonaje !== idPersonaje
         )
       } catch (error) {
-        console.error("Error eliminando personaje:", error)
         aviso.value = 'Error al eliminar el personaje.'
       }
     },

@@ -55,7 +55,6 @@ const cargarCategorias = async (pagina = 0) => {
     totalPaginas.value = response.data?.totalPages || 0
     paginaActual.value = response.data?.number || 0
   } catch (e) {
-    console.error(e)
     error.value = 'Error al cargar las categorías.'
     categorias.value = []
   } finally {

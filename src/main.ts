@@ -32,4 +32,8 @@ app.directive('sanitize', {
   }
 })
 
+app.config.errorHandler = (err) => {
+  console.error('[Global]', err)
+}
+
 app.use(router).mount('#app')

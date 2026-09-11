@@ -37,7 +37,7 @@ onMounted(async () => {
     personaje.clase = data.clase
     personaje.avatarActual = data.avatar
   } catch (e) {
-    console.error(e)
+    // error shown in form or already handled upstream
   }
 })
 
@@ -83,7 +83,7 @@ async function actualizarPersonaje() {
     if (error.response?.status === 400) {
       Object.assign(errores, error.response.data)
     } else {
-      console.error(error)
+      // error shown in form or already handled upstream
     }
   }
 }

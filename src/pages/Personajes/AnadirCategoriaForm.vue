@@ -26,7 +26,6 @@ onMounted(async () => {
             nombre: pc.nombreCategoria 
         }));
     } catch (error) {
-        console.error("Error cargando categorías:", error);
     }
 });
 
@@ -74,7 +73,6 @@ const eliminarCategoria = async (idRelacion: number) => {
         
         emit('success');
     } catch (error) {
-        console.error("Error al eliminar:", error);
         aviso.value = "No se pudo eliminar la categoría.";
     }
 };

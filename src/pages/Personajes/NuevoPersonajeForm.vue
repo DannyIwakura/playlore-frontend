@@ -62,7 +62,7 @@ async function crearPersonaje() {
     if (error.response?.status === 400) {
       Object.assign(errores, error.response.data)
     } else {
-      console.error("Error al crear personaje:", error)
+      // error shown in form or already handled upstream
     }
   }
 }

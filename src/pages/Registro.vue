@@ -67,7 +67,7 @@ const registrarUsuario = async () => {
     } else if (error.response?.status === 400) {
       errores.value = error.response.data
     } else {
-      console.error(error)
+      // error shown in form or already handled upstream
     }
   }
 }

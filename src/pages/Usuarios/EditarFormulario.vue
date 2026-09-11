@@ -126,9 +126,6 @@ async function guardar() {
     }
 }
   } catch (e: any) {
-    console.error('Error status:', e.response?.status)
-    console.error('Error data:', e.response?.data)
-    console.error('Error completo:', e)
   } finally {
     guardando.value = false
   }

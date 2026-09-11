@@ -1,44 +1,82 @@
-# Playlore Frontend
+# PlayLore Frontend
 
-Este proyecto es una aplicación frontend construida con **Vue 3**, **TypeScript** y **Vite**.
+Frontend de PlayLore/PlayRole. Vue 3 + TypeScript + Vite + Bootstrap 5.
 
-## 🧰 Requisitos previos
+---
 
-Asegúrate de tener instalado en tu sistema:
+## Requisitos previos
 
-- **Node.js** (>= 16)
-  [Descarga Node aquí](https://nodejs.org/es/download)
+- **Node.js 22+** ([Descargar](https://nodejs.org/es/download))
+- **npm** (incluido con Node)
+- **Backend corriendo** en `http://localhost:8080` (ver repositorio del backend)
 
-- **MySQL 8+**
-- **npm** (v8+)
+---
 
-Puedes verificar tus versiones con:
-
-```bash
-node -v
-npm -v
-```
-
-## 🚀 Instalar dependencias
-
-Desde la carpeta del proyecto (`playlore-frontend`), ejecuta:
+## Instalación
 
 ```bash
 npm install
 ```
 
-> Si usas `pnpm`, usa `pnpm install`.
+---
 
-## ▶️ Ejecutar en modo desarrollo
+## Variables de entorno
 
-Para iniciar el servidor de desarrollo y poder visualizar la app en el navegador:
+El archivo `.env.development` contiene los valores por defecto para desarrollo local. Copia `.env.example` si necesitas personalizar algo.
+
+| Variable | Descripción | Default (dev) |
+|---|---|---|
+| `VITE_API_URL` | URL base del backend (proxy inverso en dev) | `/api` |
+| `VITE_ASSET_URL` | URL para assets estáticos (avatares, galerías) | `/api` |
+| `VITE_RECAPTCHA_SITE_KEY` | Site key de reCAPTCHA | clave de prueba Google |
+| `VITE_GOOGLE_CLIENT_ID` | Client ID de Google OAuth | client-id de dev |
+
+---
+
+## Desarrollo
 
 ```bash
 npm run dev
 ```
 
-Luego abre la URL que se muestra en consola (por defecto `http://localhost:5173`).
+Abre `http://localhost:5173` en el navegador. El frontend proxea las llamadas `/api` al backend en `http://localhost:8080`.
 
+---
 
-    PlayRole  © 2026 by Daniel is licensed under CC BY-SA 4.0. To view a copy of this license, visit https://creativecommons.org/licenses/by-sa/4.0/
+## Comandos de verificación
 
+```bash
+npm run typecheck   # TypeScript (vue-tsc --noEmit)
+npm run lint        # ESLint (--max-warnings 0)
+npm run test        # Vitest + Vue Test Utils
+npm run build       # Build de producción
+```
+
+---
+
+## Estructura del proyecto
+
+```
+src/
+  pages/           — Vistas principales (Admin, Chat, Personajes, Login...)
+    Admin/          — Panel de administración (Usuarios, Baneos, Auditoría...)
+    Chat/           — ChatWindow, composables, chatUtils, chatApi
+  components/       — Componentes reutilizables (modales, NavBar, Footer...)
+  services/         — api.ts (axios), chatApi.ts, websocket.ts
+  store/            — userStore.ts (estado de sesión)
+  composables/      — useModalFocus
+  style.css         — Estilos globales (modales compartidos)
+```
+
+---
+
+## Notas técnicas
+
+- Los `alert()`/`confirm()`/`prompt()` nativos están **prohibidos**; usar `ModalAviso.vue`, `ModalConfirmacion.vue`, `ModalInput.vue`.
+- HTML de usuario se renderiza con `v-sanitize` (nunca `v-html` solo).
+- Los tests viven junto al módulo como `*.test.ts`.
+
+---
+
+    PlayRole (c) 2026 by Daniel is licensed under CC BY-SA 4.0.
+    To view a copy of this license, visit https://creativecommons.org/licenses/by-sa/4.0/

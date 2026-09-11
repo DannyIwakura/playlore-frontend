@@ -72,7 +72,6 @@ const cargarUsuarios = async (pagina = 0) => {
     paginaActual.value = response.data.number || 0
 
   } catch (e) {
-    console.error(e)
     usuarios.value = []
     error.value = 'Error al cargar los usuarios.'
 
