@@ -65,7 +65,7 @@ watch(() => props.text, () => { expanded.value = false; checkOverflow() })
 .expand-btn {
   background: none;
   border: none;
-  color: #0d6efd;
+  color: var(--pl-primary);
   cursor: pointer;
   font-size: 0.75rem;
   padding: 2px 0;

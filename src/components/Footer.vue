@@ -49,8 +49,8 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
 .pl-footer {
   position: relative;
   margin-top: 4rem;
-  color: rgba(255, 255, 255, 0.72);
-  background: linear-gradient(135deg, #172033, #202b4a);
+  color: rgba(255, 255, 255, 0.76);
+  background: #151b2c;
 }
 
 .pl-footer-inner {

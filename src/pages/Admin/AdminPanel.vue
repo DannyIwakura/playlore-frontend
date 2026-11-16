@@ -187,13 +187,13 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
 
 .admin-nav-item--active {
   color: #fff;
-  background: linear-gradient(135deg, var(--pl-primary), #4f46e5);
-  box-shadow: var(--pl-glow);
+  background: var(--pl-primary);
+  box-shadow: var(--pl-shadow-sm);
 }
 
 .admin-nav-item--active:hover {
   color: #fff;
-  background: linear-gradient(135deg, var(--pl-primary-dark), #4338ca);
+  background: var(--pl-primary-dark);
 }
 
 .admin-section-title {
