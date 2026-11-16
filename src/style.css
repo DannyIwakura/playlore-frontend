@@ -4,7 +4,7 @@
   --pl-surface: #ffffff;
   --pl-surface-soft: #f9fafb;
   --pl-ink: #1a2233;
-  --pl-muted: #6b7280;
+  --pl-muted: #667085;
   --pl-border: #e6e8ec;
   --pl-primary: #5b54d9;
   --pl-primary-rgb: 91, 84, 217;
@@ -22,6 +22,22 @@
   --pl-info-rgb: 14, 165, 233;
   --pl-dark: #172033;
   --pl-dark-rgb: 23, 32, 51;
+
+  /* Tintas y rellenos derivados. El color base (--pl-success, --pl-danger...)
+     no se usa como texto sobre su propio tinte ni como relleno con texto blanco:
+     no llega a AA. Ver ROADMAP-UI-REDESIGN.md §20. */
+  --pl-primary-ink: #443cb8;
+  --pl-cyan-ink: #0f6f70;
+  --pl-success-ink: #0a6b4d;
+  --pl-warning-ink: #8a5a00;
+  --pl-danger-ink: #b42318;
+  --pl-info-ink: #0b6a96;
+  --pl-primary-strong: #4a42c3;
+  --pl-cyan-strong: #0f6f70;
+  --pl-success-strong: #087f5b;
+  --pl-warning-strong: #b45309;
+  --pl-danger-strong: #c92a2a;
+  --pl-info-strong: #0b6a96;
   --pl-radius-sm: 0.5rem;
   --pl-radius-md: 0.75rem;
   --pl-radius-lg: 1rem;
@@ -62,8 +78,11 @@
   --bs-btn-box-shadow: 0 8px 18px rgba(108, 92, 231, 0.12);
   --bs-btn-active-box-shadow: 0 3px 9px rgba(108, 92, 231, 0.18);
   --bs-card-border-radius: var(--pl-radius-lg);
-  --bs-form-valid-feedback-color: var(--pl-success);
-  --bs-form-invalid-feedback-color: var(--pl-danger);
+  --bs-form-valid-feedback-color: var(--pl-success-ink);
+  --bs-form-invalid-feedback-color: var(--pl-danger-ink);
+  /* Bootstrap pinta .valid-feedback/.invalid-feedback con estas dos, no con las de arriba. */
+  --bs-form-valid-color: var(--pl-success-ink);
+  --bs-form-invalid-color: var(--pl-danger-ink);
 }
 
 html {
@@ -203,28 +222,28 @@ section[id] {
   height: 48px;
   margin-bottom: 1rem;
   border-radius: 0.9rem;
-  color: var(--pl-primary);
+  color: var(--pl-primary-ink);
   background: rgba(var(--pl-primary-rgb), 0.1);
   font-size: 1.45rem;
 }
 
 .pl-icon-tile--cyan {
-  color: #087f8c;
+  color: var(--pl-cyan-ink);
   background: rgba(var(--pl-cyan-rgb), 0.14);
 }
 
 .pl-icon-tile--success {
-  color: var(--pl-success);
+  color: var(--pl-success-ink);
   background: rgba(var(--pl-success-rgb), 0.13);
 }
 
 .pl-icon-tile--warning {
-  color: #b45309;
+  color: var(--pl-warning-ink);
   background: rgba(var(--pl-warning-rgb), 0.14);
 }
 
 .pl-icon-tile--danger {
-  color: var(--pl-danger);
+  color: var(--pl-danger-ink);
   background: rgba(var(--pl-danger-rgb), 0.12);
 }
 
@@ -287,7 +306,7 @@ section[id] {
 
 .pl-btn--danger {
   color: #fff;
-  background: var(--pl-danger);
+  background: var(--pl-danger-strong);
   box-shadow: var(--pl-shadow-sm);
 }
 
@@ -298,7 +317,7 @@ section[id] {
 
 .pl-btn--success {
   color: #fff;
-  background: var(--pl-success);
+  background: var(--pl-success-strong);
   box-shadow: var(--pl-shadow-sm);
 }
 
@@ -349,7 +368,7 @@ section[id] {
   height: 58px;
   margin-bottom: 1rem;
   border-radius: 50%;
-  color: var(--pl-primary);
+  color: var(--pl-primary-ink);
   background: rgba(var(--pl-primary-rgb), 0.1);
   font-size: 1.8rem;
 }
@@ -366,7 +385,7 @@ section[id] {
   gap: 0.4rem;
   padding: 0.35rem 0.65rem;
   border-radius: 999px;
-  color: var(--pl-success);
+  color: var(--pl-success-ink);
   background: rgba(var(--pl-success-rgb), 0.11);
   font-size: 0.78rem;
   font-weight: 750;
@@ -666,7 +685,7 @@ section[id] {
 
 .auth-error {
   margin-top: 0.55rem;
-  color: var(--pl-danger);
+  color: var(--pl-danger-ink);
   font-size: 0.84rem;
 }
 
@@ -859,7 +878,7 @@ section[id] {
 
 .btn-success {
   color: #fff;
-  background: var(--pl-success);
+  background: var(--pl-success-strong);
   border-color: transparent;
   box-shadow: var(--pl-shadow-sm);
 }
@@ -873,7 +892,7 @@ section[id] {
 
 .btn-danger {
   color: #fff;
-  background: var(--pl-danger);
+  background: var(--pl-danger-strong);
   border-color: transparent;
   box-shadow: var(--pl-shadow-sm);
 }
@@ -886,7 +905,7 @@ section[id] {
 }
 
 .btn-outline-danger {
-  color: var(--pl-danger);
+  color: var(--pl-danger-ink);
   background: rgba(var(--pl-danger-rgb), 0.08);
   border-color: rgba(var(--pl-danger-rgb), 0.3);
 }
