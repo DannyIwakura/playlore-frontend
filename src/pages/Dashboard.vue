@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import Footer from '../components/Footer.vue';
-import NavBar from '../components/NavBar.vue';
+import Footer from '../components/Footer.vue'
+import NavBar from '../components/NavBar.vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
 
@@ -11,10 +11,8 @@ const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 const chatUrl = `${window.location.origin}/chat`
 const amigos = ref<AmigoDTO[]>([])
 const cargandoAmigos = ref(false)
+const errorAmigos = ref('')
 
-const miId = computed(() => userStore.usuario.value?.id)
-
-// Interfaz para datos de amigos
 interface AmigoDTO {
   id: number
   nombre: string
@@ -32,7 +30,6 @@ function avatarUrl(avatar: string | null | undefined): string {
   return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
-// Ordena por ultimaConexion desc y toma los 6 más recientes
 const amigosRecientes = computed(() =>
   [...amigos.value]
     .sort((a, b) => {
@@ -45,27 +42,26 @@ const amigosRecientes = computed(() =>
 
 function tiempoDesde(fecha: string | null): string {
   if (!fecha) return 'Nunca conectado'
-  //Sacamos la diferencia de tiempo con la fecha actual
   const diff = Date.now() - new Date(fecha).getTime()
-  const min  = Math.floor(diff / 60000)
-  const h    = Math.floor(diff / 3600000)
-  const d    = Math.floor(diff / 86400000)
-  // Calcular dias, horas y si se ha conectado hace muy poco
-  if (min < 1)  return 'Ahora mismo'
+  const min = Math.floor(diff / 60000)
+  const h = Math.floor(diff / 3600000)
+  const d = Math.floor(diff / 86400000)
+  if (min < 1) return 'Ahora mismo'
   if (min < 60) return `Hace ${min} min`
-  if (h < 24)   return `Hace ${h} h`
-  if (d < 7)    return `Hace ${d} día${d > 1 ? 's' : ''}`
+  if (h < 24) return `Hace ${h} h`
+  if (d < 7) return `Hace ${d} día${d > 1 ? 's' : ''}`
   return new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short' })
 }
 
 async function cargarAmigos() {
-  if (!miId.value) return
+  if (!userStore.usuario.value?.id) return
   cargandoAmigos.value = true
+  errorAmigos.value = ''
   try {
-    const { data } = await api.get(`/usuarios/${miId.value}/amigos`)
+    const { data } = await api.get(`/usuarios/${userStore.usuario.value.id}/amigos`)
     amigos.value = data
   } catch {
-    // silencioso
+    errorAmigos.value = 'No se pudieron cargar tus amigos.'
   } finally {
     cargandoAmigos.value = false
   }
@@ -73,7 +69,7 @@ async function cargarAmigos() {
 
 onMounted(async () => {
   await userStore.cargarDesdeToken()
-  cargarAmigos()
+  await cargarAmigos()
   refreshInterval = setInterval(() => {
     cargarAmigos()
   }, 60000)
@@ -82,134 +78,223 @@ onMounted(async () => {
 onUnmounted(() => {
   if (refreshInterval) clearInterval(refreshInterval)
 })
-
 </script>
 
 <template>
   <NavBar :logeado="true" />
 
-  <!-- Cabecera -->
-  <section class="container mt-5">
-    <h1>Bienvenido {{ userStore.usuario.value?.username }} al Dashboard</h1>
-    <p>Aquí podrás gestionar tus personajes, aventuras y chatear con la comunidad.</p>
-  </section>
+  <main class="pl-page">
+    <section class="container">
+      <div class="pl-page-header pl-toolbar">
+        <div>
+          <span class="pl-kicker">Espacio personal</span>
+          <h1 class="pl-page-title">Hola, {{ userStore.usuario.value?.username }}</h1>
+          <p class="pl-page-description">
+            Gestiona tus personajes, conecta con tu comunidad y continúa la próxima escena.
+          </p>
+        </div>
+        <router-link to="/personajes/crear" class="pl-btn pl-btn--primary">
+          <i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Crear personaje
+        </router-link>
+      </div>
+    </section>
 
-  <!-- Accesos rápidos -->
-  <section class="container mt-4">
-    <h2>Accesos rápidos</h2>
-    <div class="row">
+    <section class="container" aria-label="Accesos rápidos">
+      <div class="row g-4">
+        <div class="col-6 col-md-4 col-xl-3">
+          <router-link to="/personajes/crear" class="pl-card pl-card-hover pl-feature-card quick-action-card">
+            <span class="pl-icon-tile"><i class="bi bi-person-plus-fill" aria-hidden="true"></i></span>
+            <h3>Crear personaje</h3>
+            <p>Da vida a un nuevo héroe, villano o aventurero.</p>
+            <span class="pl-card-link">
+              Abrir creador <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </router-link>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <a :href="chatUrl" target="_blank" rel="noopener noreferrer" class="pl-card pl-card-hover pl-feature-card quick-action-card">
+            <span class="pl-icon-tile pl-icon-tile--cyan"><i class="bi bi-chat-dots-fill" aria-hidden="true"></i></span>
+            <h3>Chat por canales</h3>
+            <p>Encuentra compañeros y escribe en tiempo real.</p>
+            <span class="pl-card-link">
+              Abrir chat <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </a>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <router-link to="/personajes" class="pl-card pl-card-hover pl-feature-card quick-action-card">
+            <span class="pl-icon-tile pl-icon-tile--success"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
+            <h3>Mis personajes</h3>
+            <p>Revisa y administra tus fichas existentes.</p>
+            <span class="pl-card-link">
+              Ver lista <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </router-link>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
+          <router-link to="/amigos" class="pl-card pl-card-hover pl-feature-card quick-action-card">
+            <span class="pl-icon-tile pl-icon-tile--warning"><i class="bi bi-person-heart" aria-hidden="true"></i></span>
+            <h3>Amigos</h3>
+            <p>Gestiona solicitudes y mantiene la comunidad activa.</p>
+            <span class="pl-card-link">
+              Abrir amigos <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </router-link>
+        </div>
+      </div>
+    </section>
 
-      <div class="col-md-4 mb-3">
-        <router-link
-          to="/personajes/crear"
-          class="acceso-card text-decoration-none d-flex flex-column align-items-start p-4 rounded-3 border h-100"
-        >
-          <div class="acceso-icon mb-3">
-            <i class="bi bi-person-plus-fill"></i>
-          </div>
-          <h5 class="fw-bold mb-1 text-body">Crear personaje</h5>
-          <p class="text-muted small mb-0">Da vida a tu héroe, villano o aventurero con un par de clics.</p>
+    <section class="container pl-section-padded">
+      <div class="pl-section-heading">
+        <div>
+          <span class="pl-kicker">Tu comunidad</span>
+          <h2 class="pl-page-title pl-page-title--small">Amigos recientemente conectados</h2>
+        </div>
+        <router-link to="/amigos" class="pl-btn pl-btn--ghost">
+          Gestionar amigos
         </router-link>
       </div>
 
-      <div class="col-md-4 mb-3">
-        <a
-          :href="chatUrl"
-          target="_blank"
-          class="acceso-card text-decoration-none d-flex flex-column align-items-start p-4 rounded-3 border h-100"
-        >
-          <div class="acceso-icon mb-3">
-            <i class="bi bi-chat-dots-fill"></i>
-          </div>
-          <h5 class="fw-bold mb-1 text-body">Chat por canales</h5>
-          <p class="text-muted small mb-0">Únete a conversaciones por canales con otros personajes.</p>
-        </a>
+      <div v-if="cargandoAmigos" class="pl-empty-state pl-empty-state--compact" role="status">
+        <div class="spinner-border text-primary" aria-hidden="true"></div>
+        <span>Cargando actividad reciente...</span>
       </div>
 
-    </div>
-  </section>
+      <div v-else-if="errorAmigos" class="pl-alert pl-alert--danger" role="alert">
+        <i class="bi bi-exclamation-circle-fill me-2" aria-hidden="true"></i>{{ errorAmigos }}
+      </div>
 
+      <div v-else-if="amigosRecientes.length === 0" class="pl-empty-state">
+        <span class="pl-empty-state__icon"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
+        <h3 class="h5 mb-1">Aún no hay actividad</h3>
+        <p class="mb-0">Cuando un amigo se conecte, aparecerá aquí.</p>
+      </div>
 
-
-  <!-- Amigos recientes -->
-  <section class="container mt-4">
-    <h2>Amigos recientesmente conectados</h2>
-
-    <div v-if="cargandoAmigos" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-    </div>
-
-    <div v-else-if="amigosRecientes.length === 0" class="text-center text-muted py-4">
-      <i class="bi bi-people fs-1 d-block mb-2 opacity-50"></i>
-      <p class="mb-0">Aún no tienes compañeros de aventura.</p>
-    </div>
-
-    <div v-else class="row">
-      <div
-        v-for="amigo in amigosRecientes"
-        :key="amigo.id"
-        class="col-md-4 mb-3"
-      >
-        <div class="card">
-          <div class="card-body d-flex align-items-center gap-3">
-            <img
-              :src="avatarUrl(amigo.avatar)"
-              class="rounded-circle flex-shrink-0"
-              width="48" height="48"
-              style="object-fit: cover;"
-              alt="Avatar"
-            />
-            <div class="flex-grow-1 min-w-0">
-              <h5 class="card-title mb-0 text-truncate">{{ amigo.nombre }}</h5>
-              <small class="text-muted">{{ tiempoDesde(amigo.ultimaConexion) }}</small>
-            </div>
-            <div class="d-flex flex-column gap-1">
-              <router-link :to="`/perfil/${amigo.id}`" class="btn btn-outline-primary btn-sm" title="Ver perfil">
-                <i class="bi bi-person"></i>
+      <div v-else class="row g-3">
+        <div
+          v-for="amigo in amigosRecientes"
+          :key="amigo.id"
+          class="col-6 col-md-4 col-xl-3"
+        >
+          <article class="pl-card pl-card-hover friend-card">
+            <div class="friend-card__body">
+              <img
+                :src="avatarUrl(amigo.avatar)"
+                class="pl-avatar friend-card__avatar"
+                width="56"
+                height="56"
+                alt="Avatar de {{ amigo.nombre }}"
+              />
+              <div class="friend-card__info">
+                <h3 class="friend-card__name text-truncate">{{ amigo.nombre }}</h3>
+                <small class="text-muted">{{ tiempoDesde(amigo.ultimaConexion) }}</small>
+              </div>
+              <router-link :to="`/perfil/${amigo.id}`" class="pl-btn pl-btn--ghost btn-sm friend-card__action" title="Ver perfil">
+                <i class="bi bi-person me-1" aria-hidden="true"></i>Perfil
               </router-link>
             </div>
-          </div>
+          </article>
         </div>
       </div>
-    </div>
-  </section>
+    </section>
+  </main>
 
   <Footer :logeado="true" />
 </template>
 
 <style scoped>
-/* Accesos rápidos */
-.acceso-card {
-  background: #fff;
-  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
-  border-color: #dee2e6 !important;
-  cursor: pointer;
-}
-.acceso-card:hover {
-  box-shadow: 0 4px 18px rgba(13, 110, 253, 0.10);
-  transform: translateY(-2px);
-  border-color: #0d6efd !important;
+.pl-section-padded {
+  margin-top: 3rem;
 }
 
-.acceso-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  background: #e7f0ff;
-  color: #0d6efd;
+.pl-section-heading {
   display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.pl-section-heading .pl-page-title {
+  margin-bottom: 0;
+}
+
+.pl-page-title--small {
+  font-size: clamp(1.55rem, 3vw, 2.15rem);
+}
+
+.pl-card-link {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  font-size: 1.4rem;
+  gap: 0.35rem;
+  margin-top: 1rem;
+  color: var(--pl-primary);
+  font-size: 0.85rem;
+  font-weight: 750;
 }
 
-/* Tarjetas de amigos */
-.amigo-card {
-  transition: box-shadow 0.15s;
-}
-.amigo-card:hover {
-  box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+.quick-action-card {
+  min-height: 100%;
+  padding: 1.35rem;
 }
 
-.min-w-0 { min-width: 0; }
+.quick-action-card h3 {
+  margin-bottom: 0.45rem;
+  font-size: 1rem;
+}
+
+.quick-action-card p {
+  min-height: 3.4rem;
+  margin-bottom: 0;
+  color: var(--pl-muted);
+  font-size: 0.9rem;
+}
+
+.friend-card {
+  padding: 1rem;
+}
+
+.friend-card__body {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: center;
+}
+
+.friend-card__avatar {
+  width: 56px;
+  height: 56px;
+}
+
+.friend-card__info {
+  min-width: 0;
+}
+
+.friend-card__name {
+  margin-bottom: 0.15rem;
+  font-size: 0.98rem;
+}
+
+.friend-card__action {
+  grid-column: 1 / -1;
+  justify-self: start;
+  min-height: 36px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 575.98px) {
+  .pl-section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .pl-section-heading .pl-btn {
+    width: fit-content;
+  }
+
+  .friend-card__body {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+}
 </style>

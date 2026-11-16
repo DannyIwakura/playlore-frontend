@@ -100,20 +100,21 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
 <template>
   <NavBar :logeado="true" />
 
-  <div class="buscar-page">
-    <div class="buscar-header">
-      <div class="container">
-        <h1 class="buscar-titulo"><i class="bi bi-search me-2"></i>Buscar Personajes</h1>
-        <p class="buscar-subtitulo">Explora los personajes creados por la comunidad</p>
-      </div>
+  <section class="buscar-hero">
+    <div class="container">
+      <span class="pl-kicker pl-kicker--light">Explorar</span>
+      <h1 class="pl-title">Buscar Personajes</h1>
+      <p class="pl-lead">Explora los personajes creados por la comunidad</p>
     </div>
+  </section>
 
-    <div class="container buscar-contenido">
+  <main class="pl-page">
+    <div class="container">
 
       <!-- FILTROS -->
-      <div class="filtros-panel mb-4">
-        <button class="filtros-toggle" @click="filtrosAbiertos = !filtrosAbiertos">
-          <i class="bi" :class="filtrosAbiertos ? 'bi-chevron-up' : 'bi-chevron-down'"></i>
+      <div class="card filtros-panel mb-4">
+        <button type="button" class="filtros-toggle" @click="filtrosAbiertos = !filtrosAbiertos">
+          <i class="bi" :class="filtrosAbiertos ? 'bi-chevron-up' : 'bi-chevron-down'" aria-hidden="true"></i>
           {{ filtrosAbiertos ? 'Ocultar filtros' : 'Mostrar filtros' }}
         </button>
 
@@ -121,22 +122,22 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
           <div class="row g-3">
 
             <div class="col-md-4">
-              <label class="filtro-label">Nombre del personaje</label>
-              <input v-model="filtros.nombre" type="text" class="form-control filtro-input"
+              <label class="filtro-label" for="filtro-nombre">Nombre del personaje</label>
+              <input id="filtro-nombre" v-model="filtros.nombre" type="text" class="form-control filtro-input"
                 placeholder="Ej: Aelin, Geralt..." @keyup.enter="buscar()" />
             </div>
 
             <div class="col-md-4">
-              <label class="filtro-label">Género</label>
-              <select v-model="filtros.genero" class="form-select filtro-input">
+              <label class="filtro-label" for="filtro-genero">Género</label>
+              <select id="filtro-genero" v-model="filtros.genero" class="form-select filtro-input">
                 <option value="">Cualquiera</option>
                 <option v-for="g in opcionesGenero" :key="g" :value="g">{{ g }}</option>
               </select>
             </div>
 
             <div class="col-md-4" v-if="categorias.length > 0">
-              <label class="filtro-label">Categoría</label>
-              <select v-model="filtros.categoriaId" class="form-select filtro-input">
+              <label class="filtro-label" for="filtro-categoria">Categoría</label>
+              <select id="filtro-categoria" v-model="filtros.categoriaId" class="form-select filtro-input">
                 <option :value="null">Cualquiera</option>
                 <option v-for="cat in categorias" :key="cat.idCategoria" :value="cat.idCategoria">
                   {{ cat.nombre }}
@@ -145,23 +146,23 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
             </div>
 
             <div class="col-md-4">
-              <label class="filtro-label">Raza</label>
-              <input v-model="filtros.raza" type="text" class="form-control filtro-input"
+              <label class="filtro-label" for="filtro-raza">Raza</label>
+              <input id="filtro-raza" v-model="filtros.raza" type="text" class="form-control filtro-input"
                 placeholder="Ej: Elfo, Humano..." />
             </div>
 
             <div class="col-md-4">
-              <label class="filtro-label">Clase</label>
-              <input v-model="filtros.clase" type="text" class="form-control filtro-input"
+              <label class="filtro-label" for="filtro-clase">Clase</label>
+              <input id="filtro-clase" v-model="filtros.clase" type="text" class="form-control filtro-input"
                 placeholder="Ej: Mago, Guerrero..." />
             </div>
 
             <div class="col-md-4">
-              <label class="filtro-label">Rango de edad</label>
+              <label class="filtro-label" for="filtro-edad-min">Rango de edad</label>
               <div class="d-flex gap-2 align-items-center">
-                <input v-model.number="filtros.edadMin" type="number" class="form-control filtro-input"
+                <input id="filtro-edad-min" v-model.number="filtros.edadMin" type="number" class="form-control filtro-input"
                   placeholder="Mín" min="0" />
-                <span class="text-muted">—</span>
+                <span class="text-muted" aria-hidden="true">—</span>
                 <input v-model.number="filtros.edadMax" type="number" class="form-control filtro-input"
                   placeholder="Máx" min="0" />
               </div>
@@ -170,27 +171,34 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
           </div>
 
           <div class="filtros-acciones mt-3">
-            <button class="btn btn-buscar" @click="buscar()" :disabled="cargando">
-              <span v-if="cargando" class="spinner-border spinner-border-sm me-2"></span>
-              <i v-else class="bi bi-search me-2"></i>
+            <button type="button" class="pl-btn pl-btn--primary" @click="buscar()" :disabled="cargando">
+              <span v-if="cargando" class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
+              <i v-else class="bi bi-search me-2" aria-hidden="true"></i>
               {{ cargando ? 'Buscando...' : 'Buscar' }}
             </button>
-            <button class="btn btn-limpiar ms-2" @click="limpiarFiltros" :disabled="cargando">
-              <i class="bi bi-x-circle me-1"></i>Limpiar filtros
+            <button type="button" class="pl-btn pl-btn--ghost ms-2" @click="limpiarFiltros" :disabled="cargando">
+              <i class="bi bi-x-circle me-1" aria-hidden="true"></i>Limpiar filtros
             </button>
           </div>
         </div>
       </div>
 
-      <div v-if="error" class="alert alert-danger">{{ error }}</div>
-
-      <div v-if="!buscado && !cargando" class="estado-inicial text-center py-5">
-        <i class="bi bi-people icono-grande"></i>
-        <p class="mt-3 text-muted">Usa los filtros de arriba para explorar personajes</p>
+      <div v-if="error" class="pl-alert pl-alert--danger">
+        <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>{{ error }}
       </div>
 
-      <div v-else-if="buscado && !cargando && personajes.length === 0" class="alert alert-info text-center">
-        <i class="bi bi-emoji-frown me-2"></i>No se encontraron personajes con esos criterios.
+      <div v-if="!buscado && !cargando" class="pl-empty-state">
+        <span class="pl-empty-state__icon" aria-hidden="true">
+          <i class="bi bi-people"></i>
+        </span>
+        <p>Usa los filtros de arriba para explorar personajes</p>
+      </div>
+
+      <div v-else-if="buscado && !cargando && personajes.length === 0" class="pl-empty-state">
+        <span class="pl-empty-state__icon" aria-hidden="true">
+          <i class="bi bi-emoji-frown"></i>
+        </span>
+        <p>No se encontraron personajes con esos criterios.</p>
       </div>
 
       <template v-else-if="personajes.length > 0">
@@ -199,23 +207,25 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
         </p>
 
         <div class="row g-4">
-          <div class="col-md-4" v-for="p in personajes" :key="p.idPersonaje">
-            <div class="personaje-card" @click="verPerfil(p.idPersonaje)">
-              <div class="personaje-avatar-wrap">
-                <img :src="avatarUrl(p.avatar)" :alt="p.nombre" class="personaje-avatar" />
+          <div class="col-md-6 col-lg-4" v-for="p in personajes" :key="p.idPersonaje">
+            <article class="card persona-card h-100" @click="verPerfil(p.idPersonaje)" role="button">
+              <div class="persona-card__media">
+                <img :src="avatarUrl(p.avatar)" :alt="p.nombre" />
               </div>
-              <div class="personaje-info">
-                <h5 class="personaje-nombre">{{ p.nombre }}</h5>
+              <div class="card-body d-flex flex-column">
+                <h5 class="persona-card__nombre">{{ p.nombre }}</h5>
                 <div class="personaje-tags">
-                  <span v-if="p.raza"  class="tag tag-raza"><i class="bi bi-star-fill me-1"></i>{{ p.raza }}</span>
-                  <span v-if="p.clase" class="tag tag-clase"><i class="bi bi-shield-fill me-1"></i>{{ p.clase }}</span>
+                  <span v-if="p.raza"  class="tag tag-raza"><i class="bi bi-star-fill me-1" aria-hidden="true"></i>{{ p.raza }}</span>
+                  <span v-if="p.clase" class="tag tag-clase"><i class="bi bi-shield-fill me-1" aria-hidden="true"></i>{{ p.clase }}</span>
                   <span v-if="p.genero" class="tag tag-genero">{{ p.genero }}</span>
                   <span v-if="p.edadPersonaje !== null" class="tag tag-edad">{{ p.edadPersonaje }} años</span>
                 </div>
                 <div v-if="p.trasfondo" class="personaje-trasfondo" v-sanitize="p.trasfondo"></div>
-                <button class="btn btn-ver-perfil mt-auto">Ver perfil completo</button>
+                <button type="button" class="pl-btn pl-btn--primary mt-auto">
+                  Ver perfil completo
+                </button>
               </div>
-            </div>
+            </article>
           </div>
         </div>
 
@@ -224,82 +234,154 @@ const verPerfil = (id: number) => router.push(`/personaje/${id}`)
       </template>
 
     </div>
-  </div>
+  </main>
   <Footer />
 </template>
 
 <style scoped>
-.buscar-page { min-height: 100vh; background: #f4f6f9; }
-.buscar-header {
+.buscar-hero {
+  padding: 3.5rem 0 3rem;
   background: linear-gradient(135deg, #1a1a2e 0%, #16213e 60%, #0f3460 100%);
-  padding: 2.5rem 0 2rem;
 }
-.buscar-titulo { color: #fff; font-size: 2rem; font-weight: 700; margin-bottom: .4rem; }
-.buscar-subtitulo { color: rgba(255,255,255,.65); margin: 0; font-size: .95rem; }
-.buscar-contenido { padding-top: 2rem; padding-bottom: 3rem; }
 
-.filtros-panel { background: #fff; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,.08); overflow: hidden; }
+.buscar-hero .pl-kicker--light {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.buscar-hero .pl-title {
+  margin: 0.35rem 0 0.5rem;
+  color: #fff;
+}
+
+.buscar-hero .pl-lead {
+  max-width: 640px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+}
+
+.filtros-panel {
+  overflow: hidden;
+  border-radius: var(--pl-radius-lg);
+}
+
 .filtros-toggle {
-  width: 100%; background: none; border: none; padding: 1rem 1.25rem;
-  font-weight: 600; font-size: .95rem; color: #333; text-align: left;
-  cursor: pointer; display: flex; align-items: center; gap: 8px;
-  border-bottom: 1px solid #eee; transition: background .15s;
+  width: 100%;
+  padding: 1rem 1.25rem;
+  border: 0;
+  border-bottom: 1px solid var(--pl-border);
+  background: none;
+  color: var(--pl-ink);
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: background 0.15s ease;
 }
-.filtros-toggle:hover { background: #f8f9fa; }
-.filtros-body { padding: 1.25rem; }
+
+.filtros-toggle:hover {
+  background: var(--pl-surface-soft);
+}
+
+.filtros-body {
+  padding: 1.25rem;
+}
+
 .filtro-label {
-  display: block; font-size: .82rem; font-weight: 600; color: #555;
-  text-transform: uppercase; letter-spacing: .04em; margin-bottom: .35rem;
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
-.filtro-input { border-radius: 8px; border: 1.5px solid #dee2e6; font-size: .9rem; transition: border-color .2s, box-shadow .2s; }
-.filtro-input:focus { border-color: #6c63ff; box-shadow: 0 0 0 3px rgba(108,99,255,.12); }
-.filtros-acciones { display: flex; align-items: center; }
 
-.btn-buscar {
-  background: linear-gradient(135deg, #6c63ff, #4facfe); color: #fff; border: none;
-  padding: .55rem 1.6rem; border-radius: 8px; font-weight: 600; transition: opacity .2s, transform .1s;
+.filtro-input {
+  border-radius: var(--pl-radius-md);
+  font-size: 0.92rem;
 }
-.btn-buscar:hover:not(:disabled) { opacity: .9; transform: translateY(-1px); color: #fff; }
-.btn-buscar:disabled { opacity: .65; }
-.btn-limpiar {
-  background: #f1f3f5; color: #555; border: none;
-  padding: .55rem 1.2rem; border-radius: 8px; transition: background .15s;
+
+.resultados-count {
+  color: var(--pl-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
 }
-.btn-limpiar:hover:not(:disabled) { background: #e9ecef; }
 
-.estado-inicial .icono-grande { font-size: 4rem; color: #ccc; display: block; }
-.resultados-count { font-size: .88rem; color: #666; font-weight: 500; }
-
-.personaje-card {
-  background: #fff; border-radius: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.07);
-  overflow: hidden; cursor: pointer; transition: transform .18s, box-shadow .18s;
-  display: flex; flex-direction: column; height: 100%;
+.persona-card {
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
 }
-.personaje-card:hover { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,.13); }
-.personaje-avatar-wrap { width: 100%; height: 180px; overflow: hidden; background: #e9ecef; }
-.personaje-avatar { width: 100%; height: 100%; object-fit: cover; }
-.personaje-info { padding: 1rem 1.1rem 1.1rem; display: flex; flex-direction: column; flex: 1; }
-.personaje-nombre { font-size: 1.05rem; font-weight: 700; color: #1a1a2e; margin-bottom: .6rem; }
 
-.personaje-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: .75rem; }
-.tag { font-size: .72rem; padding: 3px 9px; border-radius: 20px; font-weight: 600; }
+.persona-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pl-shadow-lg);
+}
+
+.persona-card__media {
+  height: 180px;
+  overflow: hidden;
+  background: var(--pl-surface-soft);
+}
+
+.persona-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.persona-card:hover .persona-card__media img {
+  transform: scale(1.05);
+}
+
+.persona-card__nombre {
+  margin-bottom: 0.6rem;
+  color: var(--pl-ink);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.personaje-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 0.75rem;
+}
+
+.tag {
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
 .tag-raza   { background: #e8f4fd; color: #1565c0; }
 .tag-clase  { background: #fde8f4; color: #880e4f; }
 .tag-genero { background: #e8fdf0; color: #1b5e20; }
 .tag-edad   { background: #fdf4e8; color: #e65100; }
 
 .personaje-trasfondo {
-  max-height: 80px; overflow: hidden; position: relative;
-  font-size: .82rem; color: #555; line-height: 1.4; margin-bottom: .75rem;
+  position: relative;
+  max-height: 80px;
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+  line-height: 1.4;
 }
+
 .personaje-trasfondo::after {
-  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-  height: 30px; background: linear-gradient(to bottom, transparent, white);
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 30px;
+  background: linear-gradient(to bottom, transparent, white);
 }
-.btn-ver-perfil {
-  background: linear-gradient(135deg, #6c63ff, #4facfe);
-  color: #fff; border: none; padding: .45rem 1rem;
-  border-radius: 8px; font-size: .85rem; font-weight: 600; width: 100%;
-}
-.btn-ver-perfil:hover { opacity: .88; color: #fff; }
 </style>

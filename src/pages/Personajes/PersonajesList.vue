@@ -85,99 +85,102 @@ function avatarUrl(avatar: string | null | undefined): string {
 <template>
   <NavBar :logeado="true" />
 
-  <div class="container mt-4">
+  <main class="pl-page">
+    <div class="container">
+      <header class="pl-page-header">
+        <span class="pl-kicker">Personajes</span>
+        <h1 class="pl-title">Lista de tus Personajes</h1>
+        <p class="pl-lead">Gestiona tus personajes, edítalos y organiza sus categorías.</p>
+        <div class="pl-toolbar">
+          <router-link to="/personajes/crear" class="pl-btn pl-btn--success">
+            <i class="bi bi-plus-lg" aria-hidden="true"></i> Crear Nuevo
+          </router-link>
+        </div>
+      </header>
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
-      <h1 class="mb-0">Lista de tus Personajes</h1>
+      <div v-if="mensajePersonajeCreado" class="pl-alert pl-alert--success">
+        <i class="bi bi-check-circle" aria-hidden="true"></i>
+        {{ mensajePersonajeCreado }}
+      </div>
 
-      <router-link to="/personajes/crear" class="btn btn-success">
-        Crear Nuevo
-      </router-link>
-    </div>
+      <div v-if="personajes.length === 0" class="pl-empty-state">
+        <span class="pl-empty-state__icon" aria-hidden="true">
+          <i class="bi bi-person-plus"></i>
+        </span>
+        <p>No tienes personajes creados todavía. ¡Empieza creando uno!</p>
+      </div>
 
-    <div v-if="mensajePersonajeCreado" class="alert alert-success">
-      {{ mensajePersonajeCreado }}
-    </div>
-    <div v-if="personajes.length === 0" class="alert alert-info text-center">
-      No tienes personajes creados todavía.
-      <br />
-      ¡Empieza creando uno!
-    </div>
+      <div v-else class="row g-4">
+        <div
+          class="col-md-6 col-lg-4"
+          v-for="personaje in personajes"
+          :key="personaje.idPersonaje"
+        >
+          <article class="card personaje-card h-100">
+            <div class="personaje-card__media">
+              <img
+                :src="avatarUrl(personaje.avatar)"
+                alt="Avatar del personaje"
+              />
+            </div>
+            <div class="card-body d-flex flex-column">
+              <h5 class="personaje-card__title">{{ personaje.nombre }}</h5>
 
-    <div v-else class="row">
-      <div
-        class="col-md-4 mb-4"
-        v-for="personaje in personajes"
-        :key="personaje.idPersonaje"
-      >
-        <div class="card h-100 shadow">
+              <ul class="personaje-card__meta">
+                <li><i class="bi bi-gender-ambiguous" aria-hidden="true"></i> {{ personaje.genero }}</li>
+                <li><i class="bi bi-stars" aria-hidden="true"></i> {{ personaje.raza }}</li>
+                <li><i class="bi bi-shield" aria-hidden="true"></i> {{ personaje.clase }}</li>
+              </ul>
 
-          <!-- AVATAR -->
-          <img
-            :src="avatarUrl(personaje.avatar)"
-            class="card-img-top"
-            alt="Avatar personaje"
-          />
-          <div class="card-body">
+              <div class="trasfondo-preview mb-3" v-sanitize="personaje.trasfondo"></div>
 
-            <!-- NOMBRE -->
-            <h5 class="card-title">
-              {{ personaje.nombre }}
-            </h5>
-
-            <!-- INFO BASE -->
-            <p class="mb-1"><strong>Género:</strong> {{ personaje.genero }}</p>
-            <p class="mb-1"><strong>Raza:</strong> {{ personaje.raza }}</p>
-            <p class="mb-2"><strong>Clase:</strong> {{ personaje.clase }}</p>
-
-            <!-- TRASFONDO (HTML SAFE PREVIEW) -->
-            <div class="trasfondo-preview mb-3" v-sanitize="personaje.trasfondo"></div>
-
-            <!-- BOTONES -->
-            <router-link
-              :to="`/personaje/${personaje.idPersonaje}`"
-              class="btn btn-primary w-100 mb-2"
-            >
-              Ver Perfil Completo
-            </router-link>
-
-            <router-link
-              :to="`/personajes/editar/${personaje.idPersonaje}`"
-              class="btn btn-secondary w-100 mb-2"
-            >
-              Editar Perfil
-            </router-link>
-            <button 
-            @click="abrirModalCategorias(personaje.idPersonaje)"
-            class="btn btn-outline-secondary w-100 mb-2"
-            >
-            Gestionar Categorías
-            </button>
-
-            <button
-              class="btn btn-danger w-100"
-              @click="eliminarPersonaje(personaje.idPersonaje)"
-            >
-              Eliminar
-            </button>
-
-          </div>
+              <div class="d-grid gap-2 mt-auto">
+                <router-link
+                  :to="`/personaje/${personaje.idPersonaje}`"
+                  class="pl-btn pl-btn--primary"
+                >
+                  Ver Perfil Completo
+                </router-link>
+                <router-link
+                  :to="`/personajes/editar/${personaje.idPersonaje}`"
+                  class="pl-btn pl-btn--secondary"
+                >
+                  Editar Perfil
+                </router-link>
+                <button
+                  type="button"
+                  @click="abrirModalCategorias(personaje.idPersonaje)"
+                  class="pl-btn pl-btn--ghost"
+                >
+                  Gestionar Categorías
+                </button>
+                <button
+                  type="button"
+                  class="pl-btn pl-btn--danger"
+                  @click="eliminarPersonaje(personaje.idPersonaje)"
+                >
+                  Eliminar
+                </button>
+              </div>
+            </div>
+          </article>
         </div>
       </div>
-    </div>
-      <AnadirCategoriaForm 
-      v-if="mostrarModal" 
-      :idPersonaje="personajeSeleccionadoId!" 
-      @close="mostrarModal = false"
-      @success="recargarDatos"
+
+      <AnadirCategoriaForm
+        v-if="mostrarModal"
+        :idPersonaje="personajeSeleccionadoId!"
+        @close="mostrarModal = false"
+        @success="recargarDatos"
       />
 
       <PaginadorComponent
-      :paginaActual="paginaActual"
-      :totalPaginas="totalPaginas"
-      @cambiar="cargarPersonajes"
+        :paginaActual="paginaActual"
+        :totalPaginas="totalPaginas"
+        @cambiar="cargarPersonajes"
       />
-  </div>
+    </div>
+  </main>
 
   <Footer />
 
@@ -195,7 +198,58 @@ function avatarUrl(avatar: string | null | undefined): string {
   <!-- Modal: Aviso -->
   <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
-<style scoped> 
+<style scoped>
+.personaje-card {
+  overflow: hidden;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+
+.personaje-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--pl-shadow-lg);
+}
+
+.personaje-card__media {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  background: linear-gradient(135deg, #1e2746, #303b63);
+}
+
+.personaje-card__media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.personaje-card:hover .personaje-card__media img {
+  transform: scale(1.05);
+}
+
+.personaje-card__title {
+  font-size: 1.3rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--pl-ink);
+}
+
+.personaje-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1rem;
+  margin: 0 0 1rem;
+  padding: 0;
+  list-style: none;
+  color: var(--pl-muted);
+  font-size: 0.88rem;
+}
+
+.personaje-card__meta i {
+  margin-right: 0.3rem;
+  color: var(--pl-primary);
+}
+
 .trasfondo-preview {
   max-height: 120px;
   overflow: hidden;

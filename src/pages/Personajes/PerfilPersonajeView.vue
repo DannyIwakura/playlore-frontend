@@ -254,7 +254,7 @@ onMounted(async () => {
 
   <div v-if="modoModal" class="modal-header-bar">
     <h5 class="mb-0">Perfil del personaje</h5>
-    <button class="btn-close" @click="emit('cerrar')"></button>
+    <button type="button" class="btn-close" @click="emit('cerrar')"></button>
   </div>
 
   <div :class="{ 'modal-scrollable': modoModal }">
@@ -348,7 +348,7 @@ onMounted(async () => {
 
               <!-- Botones de acción -->
               <div v-if="!esMiPersonaje" class="d-flex flex-column gap-2 mt-3">
-                <button class="btn-accion btn-accion--primary" @click="irAlPerfil">
+                <button type="button" class="btn-accion btn-accion--primary" @click="irAlPerfil">
                   <i class="bi bi-person-fill me-2"></i>Ver perfil
                 </button>
                 <template v-if="puedeModerarPersonaje">
@@ -360,25 +360,27 @@ onMounted(async () => {
                       Perfil desactivado · Solo visible para moderadores
                     </div>
                   <button
+                    type="button"
                     v-if="personaje.estadoPersonaje !== 'DESACTIVADO'"
                     class="btn-accion btn-accion--danger"
                     @click="cambiarEstadoPersonaje('DESACTIVADO')">
                     <i class="bi bi-slash-circle me-2"></i>Desactivar perfil
                   </button>
                   <button
+                    type="button"
                     v-else
                     class="btn-accion btn-accion--success"
                     @click="cambiarEstadoPersonaje('ACTIVO')">
                     <i class="bi bi-check-circle me-2"></i>Activar perfil
                   </button>
-                  <button class="btn-accion btn-accion--danger" @click="modalBaneo = true">
+                  <button type="button" class="btn-accion btn-accion--danger" @click="modalBaneo = true">
                     <i class="bi bi-hammer me-2"></i>Banear personaje
                   </button>
                 </template>
-                <button class="btn-accion btn-accion--ghost" @click="enviarAmistad">
+                <button type="button" class="btn-accion btn-accion--ghost" @click="enviarAmistad">
                   <i class="bi bi-person-plus-fill me-2"></i>Petición de amistad
                 </button>
-                <button class="btn-accion btn-accion--denunciar" @click="modalDenuncia = true">
+                <button type="button" class="btn-accion btn-accion--denunciar" @click="modalDenuncia = true">
                   <i class="bi bi-flag-fill me-2"></i>Denunciar personaje
                 </button>
               </div>
@@ -404,6 +406,7 @@ onMounted(async () => {
           <div class="perfil-card shadow-sm p-0">
             <div class="tabs-nav">
               <button
+                type="button"
                 class="tab-btn"
                 :class="{ 'tab-btn--active': activeTab === 'trasfondo' }"
                 @click="activeTab = 'trasfondo'"
@@ -412,6 +415,7 @@ onMounted(async () => {
                 Trasfondo
               </button>
               <button
+                type="button"
                 class="tab-btn"
                 :class="{ 'tab-btn--active': activeTab === 'categorias' }"
                 @click="activeTab = 'categorias'"
@@ -420,6 +424,7 @@ onMounted(async () => {
                 Categorías
               </button>
               <button
+                type="button"
                 class="tab-btn"
                 :class="{ 'tab-btn--active': activeTab === 'galeria' }"
                 @click="activeTab = 'galeria'"
@@ -475,7 +480,7 @@ onMounted(async () => {
     <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0">Denunciar a {{ personaje?.nombre }}</h5>
-        <button class="btn-close" @click="modalDenuncia = false"></button>
+        <button type="button" class="btn-close" @click="modalDenuncia = false"></button>
       </div>
       <div class="mb-3">
         <label class="form-label">Motivo <span class="text-danger">*</span></label>
@@ -487,8 +492,9 @@ onMounted(async () => {
         <div class="text-end text-muted small mt-1">{{ denuncia.detalle.length }}/2000</div>
       </div>
       <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary" @click="modalDenuncia = false">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" @click="modalDenuncia = false">Cancelar</button>
         <button
+          type="button"
           class="btn btn-outline-danger"
           :disabled="enviandoDenuncia || !denuncia.motivo.trim()"
           @click="enviarDenuncia"
@@ -506,7 +512,7 @@ onMounted(async () => {
     <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h5 class="mb-0">Banear a {{ personaje?.nombre }}</h5>
-        <button class="btn-close" @click="modalBaneo = false"></button>
+        <button type="button" class="btn-close" @click="modalBaneo = false"></button>
       </div>
       <div class="mb-3">
         <label class="form-label">Duración</label>
@@ -521,8 +527,9 @@ onMounted(async () => {
         <input v-model="baneo.motivo" type="text" class="form-control" maxlength="300" placeholder="Motivo del baneo" />
       </div>
       <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary" @click="modalBaneo = false">Cancelar</button>
+        <button type="button" class="btn btn-outline-secondary" @click="modalBaneo = false">Cancelar</button>
         <button
+          type="button"
           class="btn btn-danger"
           :disabled="baneando"
           @click="banearPersonaje"
