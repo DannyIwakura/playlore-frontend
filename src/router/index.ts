@@ -28,9 +28,32 @@ const routes = [
   { path: '/admin/categorias/nueva', component: () => import('../pages/Admin/Categorias/CategoriaNueva.vue'), meta: { requiresAuth: true, requiresAdmin: true } },
 ];
 
+// Se consulta en cada navegación (no al cargar el módulo) para respetar cambios
+// de la preferencia sin recargar. El offset deja hueco a la navbar sticky.
+function prefiereMenosMovimiento(): boolean {
+  return (
+    typeof window !== 'undefined' &&
+    typeof window.matchMedia === 'function' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  );
+}
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) {
+      return savedPosition;
+    }
+    if (to.hash) {
+      return {
+        el: to.hash,
+        top: 88,
+        behavior: prefiereMenosMovimiento() ? 'auto' : 'smooth',
+      };
+    }
+    return { top: 0 };
+  },
 });
 
 //verifica token antes de entrar a rutas protegidas
