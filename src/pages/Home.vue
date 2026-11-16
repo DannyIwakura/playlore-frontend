@@ -1,164 +1,405 @@
 <script setup lang="ts">
-import NavBar from '../components/NavBar.vue';
-import Footer from '../components/Footer.vue';
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+import type { Carousel } from 'bootstrap'
+import NavBar from '../components/NavBar.vue'
+import Footer from '../components/Footer.vue'
 import carrusel from '../assets/img/carrusel1.jpg'
 import carrusel2 from '../assets/img/carrusel2.jpg'
 import carrusel3 from '../assets/img/carrusel3.jpg'
+
+const carouselEl = ref<HTMLElement | null>(null)
+let carouselInstance: Carousel | null = null
+
+onMounted(async () => {
+  if (!carouselEl.value) return
+  const { Carousel } = await import('bootstrap')
+  carouselInstance = new Carousel(carouselEl.value, { interval: 5000 })
+})
+
+onBeforeUnmount(() => {
+  carouselInstance?.dispose()
+  carouselInstance = null
+})
 </script>
 
 <template>
   <NavBar :logeado="false" />
-  <div id="carouselHero" class="carousel slide" data-bs-ride="carousel" data-bs-interval="5000">
-    
-    <!-- Indicadores -->
-    <div class="carousel-indicators">
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="0" class="active" aria-label="Ir a la diapositiva 1"></button>
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="1" aria-label="Ir a la diapositiva 2"></button>
-      <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="2" aria-label="Ir a la diapositiva 3"></button>
-    </div>
 
-    <!-- Slides -->
-    <div class="carousel-inner">
-
-      <!-- Slide 1 -->
-      <div class="carousel-item active position-relative">
-        <img :src="carrusel" class="d-block w-100" alt="Hero PlayRole" />
-
-        <!-- Overlay oscuro -->
-        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
-
-        <!-- Texto centrado -->
-        <div class="carousel-caption top-50 start-50 translate-middle text-center">
-          <h1 class="display-2 fw-bold text-white text-uppercase" style="text-shadow: 2px 2px 15px black;">
-            LA APLICACIÓN QUE REÚNE A ROLEPLAYERS Y A ESCRITORES
-          </h1>
-          <p class="lead text-light">
-            PlayRole está pensada para que los amantes del roleplay puedan encontrar su lugar, compartir sus historias y vivir aventuras épicas juntos, con catacterísticas que te ayudarán a expresar tu creatividad.
-          </p>
+  <main class="pl-page pl-section-soft">
+    <section class="pl-hero" aria-labelledby="hero-title">
+      <div ref="carouselEl" id="carouselHero" class="carousel slide" data-bs-ride="carousel" data-bs-interval="5000">
+        <div class="carousel-indicators">
+          <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="0" class="active" aria-label="Ir a la diapositiva 1"></button>
+          <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="1" aria-label="Ir a la diapositiva 2"></button>
+          <button type="button" data-bs-target="#carouselHero" data-bs-slide-to="2" aria-label="Ir a la diapositiva 3"></button>
         </div>
-      </div>
 
-      <!-- Slide 2 -->
-      <div class="carousel-item position-relative">
-        <img :src="carrusel2" class="d-block w-100" alt="Hero personajes PlayRole" />
+        <div class="carousel-inner">
+          <div class="carousel-item active">
+            <img
+              :src="carrusel"
+              class="pl-hero-image"
+              alt="Comunidad de roleplayers de PlayLore"
+              fetchpriority="high"
+              decoding="async"
+            />
+            <div class="pl-hero-overlay"></div>
+            <div class="pl-hero-content">
+              <span class="pl-hero-badge">Una comunidad, infinitas historias</span>
+              <h1 id="hero-title">Tu próxima aventura comienza aquí</h1>
+              <p class="pl-lead">
+                Encuentra roleplayers, crea personajes memorables y vive aventuras épicas junto a una comunidad que comparte tu pasión.
+              </p>
+              <div class="pl-hero-actions">
+                <router-link to="/registro" class="pl-btn pl-btn--primary">
+                  <i class="bi bi-rocket-takeoff-fill me-1" aria-hidden="true"></i>Crear mi cuenta
+                </router-link>
+                <router-link to="/personajes/buscar" class="pl-btn pl-btn--secondary">
+                  <i class="bi bi-search me-1" aria-hidden="true"></i>Explorar personajes
+                </router-link>
+              </div>
+              <div class="pl-hero-meta" aria-label="Características principales">
+                <span><i class="bi bi-people-fill" aria-hidden="true"></i>Comunidad activa</span>
+                <span><i class="bi bi-person-vcard-fill" aria-hidden="true"></i>Personajes personalizables</span>
+                <span><i class="bi bi-chat-dots-fill" aria-hidden="true"></i>Chat por canales</span>
+              </div>
+            </div>
+          </div>
 
-        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
+          <div class="carousel-item">
+            <img
+              :src="carrusel2"
+              class="pl-hero-image"
+              alt="Creación de personajes personalizables"
+              fetchpriority="low"
+              decoding="async"
+            />
+            <div class="pl-hero-overlay"></div>
+            <div class="pl-hero-content">
+              <span class="pl-hero-badge">Crea tu héroe</span>
+              <h2 class="pl-title pl-gradient-text">Diseña un personaje que parezca real</h2>
+              <p class="pl-lead">
+                Combina historia, atributos, habilidades e imagen para dar vida a personajes únicos dentro de cualquier mundo.
+              </p>
+              <div class="pl-hero-actions">
+                <router-link to="/personajes/crear" class="pl-btn pl-btn--primary">
+                  <i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Crear personaje
+                </router-link>
+                <router-link to="/personajes" class="pl-btn pl-btn--secondary">
+                  <i class="bi bi-grid me-1" aria-hidden="true"></i>Mis personajes
+                </router-link>
+              </div>
+            </div>
+          </div>
 
-        <div class="carousel-caption top-50 start-50 translate-middle text-center">
-          <h1 class="display-2 fw-bold text-white text-uppercase" style="text-shadow: 2px 2px 15px black;">
-            CREA FICHAS DE PERSONAJES PERSONALIZABLES Y SIN LÍMITES
-          </h1>
-          <p class="lead text-light">
-            Saca tu lado más creativo y diseña personajes únicos con nuestras fichas personalizables. Desde atributos hasta habilidades, puedes crear personajes que se adapten a cualquier mundo o historia que imagines.
-          </p>
-        </div>
-      </div>
-
-      <!-- Slide 3 -->
-      <div class="carousel-item position-relative">
-        <img :src="carrusel3" class="d-block w-100" alt="Hero comunidad PlayRole" />
-
-        <div class="position-absolute top-0 start-0 w-100 h-100 bg-dark opacity-50"></div>
-
-        <div class="carousel-caption top-50 start-50 translate-middle text-center">
-          <h1 class="display-2 fw-bold text-white text-uppercase" style="text-shadow: 2px 2px 15px black;">
-            CONECTA CON GENTE CON TUS MISMOS INTERESES Y VIVE AVENTURAS ÉPICAS JUNTOS
-          </h1>
-          <p class="lead text-light">
-            Nuestro sistema de mensajes privados permite conectar a roleplayers y escritores de todo el mundo. Encuentra compañeros de juego, comparte tus historias y vive aventuras épicas juntos, sin importar dónde estés.
-          </p>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Controles -->
-    <button class="carousel-control-prev" type="button" data-bs-target="#carouselHero" data-bs-slide="prev" aria-label="Anterior">
-      <span class="carousel-control-prev-icon"></span>
-    </button>
-
-    <button class="carousel-control-next" type="button" data-bs-target="#carouselHero" data-bs-slide="next" aria-label="Siguiente">
-      <span class="carousel-control-next-icon"></span>
-    </button>
-  </div>
-
-<!-- Sección de Sobre -->
- <section id="sobre" class="hero-section d-flex align-items-center">
-    <div class="container h-100">
-      <div class="row h-100">
-        <div class="col-md-6 d-flex align-items-center">
-          <div class="content-box p-4">
-            <h1 class="display-3 fw-bold mb-3">PlayLore: Este es tu lugar</h1>
-            <p class="lead">
-              Bienvenido a PlayLore, el lugar donde puedes descubrir, jugar y compartir experiencias únicas con nuestra comunidad.
-            </p>
+          <div class="carousel-item">
+            <img
+              :src="carrusel3"
+              class="pl-hero-image"
+              alt="Conexión con otros roleplayers"
+              fetchpriority="low"
+              decoding="async"
+            />
+            <div class="pl-hero-overlay"></div>
+            <div class="pl-hero-content">
+              <span class="pl-hero-badge">Escribe juntos</span>
+              <h2 class="pl-title pl-gradient-text">Conecta y escribe aventuras en tiempo real</h2>
+              <p class="pl-lead">
+                Únete a canales, encuentra compañeros de rol y convierte tus ideas en historias compartidas.
+              </p>
+              <div class="pl-hero-actions">
+                <router-link to="/registro" class="pl-btn pl-btn--primary">
+                  <i class="bi bi-chat-heart-fill me-1" aria-hidden="true"></i>Unirme al chat
+                </router-link>
+                <router-link to="/#sobre" class="pl-btn pl-btn--secondary">
+                  <i class="bi bi-info-circle-fill me-1" aria-hidden="true"></i>Saber más
+                </router-link>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- Lado derecho: imagen -->
-        <div class="col-md-6 d-flex justify-content-center align-items-center">
-          <img src="../assets/img/playlore_right.jpg" class="img-fluid" alt="Ilustración lateral">
-        </div>
-
+        <button class="carousel-control-prev" type="button" data-bs-target="#carouselHero" data-bs-slide="prev" aria-label="Anterior">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#carouselHero" data-bs-slide="next" aria-label="Siguiente">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+        </button>
       </div>
-    </div>
-  </section>
+    </section>
 
-  <!-- Sección de Unirse -->
-  <section id="join" class="join-section d-flex align-items-center justify-content-center text-center">
-    <div class="content">
-      <h1 class="display-3 fw-bold mb-3">ÚNETE HOY MISMO</h1>
-      <p class="lead mb-4">
-        Forma parte de nuestra comunidad y disfruta de escribiendo junto a otros roleplayers. No esperes más para empezar tu aventura.
-      </p>
-      <router-link to="/registro" class="btn btn-dark btn-lg">
-        Únete ahora
-      </router-link>
-    </div>
-  </section>
-  <Footer :logeado="false"/>
+    <section id="sobre" class="pl-section">
+      <div class="container">
+        <div class="row align-items-center g-4">
+          <div class="col-lg-6">
+            <span class="pl-kicker">Hecho para creadores</span>
+            <h2 class="pl-title">Más que una web, tu espacio para crear</h2>
+            <p class="pl-lead">
+              PlayLore reúne herramientas, comunidad y libertad creativa en un solo lugar. Desde la primera frase hasta la última escena, todo está pensado para que tu historia avance.
+            </p>
+            <div class="pl-proof-row">
+              <span><strong>100%</strong> centrado en roleplay</span>
+              <span><strong>Siempre activo</strong> por la comunidad</span>
+              <span><strong>Tu historia</strong> bajo tu control</span>
+            </div>
+          </div>
+          <div class="col-lg-6">
+            <div class="pl-card pl-card-hover pl-feature-card pl-visual-card">
+              <img
+                src="../assets/img/playlore_right.jpg"
+                alt="Ilustración de la comunidad PlayLore"
+                class="pl-visual-image"
+                loading="lazy"
+                decoding="async"
+              />
+              <div class="pl-visual-overlay">
+                <span class="pl-icon-tile pl-icon-tile--cyan"><i class="bi bi-stars" aria-hidden="true"></i></span>
+                <h3>Crea sin límites</h3>
+                <p>Personajes, mundos y conversaciones con un diseño pensado para inspirar.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
+    <section class="pl-section pl-section-white">
+      <div class="container">
+        <div class="pl-page-header text-center mx-auto">
+          <span class="pl-kicker">Todo en un solo lugar</span>
+          <h2 class="pl-title">La comunidad escribe, tú lideras la escena</h2>
+          <p class="pl-lead">
+            Descubre herramientas diseñadas para roleplayers y escritores que quieren pasar de la idea a la historia.
+          </p>
+        </div>
+        <div class="pl-feature-grid">
+          <article class="pl-card pl-card-hover pl-feature-card">
+            <span class="pl-icon-tile"><i class="bi bi-person-badge-fill" aria-hidden="true"></i></span>
+            <h3>Personajes con identidad</h3>
+            <p>Crea fichas detalladas, añade imágenes y organiza tus personajes por mundos y categorías.</p>
+          </article>
+          <article class="pl-card pl-card-hover pl-feature-card">
+            <span class="pl-icon-tile pl-icon-tile--cyan"><i class="bi bi-chat-square-heart-fill" aria-hidden="true"></i></span>
+            <h3>Conversaciones vivas</h3>
+            <p>Chatea por canales, envía mensajes privados y mantén activa la presencia de tu comunidad.</p>
+          </article>
+          <article class="pl-card pl-card-hover pl-feature-card">
+            <span class="pl-icon-tile pl-icon-tile--success"><i class="bi bi-people-fill" aria-hidden="true"></i></span>
+            <h3>Comunidad conectada</h3>
+            <p>Encuentra amigos, compañeros de rol y nuevas historias para escribir juntos.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="join" class="pl-section">
+      <div class="container">
+        <div class="pl-card pl-card-hover pl-join-card">
+          <div class="pl-join-content">
+            <span class="pl-kicker">Tu historia empieza ahora</span>
+            <h2 class="pl-title">Únete a la comunidad</h2>
+            <p class="pl-lead">
+              Crea tu cuenta en pocos minutos y empieza a construir tu lugar dentro de PlayLore.
+            </p>
+            <div class="pl-hero-actions justify-content-center">
+              <router-link to="/registro" class="pl-btn pl-btn--primary">
+                <i class="bi bi-emoji-smile-fill me-1" aria-hidden="true"></i>Registrarme gratis
+              </router-link>
+              <router-link to="/login" class="pl-btn pl-btn--secondary">
+                <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Acceder
+              </router-link>
+            </div>
+          </div>
+          <div class="pl-join-orbit" aria-hidden="true">
+            <span></span><span></span><span></span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <Footer :logeado="false" />
 </template>
 
-<style>
-/* PAra que el carruser ocupe toda la altura */
-.carousel-item img {
-  height: 100vh;
+<style scoped>
+.pl-visual-card {
+  position: relative;
+  min-height: 420px;
+  overflow: hidden;
+}
+
+.pl-visual-image {
+  width: 100%;
+  height: 100%;
+  min-height: 420px;
   object-fit: cover;
 }
 
-/* Imagen de fondo para la sección de Sobre */
-.hero-section {
-  height: 100vh;
-  width: 100%;
-  background-image: url('../assets/img/playlore_bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  position: relative;
+.pl-visual-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 1.5rem;
+  color: #fff;
+  background: linear-gradient(180deg, rgba(23, 32, 51, 0.05), rgba(23, 32, 51, 0.86));
 }
-/* marco semitransparente */
-.content-box {
-  background-color: rgba(0, 0, 0, 0.6);
-  border-radius: 15px;
+
+.pl-visual-overlay h3 {
+  margin-bottom: 0.45rem;
+  font-size: 1.25rem;
+}
+
+.pl-visual-overlay p {
+  margin-bottom: 0;
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.pl-join-card {
+  position: relative;
+  overflow: hidden;
+  padding: clamp(2rem, 6vw, 4.5rem);
+  color: #fff;
+  background: linear-gradient(135deg, #151b2c 0%, #24243d 100%);
+  box-shadow: var(--pl-shadow-lg);
+}
+
+.pl-join-card::before {
+  position: absolute;
+  top: -160px;
+  right: -100px;
+  width: 380px;
+  height: 380px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--pl-cyan-rgb), 0.22), transparent 72%);
+  content: "";
+}
+
+.pl-join-content {
+  position: relative;
+  z-index: 1;
+  max-width: 650px;
+}
+
+.pl-join-content .pl-kicker {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.pl-join-content .pl-title {
   color: #fff;
 }
 
-@media (max-width: 768px) {
-  .hero-section {
-    flex-direction: column;
+.pl-join-content .pl-lead {
+  max-width: 580px;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.pl-join-content .pl-hero-actions {
+  margin-top: 1.75rem;
+}
+
+.pl-join-content .pl-btn--secondary {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.pl-join-content .pl-btn--secondary:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.pl-join-orbit {
+  position: absolute;
+  right: 8%;
+  bottom: -90px;
+  width: 360px;
+  height: 360px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 50%;
+}
+
+.pl-join-orbit span {
+  position: absolute;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 50%;
+}
+
+.pl-join-orbit span:nth-child(1) {
+  inset: 35px;
+}
+
+.pl-join-orbit span:nth-child(2) {
+  inset: 75px;
+}
+
+.pl-join-orbit span:nth-child(3) {
+  inset: 115px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+@media (max-width: 991.98px) {
+  .pl-feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  .content-box {
-    margin-bottom: 20px;
+
+  .pl-visual-card,
+  .pl-visual-image {
+    min-height: 360px;
   }
 }
 
-.join-section {
-  height: 100vh;
-  background-color: #adb1e5;
+@media (max-width: 767.98px) {
+  .pl-hero,
+  .pl-hero-content {
+    min-height: 620px;
+  }
+
+  .pl-feature-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .pl-visual-card,
+  .pl-visual-image {
+    min-height: 300px;
+  }
+
+  .pl-join-card {
+    padding: 2rem 1.25rem;
+  }
+
+  .pl-join-orbit {
+    right: -120px;
+    opacity: 0.55;
+  }
 }
 
-.join-section .content {
-  max-width: 600px;
+@media (max-width: 575.98px) {
+  .pl-hero,
+  .pl-hero-content {
+    min-height: 660px;
+  }
+
+  .pl-hero-content {
+    padding: 1.75rem 1.15rem;
+  }
+
+  .pl-hero-actions {
+    margin-top: 1.4rem;
+  }
+
+  .pl-hero-meta {
+    margin-top: 1.75rem;
+  }
+
+  .pl-visual-card,
+  .pl-visual-image {
+    min-height: 280px;
+  }
+
+  .pl-join-orbit {
+    display: none;
+  }
 }
 </style>

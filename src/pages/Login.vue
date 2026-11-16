@@ -2,7 +2,7 @@
 import Footer from '../components/Footer.vue'
 import NavBar from '../components/NavBar.vue'
 import ReCaptcha from '../components/ReCaptcha.vue'
-import { useRouter, useRoute  } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
@@ -15,22 +15,24 @@ declare global {
 
 const router = useRouter()
 const route = useRoute()
-
 const mensajeRegistro = ref('')
-
 const googleBtnRef = ref<HTMLElement | null>(null)
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID
+const nombre = ref('')
+const password = ref('')
+const errorLogin = ref('')
+const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
 
 const handleCredentialResponse = async (response: any) => {
   errorLogin.value = ''
 
   try {
     const res = await api.post('/usuarios/google-login', {
-      credential: response.credential
+      credential: response.credential,
     })
 
     localStorage.setItem('token', res.data)
-    userStore.cargarDesdeToken()
+    await userStore.cargarDesdeToken()
     router.push('/dashboard')
   } catch (error: any) {
     errorLogin.value = error.response?.data?.error || 'Error al iniciar sesión con Google'
@@ -39,24 +41,22 @@ const handleCredentialResponse = async (response: any) => {
 
 onMounted(() => {
   if (route.query.registro === 'ok') {
-    mensajeRegistro.value = "Usuario creado correctamente. Ya puedes iniciar sesión."
+    mensajeRegistro.value = 'Usuario creado correctamente. Ya puedes iniciar sesión.'
     router.replace({ query: {} })
   }
-})
 
-onMounted(() => {
   if (GOOGLE_CLIENT_ID && window.google?.accounts?.id) {
     window.google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: handleCredentialResponse,
-      ux_mode: 'popup'
+      ux_mode: 'popup',
     })
     window.google.accounts.id.renderButton(googleBtnRef.value, {
       theme: 'outline',
       size: 'large',
       text: 'continue_with',
       shape: 'pill',
-      width: 300
+      width: 300,
     })
   }
 })
@@ -67,42 +67,34 @@ onUnmounted(() => {
   }
 })
 
-const nombre = ref('')
-const password = ref('')
-const errorLogin = ref('')
-
-const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
-
 const iniciarSesion = async () => {
   errorLogin.value = ''
 
   try {
-    nombre.value = nombre.value.replace(/\s/g, '')
-    password.value = password.value.replace(/\s/g, '')
-
+    const nombreSinEspacios = nombre.value.replace(/\s/g, '')
+    const passwordSinEspacios = password.value.replace(/\s/g, '')
     const captchaToken = await captchaRef.value?.getToken()
 
     const response = await api.post('/usuarios/login', {
-      nombre: nombre.value,
-      password: password.value,
-      captchaToken
+      nombre: nombreSinEspacios,
+      password: passwordSinEspacios,
+      captchaToken,
     })
 
-    localStorage.setItem("token", response.data)
-    userStore.cargarDesdeToken()
+    localStorage.setItem('token', response.data)
+    await userStore.cargarDesdeToken()
     router.push('/dashboard')
-
   } catch (error: any) {
     captchaRef.value?.reset()
 
     if (error === 'Por favor, completa el CAPTCHA') {
       errorLogin.value = error
     } else if (error.response?.status === 401) {
-      errorLogin.value = "Usuario o contraseña incorrectos"
+      errorLogin.value = 'Usuario o contraseña incorrectos'
     } else if (error.response?.data?.error) {
       errorLogin.value = error.response.data.error
     } else {
-      errorLogin.value = "Error al iniciar sesión"
+      errorLogin.value = 'Error al iniciar sesión'
     }
   }
 }
@@ -111,91 +103,230 @@ const iniciarSesion = async () => {
 <template>
   <NavBar :logeado="false" />
 
-  <div class="container-fluid">
-    <div class="row vh-100">
-
-      <!-- Imagen izquierda -->
-      <div class="col-md-6 p-0">
-        <div class="login-image"></div>
+  <main class="auth-layout">
+    <section class="auth-visual" aria-label="Presentación de PlayLore">
+      <div class="auth-visual-content">
+        <span class="pl-kicker pl-kicker--light">Tu historia, tu comunidad</span>
+        <h2>Elige tu personaje y empieza a jugar</h2>
+        <p>
+          Crea una cuenta, explora mundos compartidos y encuentra compañeros para tus próximas historias.
+        </p>
       </div>
+    </section>
 
-      <!-- Formulario derecha -->
-      <div class="formulario col-md-6 d-flex align-items-center justify-content-center">
-        <div class="w-75">
-          <!-- Mostrasmos mensaje de registro exitoso -->
-          <div v-if="mensajeRegistro" class="alert alert-success">
-            {{ mensajeRegistro }}
+    <section class="auth-panel">
+      <div class="auth-card">
+        <span class="pl-kicker">Bienvenido de nuevo</span>
+        <h1 class="auth-heading">Iniciar sesión</h1>
+        <p class="auth-subtitle">Accede a tu cuenta para continuar tu aventura.</p>
+
+        <div v-if="mensajeRegistro" class="pl-alert pl-alert--success" role="status">
+          <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>{{ mensajeRegistro }}
+        </div>
+
+        <form @submit.prevent="iniciarSesion">
+          <div class="auth-field">
+            <label class="form-label" for="nombre">Nombre de usuario</label>
+            <input
+              v-model="nombre"
+              @input="nombre = nombre.replace(/\s/g, '')"
+              type="text"
+              class="form-control"
+              id="nombre"
+              autocomplete="username"
+              placeholder="Ingresa tu nombre de usuario"
+              required
+            />
           </div>
-          <h1 class="mb-4">Iniciar sesión</h1>
 
-          <form @submit.prevent="iniciarSesion">
-            <div class="mb-3">
-              <label for="nombre" class="form-label">Nombre de Usuario</label>
-              <input
-                v-model="nombre"
-                @input="nombre = nombre.replace(/\s/g, '')"
-                type="text"
-                class="form-control"
-                id="nombre"
-                placeholder="Ingresa tu nombre de usuario"
-                required
-              />
-            </div>
-
-            <div class="mb-3">
-              <label for="password" class="form-label">Contraseña</label>
-              <input
+          <div class="auth-field">
+            <label class="form-label" for="password">Contraseña</label>
+            <input
               v-model="password"
               @input="password = password.replace(/\s/g, '')"
               type="password"
               class="form-control"
               id="password"
+              autocomplete="current-password"
               placeholder="Ingresa tu contraseña"
               required
-              />
+            />
+            <div v-if="errorLogin" class="auth-error" role="alert">
+              {{ errorLogin }}
             </div>
-            <ReCaptcha ref="captchaRef" />
-            <div v-if="errorLogin" class="text-danger mt-2">
-                {{ errorLogin }}
-              </div>
-            <button type="submit" class="btn btn-primary w-100">
-              Iniciar sesión
-            </button>
-          </form>
-
-          <div class="d-flex align-items-center my-3">
-            <hr class="flex-grow-1" />
-            <span class="px-2 text-muted small">o</span>
-            <hr class="flex-grow-1" />
           </div>
 
-          <div ref="googleBtnRef" class="d-flex justify-content-center"></div>
+          <ReCaptcha ref="captchaRef" />
 
-          <p class="mt-3 text-center">
-            ¿No tienes cuenta?
-            <router-link to="/registro">Regístrate aquí</router-link>
-          </p>
+          <button type="submit" class="pl-btn pl-btn--primary auth-submit">
+            <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Iniciar sesión
+          </button>
+        </form>
 
-        </div>
+        <div class="auth-divider">o continúa con</div>
+        <div ref="googleBtnRef" class="google-btn-wrap"></div>
+
+        <p class="auth-switch">
+          ¿No tienes cuenta?
+          <router-link to="/registro">Regístrate aquí</router-link>
+        </p>
       </div>
+    </section>
+  </main>
 
-    </div>
-  </div>
-
-  <Footer />
+  <Footer :logeado="false" />
 </template>
 
 <style scoped>
-.login-image {
-  height: 100%;
-  width: 100%;
-  background-image: url('../assets/img/login-bg.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
+.auth-visual {
+  position: relative;
+  display: flex;
+  min-height: 650px;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+  padding: clamp(2rem, 5vw, 4rem);
+  color: #fff;
+  background: #172033 url('../assets/img/login-bg.jpg') center / cover no-repeat;
 }
 
-.formulario {
-  background-color: #ebf3e7;
+.auth-visual::before {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(23, 32, 51, 0.18), rgba(23, 32, 51, 0.92));
+  content: '';
+}
+
+.auth-visual::after {
+  position: absolute;
+  top: 12%;
+  right: 12%;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(32, 197, 199, 0.56), rgba(32, 197, 199, 0) 68%);
+  content: '';
+}
+
+.auth-visual-content {
+  position: relative;
+  z-index: 1;
+  max-width: 560px;
+}
+
+.auth-visual-content h2 {
+  margin-bottom: 0.9rem;
+  font-size: clamp(2rem, 4vw, 3.6rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+.auth-visual-content p {
+  max-width: 480px;
+  margin-bottom: 0;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.auth-panel {
+  display: flex;
+  align-items: center;
+  padding: clamp(2rem, 5vw, 4rem);
+  background: var(--pl-surface);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 490px;
+  padding: clamp(1.5rem, 4vw, 2.75rem);
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-xl);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-md);
+}
+
+.auth-heading {
+  margin-bottom: 0.4rem;
+  font-size: clamp(1.8rem, 4vw, 2.55rem);
+  font-weight: 850;
+  letter-spacing: -0.04em;
+  line-height: 1.1;
+}
+
+.auth-subtitle {
+  margin-bottom: 1.75rem;
+  color: var(--pl-muted);
+}
+
+.auth-field {
+  margin-bottom: 1rem;
+}
+
+.auth-submit {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 1.35rem 0;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  flex: 1;
+  height: 1px;
+  background: var(--pl-border);
+  content: '';
+}
+
+.auth-error {
+  margin-top: 0.55rem;
+  color: var(--pl-danger);
+  font-size: 0.84rem;
+}
+
+.auth-switch {
+  margin: 1.25rem 0 0;
+  color: var(--pl-muted);
+  text-align: center;
+}
+
+.google-btn-wrap {
+  display: flex;
+  justify-content: center;
+}
+
+@media (max-width: 991.98px) {
+  .auth-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-visual {
+    min-height: 310px;
+  }
+
+  .auth-panel {
+    min-height: auto;
+    padding: 2rem 1rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .auth-visual {
+    min-height: 280px;
+    padding: 1.5rem;
+  }
+
+  .auth-panel {
+    padding: 1.5rem 1rem;
+  }
+
+  .auth-card {
+    padding: 1.4rem 1rem;
+  }
 }
 </style>
