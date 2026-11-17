@@ -70,6 +70,8 @@ function alCambiarLayout() {
   esCompacto.value = consultaCompacta.matches
   if (!consultaMovil.matches) sidebarVisible.value = true
   if (!consultaCompacta.matches) mostrarConectados.value = true
+  // Al bajar de 992 el panel pasa a ser un cajon: se cierra para no tapar el chat.
+  else if (canalActivo.value) mostrarConectados.value = false
 }
 
 function alPulsarEscape(evento: KeyboardEvent) {
@@ -77,6 +79,11 @@ function alPulsarEscape(evento: KeyboardEvent) {
   if (esMovil.value && sidebarVisible.value) {
     evento.stopPropagation()
     cerrarSidebar(true)
+    return
+  }
+  if (esCompacto.value && mostrarConectados.value) {
+    evento.stopPropagation()
+    cerrarConectados()
   }
 }
 
@@ -166,19 +173,48 @@ function verPerfil(personajeId: number) {
 const contextMenuTarget = ref<any>(null)
 const contextMenuX = ref(0)
 const contextMenuY = ref(0)
+const contextMenuTrigger = ref<HTMLElement | null>(null)
+const contextMenuRef = ref<HTMLElement | null>(null)
+
+function posicionarContextMenu(x: number, y: number) {
+  const menuW = 220
+  const menuH = 240
+  const margen = 8
+  contextMenuX.value = Math.max(margen, Math.min(x, window.innerWidth - menuW - margen))
+  contextMenuY.value = Math.max(margen, Math.min(y, window.innerHeight - menuH - margen))
+}
+
+function enfocarPrimerItemMenu() {
+  nextTick(() => contextMenuRef.value?.querySelector<HTMLElement>('[role="menuitem"]')?.focus())
+}
 
 function abrirContextMenu(e: MouseEvent, m: any) {
   e.preventDefault()
+  contextMenuTrigger.value = null
   contextMenuTarget.value = m
-  const menuW = 180, menuH = 180
-  const maxX = window.innerWidth - menuW
-  const maxY = window.innerHeight - menuH
-  contextMenuX.value = Math.min(e.clientX, maxX)
-  contextMenuY.value = Math.min(e.clientY, maxY)
+  posicionarContextMenu(e.clientX, e.clientY)
+  enfocarPrimerItemMenu()
 }
 
-function cerrarContextMenu() {
+// Abre el mismo menu desde el boton de acciones de una fila: se ancla al boton
+// y recuerda el disparador para devolverle el foco al cerrar con Escape.
+function abrirContextMenuDesde(boton: HTMLElement, m: any) {
+  contextMenuTrigger.value = boton
+  contextMenuTarget.value = m
+  const r = boton.getBoundingClientRect()
+  posicionarContextMenu(r.right - 220, r.bottom + 4)
+  enfocarPrimerItemMenu()
+}
+
+function cerrarContextMenu(devolverFoco = false) {
+  const disparador = contextMenuTrigger.value
   contextMenuTarget.value = null
+  contextMenuTrigger.value = null
+  if (devolverFoco) nextTick(() => disparador?.focus())
+}
+
+function alNavegarMenuContexto(evento: KeyboardEvent) {
+  moverFocoEnMenu(evento, '[role="menuitem"]', () => cerrarContextMenu(true))
 }
 
 // Modales globales
@@ -1628,34 +1664,51 @@ onUnmounted(() => {
       </main>
 
       <!-- Right sidebar: connected characters -->
+      <div v-if="mostrarConectados && esCompacto" class="chat-right-sidebar-overlay"
+           @click="cerrarConectados"></div>
       <aside v-if="canalActivo && mostrarConectados" id="chat-conectados"
-             class="chat-right-sidebar border-start d-none d-lg-flex flex-column"
+             class="chat-right-sidebar flex-column"
              aria-label="Personajes conectados">
-        <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
+        <div class="chat-right-sidebar__cabecera">
           <h2 class="chat-sidebar__titulo mb-0">Conectados ({{ miembrosOnline.length }})</h2>
           <button type="button" class="btn-close btn-close-sm" aria-label="Ocultar conectados" @click="cerrarConectados"></button>
         </div>
-        <div class="list-group list-group-flush overflow-auto flex-grow-1">
-          <div v-if="cargandoMiembrosOnline" class="list-group-item text-center py-4">
-            <div class="spinner-border spinner-border-sm text-secondary"></div>
-          </div>
-          <div v-else-if="miembrosOnline.length === 0" class="list-group-item text-muted text-center py-3">
-            <small>No hay personajes conectados</small>
-          </div>
-          <div v-for="m in miembrosOnline" :key="m.id" class="list-group-item d-flex align-items-center gap-2"
-               @contextmenu.prevent="abrirContextMenu($event, m)">
-            <div class="position-relative" style="cursor:pointer;" @click="verPerfil(m.personajeId)">
-              <img :src="avatarUrl(m.personajeAvatar)"
-                   class="rounded-circle" width="32" height="32" style="object-fit: cover;" />
-              <span class="online-dot" :style="{ background: getStatusColor(statusMap.get(m.personajeId)) }"></span>
-            </div>
-            <i v-if="m.rol === 'OWNER'" class="bi bi-key-fill text-warning" title="Dueño del canal"></i>
-            <i v-else-if="m.rol === 'MOD'" class="bi bi-shield-fill-check text-success" title="Moderador"></i>
-            <small class="text-truncate" style="cursor:pointer;" @click="verPerfil(m.personajeId)">{{ m.personajeNombre }}</small>
-            <i v-if="estaSilenciado(m)" class="bi bi-volume-mute-fill text-danger ms-auto"
-               :title="'Silenciado hasta ' + new Date(m.silenciadoHasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })"></i>
-          </div>
+        <div v-if="cargandoMiembrosOnline" class="chat-right-sidebar__estado" role="status">
+          <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <span>Cargando conectados</span>
         </div>
+        <p v-else-if="miembrosOnline.length === 0" class="chat-right-sidebar__estado">
+          No hay personajes conectados
+        </p>
+        <ul v-else class="miembros-panel">
+          <li v-for="m in miembrosOnline" :key="m.id" class="miembro-fila"
+              @contextmenu.prevent="abrirContextMenu($event, m)">
+            <button type="button" class="miembro-fila__perfil"
+                    :aria-label="`Ver el perfil de ${m.personajeNombre}`"
+                    @click="verPerfil(m.personajeId)">
+              <span class="miembro-fila__avatar">
+                <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle" width="32" height="32" alt="" />
+                <span class="online-dot" :style="{ background: getStatusColor(statusMap.get(m.personajeId)) }" aria-hidden="true"></span>
+              </span>
+              <span class="miembro-fila__nombre text-truncate">{{ m.personajeNombre }}</span>
+              <span class="visually-hidden">{{ etiquetaEstado(m.personajeId) }}</span>
+            </button>
+            <i v-if="m.rol === 'OWNER'" role="img" aria-label="Dueño del canal"
+               class="bi bi-key-fill miembro-fila__rol miembro-fila__rol--owner"></i>
+            <i v-else-if="m.rol === 'MOD'" role="img" aria-label="Moderador"
+               class="bi bi-shield-fill-check miembro-fila__rol miembro-fila__rol--mod"></i>
+            <i v-if="estaSilenciado(m)" role="img"
+               :aria-label="'Silenciado hasta ' + new Date(m.silenciadoHasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })"
+               class="bi bi-volume-mute-fill miembro-fila__silencio"></i>
+            <button type="button" class="miembro-fila__acciones"
+                    :aria-label="`Acciones sobre ${m.personajeNombre}`"
+                    aria-haspopup="menu"
+                    :aria-expanded="contextMenuTarget?.id === m.id"
+                    @click="abrirContextMenuDesde($event.currentTarget as HTMLElement, m)">
+              <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+            </button>
+          </li>
+        </ul>
       </aside>
     </div>
   </div>
@@ -1910,30 +1963,33 @@ onUnmounted(() => {
     </div>
   </div>
 
-  <!-- Context menu: clic derecho en conectados -->
-  <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu" @contextmenu.prevent="cerrarContextMenu"></div>
-  <div v-if="contextMenuTarget" class="context-menu" :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }" @contextmenu.prevent>
-    <button class="context-menu-item" @click="verPerfil(contextMenuTarget.personajeId); cerrarContextMenu()">
-      <i class="bi bi-person-vcard me-2"></i> Perfil
+  <!-- Context menu: clic derecho o boton de acciones en conectados -->
+  <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu()" @contextmenu.prevent="cerrarContextMenu()"></div>
+  <div v-if="contextMenuTarget" id="chat-miembro-menu" ref="contextMenuRef" class="context-menu"
+       role="menu" :aria-label="`Acciones sobre ${contextMenuTarget.personajeNombre}`"
+       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+       @contextmenu.prevent @keydown="alNavegarMenuContexto">
+    <button type="button" role="menuitem" class="context-menu-item" @click="verPerfil(contextMenuTarget.personajeId); cerrarContextMenu()">
+      <i class="bi bi-person-vcard" aria-hidden="true"></i> Perfil
     </button>
-    <button class="context-menu-item" @click="abrirConversacionPrivada(contextMenuTarget.personajeId, contextMenuTarget.personajeNombre, contextMenuTarget.personajeAvatar)">
-      <i class="bi bi-envelope me-2"></i> Mensaje Privado
+    <button type="button" role="menuitem" class="context-menu-item" @click="abrirConversacionPrivada(contextMenuTarget.personajeId, contextMenuTarget.personajeNombre, contextMenuTarget.personajeAvatar)">
+      <i class="bi bi-envelope" aria-hidden="true"></i> Mensaje Privado
     </button>
     <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'" class="context-menu-divider"></div>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'"
-            class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
-      <i class="bi bi-shield me-2"></i> Ascender a moderador
+            type="button" role="menuitem" class="context-menu-item" @click="ascenderAMod(contextMenuTarget)">
+      <i class="bi bi-shield" aria-hidden="true"></i> Ascender a moderador
     </button>
     <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MOD'" class="context-menu-divider"></div>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MOD'"
-            class="context-menu-item" @click="descenderAMember(contextMenuTarget)">
-      <i class="bi bi-arrow-down-circle me-2"></i> Descender a miembro
+            type="button" role="menuitem" class="context-menu-item" @click="descenderAMember(contextMenuTarget)">
+      <i class="bi bi-arrow-down-circle" aria-hidden="true"></i> Descender a miembro
     </button>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN' || miRolEnCanal === 'MOD')
                   && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
-            class="context-menu-item text-danger" @click="expulsarDelCanal(contextMenuTarget)">
-      <i class="bi bi-door-open me-2"></i> Expulsar del canal
+            type="button" role="menuitem" class="context-menu-item context-menu-item--peligro" @click="expulsarDelCanal(contextMenuTarget)">
+      <i class="bi bi-door-open" aria-hidden="true"></i> Expulsar del canal
     </button>
     <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
               && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
@@ -1941,15 +1997,15 @@ onUnmounted(() => {
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
                   && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
-            class="context-menu-item text-danger" @click="abrirBanModal(contextMenuTarget)">
-      <i class="bi bi-hammer me-2"></i> Banear del canal
+            type="button" role="menuitem" class="context-menu-item context-menu-item--peligro" @click="abrirBanModal(contextMenuTarget)">
+      <i class="bi bi-hammer" aria-hidden="true"></i> Banear del canal
     </button>
     <div v-if="puedeSilenciarContextMenu" class="context-menu-divider"></div>
-    <button v-if="puedeSilenciarContextMenu" class="context-menu-item"
-            :class="estaSilenciado(contextMenuTarget) ? '' : 'text-danger'"
+    <button v-if="puedeSilenciarContextMenu" type="button" role="menuitem" class="context-menu-item"
+            :class="estaSilenciado(contextMenuTarget) ? '' : 'context-menu-item--peligro'"
             @click="estaSilenciado(contextMenuTarget) ? desilenciar(contextMenuTarget) : abrirSilenciarModal(contextMenuTarget)">
-      <i v-if="estaSilenciado(contextMenuTarget)" class="bi bi-volume-up me-2"></i>
-      <i v-else class="bi bi-volume-mute me-2"></i>
+      <i v-if="estaSilenciado(contextMenuTarget)" class="bi bi-volume-up" aria-hidden="true"></i>
+      <i v-else class="bi bi-volume-mute" aria-hidden="true"></i>
       {{ estaSilenciado(contextMenuTarget) ? 'Desilenciar' : 'Silenciar' }}
     </button>
   </div>
@@ -2727,6 +2783,155 @@ onUnmounted(() => {
   background: var(--pl-surface-soft);
 }
 
+.chat-right-sidebar__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.chat-right-sidebar__estado {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 1.5rem 0.9rem;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+  text-align: center;
+}
+
+.miembros-panel {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0.35rem;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.miembro-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  border-radius: var(--pl-radius-md);
+}
+.miembro-fila:hover {
+  background: rgba(var(--pl-primary-rgb), 0.06);
+}
+
+.miembro-fila__perfil {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0.4rem 0.35rem;
+  border: 0;
+  border-radius: var(--pl-radius-md);
+  background: transparent;
+  color: var(--pl-ink);
+  text-align: left;
+  cursor: pointer;
+}
+.miembro-fila__perfil:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
+.miembro-fila__avatar {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+.miembro-fila__nombre {
+  font-size: 0.82rem;
+}
+.miembro-fila__rol {
+  flex-shrink: 0;
+  font-size: 0.78rem;
+}
+.miembro-fila__rol--owner {
+  color: var(--pl-warning-strong);
+}
+.miembro-fila__rol--mod {
+  color: var(--pl-success-ink);
+}
+.miembro-fila__silencio {
+  flex-shrink: 0;
+  color: var(--pl-danger-ink);
+  font-size: 0.78rem;
+}
+
+.miembro-fila__acciones {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pl-muted);
+  opacity: 0;
+  transition: opacity 0.12s, background 0.12s;
+}
+.miembro-fila:hover .miembro-fila__acciones,
+.miembro-fila__acciones:focus-visible,
+.miembro-fila__acciones[aria-expanded='true'] {
+  opacity: 1;
+}
+.miembro-fila__acciones:hover {
+  background: rgba(var(--pl-dark-rgb), 0.1);
+  color: var(--pl-ink);
+}
+.miembro-fila__acciones:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+@media (hover: none) {
+  .miembro-fila__acciones {
+    opacity: 1;
+  }
+}
+@media (pointer: coarse) {
+  .miembro-fila__perfil {
+    min-height: 44px;
+  }
+  .miembro-fila__acciones {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.chat-right-sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1044;
+  background: rgba(8, 12, 28, 0.45);
+}
+
+@media (max-width: 991.98px) {
+  .chat-right-sidebar {
+    position: fixed;
+    inset-block: 0;
+    inset-inline-end: 0;
+    z-index: 1045;
+    width: min(320px, 86vw);
+    min-width: 0;
+    box-shadow: var(--pl-shadow-lg);
+  }
+}
+
+@media (min-width: 992px) {
+  .chat-right-sidebar {
+    border-left: 1px solid var(--pl-border);
+  }
+}
+
 .online-dot {
   position: absolute;
   bottom: 0;
@@ -2745,7 +2950,7 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   z-index: 1071;
-  min-width: 180px;
+  min-width: 210px;
   padding: 0.3rem;
   border: 1px solid var(--pl-border);
   border-radius: var(--pl-radius-md);
@@ -2755,7 +2960,7 @@ onUnmounted(() => {
 .context-menu-item {
   display: flex;
   align-items: center;
-  gap: 0.25rem;
+  gap: 0.55rem;
   width: 100%;
   padding: 0.5rem 0.7rem;
   border: 0;
@@ -2770,6 +2975,12 @@ onUnmounted(() => {
 .context-menu-item:focus-visible {
   outline: 2px solid var(--pl-primary);
   outline-offset: -2px;
+}
+.context-menu-item--peligro {
+  color: var(--pl-danger-ink);
+}
+.context-menu-item--peligro:hover {
+  background: rgba(var(--pl-danger-rgb), 0.1);
 }
 .context-menu-divider {
   height: 1px;
