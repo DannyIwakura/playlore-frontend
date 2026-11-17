@@ -207,14 +207,14 @@ Mejorar la primera impresión y reducir la fricción en el acceso y la creación
 
 ### Tareas
 
-- [ ] Rediseñar `Login.vue`.
-- [ ] Rediseñar `Registro.vue`.
-- [ ] Usar tarjetas o paneles con jerarquía clara.
-- [ ] Mejorar etiquetas, errores, mensajes de ayuda y estados de validación.
-- [ ] Añadir estados de carga y error sin bloquear la interfaz.
-- [ ] Mejorar la experiencia del formulario en móvil.
-- [ ] Mantener OAuth y reCAPTCHA si forman parte del flujo actual.
-- [ ] Evitar mensajes genéricos cuando el backend devuelva un error concreto.
+- [x] Rediseñar `Login.vue`.
+- [x] Rediseñar `Registro.vue`.
+- [x] Usar tarjetas o paneles con jerarquía clara.
+- [x] Mejorar etiquetas, errores, mensajes de ayuda y estados de validación.
+- [x] Añadir estados de carga y error sin bloquear la interfaz.
+- [x] Mejorar la experiencia del formulario en móvil.
+- [x] Mantener OAuth y reCAPTCHA si forman parte del flujo actual.
+- [x] Evitar mensajes genéricos cuando el backend devuelva un error concreto.
 
 ### Entregables
 
@@ -240,16 +240,16 @@ Dar al panel principal y a la gestión de usuario una apariencia más organizada
 
 ### Tareas
 
-- [ ] Rediseñar `Dashboard.vue`.
-- [ ] Crear una cabecera de dashboard con resumen visual.
-- [ ] Mejorar tarjetas de accesos rápidos.
-- [ ] Mejorar la sección de amigos recientes.
-- [ ] Añadir estados de carga, vacío y error.
-- [ ] Rediseñar `PerfilUsuario.vue`.
-- [ ] Rediseñar `EditarFormulario.vue`.
-- [ ] Rediseñar `AmigosList.vue`.
-- [ ] Unificar botones, badges y acciones de usuario.
-- [ ] Mejorar la zona de peligro sin perder claridad ni seguridad.
+- [x] Rediseñar `Dashboard.vue`.
+- [x] Crear una cabecera de dashboard con resumen visual.
+- [x] Mejorar tarjetas de accesos rápidos.
+- [x] Mejorar la sección de amigos recientes.
+- [x] Añadir estados de carga, vacío y error.
+- [x] Rediseñar `PerfilUsuario.vue`.
+- [x] Rediseñar `EditarFormulario.vue`.
+- [x] Rediseñar `AmigosList.vue`.
+- [x] Unificar botones, badges y acciones de usuario.
+- [x] Mejorar la zona de peligro sin perder claridad ni seguridad.
 
 ### Entregables
 
@@ -277,14 +277,14 @@ Rediseñar todo el flujo de creación, búsqueda y gestión de personajes.
 
 - [ ] Rediseñar `PersonajesList.vue`.
 - [ ] Rediseñar `BuscarPersonajes.vue`.
-- [ ] Rediseñar `NuevoPersonajeForm.vue`.
-- [ ] Rediseñar `EditarPersonajeForm.vue`.
+- [x] Rediseñar `NuevoPersonajeForm.vue`.
+- [x] Rediseñar `EditarPersonajeForm.vue`.
 - [ ] Rediseñar `PerfilPersonajeView.vue`.
-- [ ] Rediseñar `AnadirCategoriaForm.vue`.
+- [x] Rediseñar `AnadirCategoriaForm.vue`.
 - [ ] Crear filtros y controles de búsqueda más claros.
 - [ ] Añadir estados de carga, vacío y error.
 - [ ] Mejorar la presentación de galerías, atributos y categorías.
-- [ ] Adaptar formularios largos a una experiencia móvil usable.
+- [x] Adaptar formularios largos a una experiencia móvil usable.
 
 ### Entregables
 
