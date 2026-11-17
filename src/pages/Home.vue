@@ -201,7 +201,7 @@ onBeforeUnmount(() => {
             <p class="pl-lead">
               Crea tu cuenta en pocos minutos y empieza a construir tu lugar dentro de PlayLore.
             </p>
-            <div class="pl-hero-actions justify-content-center">
+            <div class="pl-hero-actions">
               <router-link to="/registro" class="pl-btn pl-btn--primary">
                 <i class="bi bi-emoji-smile-fill me-1" aria-hidden="true"></i>Registrarme gratis
               </router-link>
