@@ -1,17 +1,20 @@
 <script setup lang="ts">
-import { reactive, onMounted } from 'vue'
+import { reactive, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
 import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
 import api from '../../services/api'
+import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 const route = useRoute()
 const router = useRouter()
 const personajeId = route.params.id
 const errores = reactive<Record<string, string>>({})
+const formRef = ref<HTMLFormElement | null>(null)
+const enviando = ref(false)
 
 const personaje = reactive({
   nombre: "",
@@ -53,6 +56,7 @@ function handleAvatarUpload(event: Event) {
 async function actualizarPersonaje() {
   // Limpiar mensajes de errores de validación
   Object.keys(errores).forEach(key => delete errores[key])
+  enviando.value = true
 
   try {
     const formData = new FormData()
@@ -82,9 +86,12 @@ async function actualizarPersonaje() {
   } catch (error: any) {
     if (error.response?.status === 400) {
       Object.assign(errores, error.response.data)
+      await enfocarPrimerError(formRef.value)
     } else {
       // error shown in form or already handled upstream
     }
+  } finally {
+    enviando.value = false
   }
 }
 </script>
@@ -100,78 +107,130 @@ async function actualizarPersonaje() {
         <p class="pl-lead">Actualiza los datos de tu personaje y gestiona su galería.</p>
       </header>
 
-      <form @submit.prevent="actualizarPersonaje">
+      <form ref="formRef" @submit.prevent="actualizarPersonaje" :aria-busy="enviando || undefined">
         <div class="card form-card">
           <div class="card-body">
-            <div class="mb-3">
+            <div class="pl-field">
               <label class="form-label" for="nombre">Nombre del personaje</label>
-              <input id="nombre" v-model="personaje.nombre" type="text" class="form-control" required />
-              <div v-if="errores.nombre" class="field-error">
-                {{ errores.nombre }}
-              </div>
+              <input
+                id="nombre"
+                v-model="personaje.nombre"
+                type="text"
+                class="form-control"
+                required
+                :aria-invalid="errores.nombre ? 'true' : undefined"
+                :aria-describedby="errores.nombre ? 'nombre-error' : undefined"
+              />
+              <p v-if="errores.nombre" id="nombre-error" class="pl-field__error">
+                <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.nombre }}
+              </p>
             </div>
 
             <div class="row g-3">
               <div class="col-md-4">
-                <div class="mb-3">
+                <div class="pl-field">
                   <label class="form-label" for="genero">Género</label>
-                  <select id="genero" v-model="personaje.genero_personaje" class="form-select">
+                  <select
+                    id="genero"
+                    v-model="personaje.genero_personaje"
+                    class="form-select"
+                    :aria-invalid="errores.genero ? 'true' : undefined"
+                    :aria-describedby="errores.genero ? 'genero-error' : undefined"
+                  >
                     <option value="Masculino">Masculino</option>
                     <option value="Femenino">Femenino</option>
                   </select>
-                  <div v-if="errores.genero" class="field-error">
-                    {{ errores.genero }}
-                  </div>
+                  <p v-if="errores.genero" id="genero-error" class="pl-field__error">
+                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.genero }}
+                  </p>
                 </div>
               </div>
 
               <div class="col-md-4">
-                <div class="mb-3">
+                <div class="pl-field">
                   <label class="form-label" for="edad">Edad</label>
-                  <input id="edad" v-model="personaje.edad_personaje" type="number" class="form-control" />
-                  <div v-if="errores.edadPersonaje" class="field-error">
-                    {{ errores.edadPersonaje }}
-                  </div>
+                  <input
+                    id="edad"
+                    v-model="personaje.edad_personaje"
+                    type="number"
+                    class="form-control"
+                    :aria-invalid="errores.edadPersonaje ? 'true' : undefined"
+                    :aria-describedby="errores.edadPersonaje ? 'edad-error' : undefined"
+                  />
+                  <p v-if="errores.edadPersonaje" id="edad-error" class="pl-field__error">
+                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.edadPersonaje }}
+                  </p>
                 </div>
               </div>
 
               <div class="col-md-4">
-                <div class="mb-3">
-                  <label class="form-label d-block">Avatar actual</label>
+                <div class="pl-field">
+                  <label class="form-label d-block" for="avatar">Avatar actual</label>
                   <img v-if="personaje.avatarActual" :src="BASE_URL + personaje.avatarActual" class="avatar-preview mb-2" alt="Avatar actual del personaje" />
-                  <input type="file" class="form-control" @change="handleAvatarUpload" />
+                  <input
+                    id="avatar"
+                    type="file"
+                    class="form-control"
+                    accept="image/*"
+                    :aria-describedby="errores.avatarFile ? 'avatar-hint avatar-error' : 'avatar-hint'"
+                    :aria-invalid="errores.avatarFile ? 'true' : undefined"
+                    @change="handleAvatarUpload"
+                  />
+                  <p id="avatar-hint" class="pl-field__hint">JPG, PNG o WEBP. Máx. 400x400 px.</p>
+                  <p v-if="errores.avatarFile" id="avatar-error" class="pl-field__error">
+                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.avatarFile }}
+                  </p>
                 </div>
               </div>
 
               <div class="col-md-6">
-                <div class="mb-3">
+                <div class="pl-field">
                   <label class="form-label" for="raza">Raza</label>
-                  <input id="raza" v-model="personaje.raza" type="text" class="form-control" />
-                  <div v-if="errores.raza" class="field-error">
-                    {{ errores.raza }}
-                  </div>
+                  <input
+                    id="raza"
+                    v-model="personaje.raza"
+                    type="text"
+                    class="form-control"
+                    :aria-invalid="errores.raza ? 'true' : undefined"
+                    :aria-describedby="errores.raza ? 'raza-error' : undefined"
+                  />
+                  <p v-if="errores.raza" id="raza-error" class="pl-field__error">
+                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.raza }}
+                  </p>
                 </div>
               </div>
 
               <div class="col-md-6">
-                <div class="mb-3">
+                <div class="pl-field">
                   <label class="form-label" for="clase">Clase</label>
-                  <input id="clase" v-model="personaje.clase" type="text" class="form-control" />
-                  <div v-if="errores.clase" class="field-error">
-                    {{ errores.clase }}
-                  </div>
+                  <input
+                    id="clase"
+                    v-model="personaje.clase"
+                    type="text"
+                    class="form-control"
+                    :aria-invalid="errores.clase ? 'true' : undefined"
+                    :aria-describedby="errores.clase ? 'clase-error' : undefined"
+                  />
+                  <p v-if="errores.clase" id="clase-error" class="pl-field__error">
+                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.clase }}
+                  </p>
                 </div>
               </div>
             </div>
 
-            <div class="mb-3">
+            <div class="pl-field">
               <label class="form-label d-block" for="trasfondo">Trasfondo</label>
               <RichTextEditor v-model="personaje.trasfondo" />
+              <p v-if="errores.trasfondo" class="pl-field__error">
+                <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.trasfondo }}
+              </p>
             </div>
 
             <div class="d-flex gap-2">
-              <button type="submit" class="pl-btn pl-btn--primary">
-                <i class="bi bi-check-lg" aria-hidden="true"></i> Guardar cambios
+              <button type="submit" class="pl-btn pl-btn--primary" :disabled="enviando">
+                <span v-if="enviando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <i v-else class="bi bi-check-lg" aria-hidden="true"></i>
+                {{ enviando ? 'Guardando…' : 'Guardar cambios' }}
               </button>
               <router-link to="/personajes" class="pl-btn pl-btn--secondary">Cancelar</router-link>
             </div>
@@ -194,12 +253,6 @@ async function actualizarPersonaje() {
 <style scoped>
 .form-card {
   max-width: 860px;
-}
-
-.field-error {
-  margin-top: 0.4rem;
-  color: var(--pl-danger);
-  font-size: 0.84rem;
 }
 
 .avatar-preview {
