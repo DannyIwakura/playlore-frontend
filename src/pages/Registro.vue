@@ -228,6 +228,7 @@ const registrarUsuario = async () => {
 .auth-panel {
   display: flex;
   align-items: center;
+  justify-content: center;
   padding: clamp(2rem, 5vw, 4rem);
   background: var(--pl-surface);
 }
