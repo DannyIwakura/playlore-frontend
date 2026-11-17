@@ -26,7 +26,7 @@ useModalFocus({
         <h5 class="mb-0"><i class="bi bi-info-circle me-2 text-primary"></i>{{ titulo ?? 'Aviso' }}</h5>
         <button type="button" class="btn-close" aria-label="Cerrar" @click="emit('cerrar')"></button>
       </div>
-      <div class="mb-4" style="white-space: pre-wrap">{{ mensaje }}</div>
+      <div class="mb-4 pl-pre-wrap">{{ mensaje }}</div>
       <div class="d-flex justify-content-end">
         <button type="button" class="btn btn-primary" @click="emit('cerrar')">Aceptar</button>
       </div>

@@ -72,6 +72,23 @@ CLS ≤ 0.0005 en todas las rutas salvo `/chat` (0.0088 escritorio, 0.0247 móvi
 vertical de la selección de personaje al llegar los datos) y ambos por debajo de 0.1; 0 errores de
 página.
 
+## Avance de la Fase 11 (limpieza y documentación)
+
+La Fase 11 no añade funcionalidad visual: elimina CSS muerto, convierte estilos inline estáticos en
+clases y documenta el sistema. En clave de accesibilidad:
+
+- Los estilos inline sustituidos (`.pl-pre-wrap` en los tres modales, `.pl-text-xs` en el chat,
+  `.pl-avatar` en 8 imágenes del chat) reproducen exactamente el valor anterior, sin cambios de
+  contraste ni de tamaño.
+- Se eliminaron overrides globales sin uso (`.alert*`, `.pagination`, `.card-header/body`,
+  `.form-text`, `.btn-success`, `.btn-secondary`, `.spinner-grow`, `.pl-divider`); ninguno afectaba a
+  una pantalla viva, por lo que no cambia el resultado de contraste ni de foco.
+- La auditoría Playwright se repitió sobre las mismas 13 rutas a 1280 y 375 px y devuelve los mismos
+  valores que la Fase 10: 0 scroll horizontal, 0 violaciones de contraste calculables, 18/18 elementos
+  con foco visible en `/dashboard`, CLS ≤ 0.0247 y 0 errores de página.
+- Nuevos documentos de apoyo: `docs/COMPONENTES-UI.md` (tokens, utilidades, componentes y
+  convenciones) y `docs/CHECKLIST-UI.md` (revisión de accesibilidad y UI antes de cerrar un cambio).
+
 ## Hallazgos pendientes (deuda priorizada)
 
 ### Prioridad 1

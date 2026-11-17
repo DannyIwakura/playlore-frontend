@@ -463,14 +463,14 @@ Dejar el rediseño mantenible y evitar que los estilos vuelvan a dispersarse.
 
 ### Tareas
 
-- [ ] Eliminar estilos obsoletos de páginas ya rediseñadas.
-- [ ] Consolidar clases repetidas en componentes compartidos.
-- [ ] Evitar `style` inline cuando exista una clase del sistema.
-- [ ] Revisar nombres de clases y consistencia de convenciones.
-- [ ] Documentar componentes visuales reutilizables.
-- [ ] Actualizar `docs/ACCESIBILIDAD.md` con los avances.
-- [ ] Actualizar la documentación de desarrollo si cambia la estructura.
-- [ ] Preparar una checklist de revisión para futuras modificaciones.
+- [x] Eliminar estilos obsoletos de páginas ya rediseñadas.
+- [x] Consolidar clases repetidas en componentes compartidos.
+- [x] Evitar `style` inline cuando exista una clase del sistema.
+- [x] Revisar nombres de clases y consistencia de convenciones.
+- [x] Documentar componentes visuales reutilizables.
+- [x] Actualizar `docs/ACCESIBILIDAD.md` con los avances.
+- [x] Actualizar la documentación de desarrollo si cambia la estructura.
+- [x] Preparar una checklist de revisión para futuras modificaciones.
 
 ### Entregables
 
@@ -484,6 +484,27 @@ Dejar el rediseño mantenible y evitar que los estilos vuelvan a dispersarse.
 - No quedan estilos duplicados sin necesidad.
 - Una nueva pantalla puede seguir el sistema sin copiar bloques de otra página.
 - La documentación refleja el estado real del proyecto.
+
+### Resultado
+
+- **CSS muerto eliminado**: en `style.css` se quitaron `.alert`/`.alert-*`, `.btn-secondary`,
+  `.btn-success`, `.card-header`, `.card-body`, `.form-text`, `.pagination`/`.page-*`,
+  `.modal-dialog-custom`, `.modal-header/footer`, `.modal-content .btn-close`, `.spinner-grow`
+  y `.pl-divider`; `.modal-content-custom` quedó como única regla del modal. En `ChatWindow.vue`,
+  `hover-bg` y `mensaje-burbuja`; en `NavBar.vue`, `navbar-logo`.
+- **Estilos inline**: 30 → 8, y los 8 que quedan son `:style` calculados en ejecución (color de
+  estado, posición del menú contextual, alto de `ExpandableText`, color de categoría). Los estáticos
+  pasaron a `.pl-pre-wrap` (3 modales), `.pl-text-xs` (chat), `.pl-avatar` (8 imágenes del chat) y
+  clases locales (`chat-seleccion`, `chat-seleccion__inner`, `busqueda-resultados`, `avatar-preview`).
+- **Nombres**: se conservan los bloques BEM existentes; no se renombraron. Las variantes dinámicas
+  (`chat-rol-badge--*`, `editor-toolbar__glifo--*`, `modal-formulario--*`, `fade-*`) se verificaron
+  como generadas por plantilla/transición y se mantienen.
+- **Documentación**: nuevos `docs/COMPONENTES-UI.md` (tokens, utilidades, componentes, convenciones)
+  y `docs/CHECKLIST-UI.md` (revisión antes de cerrar una modificación de UI). `docs/ACCESIBILIDAD.md`
+  y este roadmap actualizados.
+- **Verificación**: `typecheck`, `lint`, 223 tests y build en verde. La auditoría Playwright de la
+  Fase 10 repite los mismos valores (0 scroll horizontal, 0 violaciones de contraste calculables,
+  18/18 foco visible, CLS ≤ 0.0247, 0 errores), sin regresiones.
 
 ---
 
@@ -639,11 +660,11 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 | Tarjeta de personaje sin anillo de foco y objetivos táctiles por debajo de 24 px | `e09fc25` | `outline` en la tarjeta con `:has(...:focus-visible)`; indicadores del carrusel a `min-height: 24px`. 18/18 elementos con foco visible en `/dashboard`. |
 | Imágenes de 3-13 MB en login, registro, home y avatar | `e09fc25` | Redimensionadas con Pillow (calidad 82, progresivo): ~30.9 MB → ~1.6 MB. |
 | CLS 0.1238 en `/personaje/3` y salto de la navbar por la fuente de iconos | `e09fc25` | Footer oculto durante la carga del perfil; ancho de icono reservado (`width: 1em`) y precarga del `woff2`. CLS 0 en `/personaje/3`; `/chat` móvil queda en 0.0247. |
+| CSS muerto y estilos inline dispersos | Fase 11 | Eliminados los bloques sin uso (`.alert*`, `.pagination`, `.card-*`, `.form-text`, `.btn-success`, `.btn-secondary`, `.spinner-grow`, `.pl-divider`, `hover-bg`, `mensaje-burbuja`, `navbar-logo`). Inline estático 30 → 0; los 8 `:style` restantes son dinámicos. |
 
 ### Abiertos
 
-- **Fase 11**: limpieza, consolidación de estilos y documentación de componentes.
-- **Chunk `RichTextEditor`**: ~379 kB (120 kB gzip). No se ha partido; valorar carga diferida del editor o extensiones bajo demanda en la Fase 11.
+- **Chunk `RichTextEditor`**: 370.2 kB (120 kB gzip) en su propio chunk, cargado solo por las rutas de personajes. Valorar cargar extensiones de Tiptap bajo demanda si crece más; no es bloqueante.
 - **Prueba con lector de pantalla real**: la auditoría de la Fase 10 es automática (Playwright + cálculo WCAG); falta NVDA/VoiceOver.
 - **Imágenes del hero móvil**: `carrusel1.jpg` (1333 px) se muestra a 360 px de ancho; valorar `srcset` si se añaden densidades.
 - **Cierre retrospectivo de las fases 0-3**: cerradas en este documento con los commits `8cd8313` (sistema de diseño), `542e95d` (navegación), `17862f1` (web pública y autenticación) y `7d3460b` (dashboard/personajes/administración). La Fase 0 se hizo sobre `main` y no conservó matriz de pantallas ni capturas.

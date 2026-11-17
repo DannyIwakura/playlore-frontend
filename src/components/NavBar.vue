@@ -553,11 +553,6 @@ onUnmounted(() => {
     font-size: 1rem;
   }
 
-  .navbar-logo {
-    width: 34px;
-    height: 34px;
-  }
-
   .user-name {
     display: none;
   }

@@ -66,7 +66,7 @@ function cancelar() {
         <h5 class="mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>{{ titulo }}</h5>
         <button class="btn-close" type="button" aria-label="Cerrar" @click="cancelar"></button>
       </div>
-      <p v-if="mensaje" :id="mensajeId" class="mb-3" style="white-space: pre-wrap">{{ mensaje }}</p>
+      <p v-if="mensaje" :id="mensajeId" class="mb-3 pl-pre-wrap">{{ mensaje }}</p>
       <form @submit.prevent="confirmar">
         <label class="form-label" :for="inputId">
           <span class="small text-muted">{{ etiqueta }}</span>

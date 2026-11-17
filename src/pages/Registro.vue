@@ -163,7 +163,7 @@ const registrarUsuario = async () => {
             />
             <small id="avatar-hint" class="text-muted d-block mt-1">JPG, PNG o WEBP. Máx. 2 MB. 200x200 px</small>
             <div v-if="avatarPreview" class="mt-2">
-              <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail" style="max-height: 96px;" />
+              <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail avatar-preview" />
             </div>
             <p v-if="errores.avatarFile" id="avatar-error" class="pl-field__error">
               <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.avatarFile }}
@@ -210,5 +210,9 @@ const registrarUsuario = async () => {
 
 .text-muted {
   color: var(--pl-muted) !important;
+}
+
+.avatar-preview {
+  max-height: 96px;
 }
 </style>

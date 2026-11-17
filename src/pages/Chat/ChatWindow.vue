@@ -1266,8 +1266,8 @@ onUnmounted(() => {
 
 <template>
   <!-- Sin sesiones activas: selección de personajes -->
-  <div v-if="characterSessionStore.sesiones.value.length === 0" class="chat-fullpage bg-gradient-selection d-flex flex-column align-items-center" style="overflow-y: auto;" @contextmenu.prevent>
-    <div class="container my-auto" style="max-width: 720px;">
+  <div v-if="characterSessionStore.sesiones.value.length === 0" class="chat-fullpage chat-seleccion bg-gradient-selection d-flex flex-column align-items-center" @contextmenu.prevent>
+    <div class="container my-auto chat-seleccion__inner">
       <div class="text-center mb-4">
         <h1 class="fw-bold d-flex align-items-center justify-content-center gap-2">
           <span class="brand-wordmark">Play<span class="brand-wordmark__accent">Lore</span></span>
@@ -1290,8 +1290,8 @@ onUnmounted(() => {
              class="col-6 col-sm-4 col-md-3">
           <div class="card personaje-card h-100 w-100 border-0 shadow-sm text-center p-3">
             <img :src="avatarUrl(p.avatar)"
-                 class="rounded-circle mx-auto mb-2"
-                 width="64" height="64" style="object-fit: cover;"
+                 class="pl-avatar mx-auto mb-2"
+                 width="64" height="64"
                  alt="" />
             <h6 class="mb-0 text-truncate">{{ p.nombre }}</h6>
             <small class="text-muted d-block">{{ p.raza || '—' }}</small>
@@ -1322,7 +1322,7 @@ onUnmounted(() => {
                 @click="cambiarSesion(idx)">
           <span class="position-relative">
             <img :src="avatarUrl(sesion.personajeAvatar)"
-                 class="rounded-circle" width="28" height="28" style="object-fit:cover;" alt="" />
+                 class="pl-avatar" width="28" height="28" alt="" />
             <span class="tab-status-dot" :style="{ background: getTabStatusColor(sesion.personajeId) }"></span>
             <span class="visually-hidden">{{ etiquetaEstado(sesion.personajeId) }}</span>
           </span>
@@ -1372,7 +1372,7 @@ onUnmounted(() => {
                     :aria-label="`Ver el perfil de ${characterSessionStore.sesionActual.value?.personajeNombre ?? 'tu personaje'}`"
                     @click="verPerfil(characterSessionStore.sesionActual.value?.personajeId)">
               <img :src="avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar)"
-                   class="rounded-circle" width="44" height="44" style="object-fit: cover;" alt="" />
+                   class="pl-avatar" width="44" height="44" alt="" />
               <span class="status-indicator" :style="{ background: statusColor }" aria-hidden="true"></span>
             </button>
             <div class="flex-grow-1 min-w-0 position-relative">
@@ -1414,7 +1414,7 @@ onUnmounted(() => {
                       :aria-current="conversacionActiva?.personajeId === conv.personajeId ? 'true' : undefined"
                       @click="abrirConversacion(conv)">
                 <span class="position-relative flex-shrink-0">
-                  <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" alt="" />
+                  <img :src="avatarUrl(conv.personajeAvatar)" class="pl-avatar" width="32" height="32" alt="" />
                   <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot" aria-hidden="true"></span>
                 </span>
                 <span class="flex-grow-1 min-w-0">
@@ -1473,7 +1473,7 @@ onUnmounted(() => {
                             title="Te han mencionado">
                         @<span class="visually-hidden">Te han mencionado</span>
                       </span>
-                      <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.75rem;">{{ canal.miRol }}</span>
+                      <span v-if="canal.miRol" class="badge bg-secondary pl-text-xs">{{ canal.miRol }}</span>
                     </span>
                   </span>
                   <span class="channel-item__meta d-block">{{ canal.miembroCount }} miembros</span>
@@ -1612,7 +1612,7 @@ onUnmounted(() => {
                 <i class="bi bi-x-lg" aria-hidden="true"></i>
               </button>
             </div>
-            <div class="busqueda-resultados overflow-auto" style="max-height: 320px;">
+            <div class="busqueda-resultados overflow-auto">
               <div v-if="buscando" class="text-center text-muted py-4">
                 <div class="spinner-border spinner-border-sm text-primary"></div>
                 <div class="small mt-1">Buscando...</div>
@@ -1627,11 +1627,11 @@ onUnmounted(() => {
                         :aria-label="'Saltar al mensaje de ' + (r.personajeNombre || '')"
                         :title="'Saltar al mensaje de ' + (r.personajeNombre || '')"
                         @click="saltarAResultado(r)">
-                  <img :src="avatarUrl(r.personajeAvatar)" class="rounded-circle flex-shrink-0" width="24" height="24" style="object-fit:cover;" alt="" />
+                  <img :src="avatarUrl(r.personajeAvatar)" class="pl-avatar flex-shrink-0" width="24" height="24" alt="" />
                   <span class="flex-grow-1 min-w-0">
                     <span class="d-flex justify-content-between gap-2">
                       <small class="fw-bold text-truncate">{{ r.personajeNombre }}</small>
-                      <small class="text-muted flex-shrink-0" style="font-size:0.75rem;">{{ formatFecha(r.fechaEnvio) }}</small>
+                      <small class="text-muted flex-shrink-0 pl-text-xs">{{ formatFecha(r.fechaEnvio) }}</small>
                     </span>
                     <span class="d-block text-body small text-truncate">{{ truncarTexto(r.contenido || '', 120) }}</span>
                   </span>
@@ -1720,8 +1720,8 @@ onUnmounted(() => {
             <button type="button" class="sidebar-profile__avatar flex-shrink-0 border-0 bg-transparent p-0"
                     :aria-label="`Ver el perfil de ${conversacionActiva.personajeNombre}`"
                     @click="verPerfil(conversacionActiva.personajeId)">
-              <img :src="avatarUrl(conversacionActiva.personajeAvatar)" class="rounded-circle"
-                   width="32" height="32" style="object-fit:cover;" alt="" />
+              <img :src="avatarUrl(conversacionActiva.personajeAvatar)" class="pl-avatar"
+                   width="32" height="32" alt="" />
             </button>
             <div class="flex-grow-1 min-w-0">
               <h1 class="chat-header__titulo text-truncate">{{ conversacionActiva.personajeNombre }}</h1>
@@ -1825,8 +1825,8 @@ onUnmounted(() => {
     <div v-else class="miembros-lista">
       <ul class="chat-miembros-lista">
         <li v-for="m in miembrosLista" :key="m.id" class="chat-miembros-lista__fila">
-          <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle flex-shrink-0"
-               width="36" height="36" style="object-fit:cover;" alt="" />
+          <img :src="avatarUrl(m.personajeAvatar)" class="pl-avatar flex-shrink-0"
+               width="36" height="36" alt="" />
           <div class="flex-grow-1 min-w-0">
             <div class="fw-medium small text-truncate">{{ m.personajeNombre }}</div>
             <span class="badge chat-rol-badge" :class="`chat-rol-badge--${(m.rol || 'MEMBER').toLowerCase()}`">
@@ -1860,11 +1860,11 @@ onUnmounted(() => {
                 :aria-label="`Entrar al chat con ${p.nombre}`"
                 :disabled="characterSessionStore.sesiones.value.some((s:any) => s.personajeId === (p.idPersonaje ?? p.id))"
                 @click="iniciarSesionPersonaje(p.idPersonaje ?? p.id)">
-          <img :src="avatarUrl(p.avatar)" class="rounded-circle mx-auto mb-2"
-               width="48" height="48" style="object-fit: cover;" alt="" />
+          <img :src="avatarUrl(p.avatar)" class="pl-avatar mx-auto mb-2"
+               width="48" height="48" alt="" />
           <h6 class="mb-0 text-truncate small">{{ p.nombre }}</h6>
-          <small class="text-muted d-block" style="font-size:0.75rem;">{{ p.raza || '—' }}</small>
-          <small class="text-muted d-block" style="font-size:0.75rem;">{{ p.clase || '' }}</small>
+          <small class="text-muted d-block pl-text-xs">{{ p.raza || '—' }}</small>
+          <small class="text-muted d-block pl-text-xs">{{ p.clase || '' }}</small>
         </button>
       </div>
     </div>
@@ -1942,7 +1942,7 @@ onUnmounted(() => {
     <div class="mb-3">
       <label class="form-label">Imagen del canal (opcional)</label>
       <div class="d-flex align-items-center gap-3">
-        <img v-if="imagenPreview" :src="imagenPreview" class="rounded-circle" width="48" height="48" style="object-fit:cover;" alt="" />
+        <img v-if="imagenPreview" :src="imagenPreview" class="pl-avatar" width="48" height="48" alt="" />
         <div v-else class="chat-canal-avatar-placeholder" aria-hidden="true">
           {{ nuevoCanalData.nombre ? nuevoCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
         </div>
@@ -1987,7 +1987,7 @@ onUnmounted(() => {
     <div class="mb-3">
       <label class="form-label">Imagen del canal</label>
       <div class="d-flex align-items-center gap-3">
-        <img v-if="imagenEdicionSrc" :src="imagenEdicionSrc" class="rounded-circle flex-shrink-0" width="48" height="48" style="object-fit:cover;" alt="" />
+        <img v-if="imagenEdicionSrc" :src="imagenEdicionSrc" class="pl-avatar flex-shrink-0" width="48" height="48" alt="" />
         <div v-else class="chat-canal-avatar-placeholder" aria-hidden="true">
           {{ editarCanalData.nombre ? editarCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
         </div>
@@ -2184,7 +2184,7 @@ onUnmounted(() => {
     </p>
     <ul v-else class="chat-baneados">
       <li v-for="b in baneados" :key="b.personajeId" class="chat-baneados__fila">
-        <img :src="avatarUrl(b.avatar)" class="rounded-circle flex-shrink-0" width="32" height="32" style="object-fit:cover;" alt="" />
+        <img :src="avatarUrl(b.avatar)" class="pl-avatar flex-shrink-0" width="32" height="32" alt="" />
         <div class="flex-grow-1 min-w-0">
           <div class="small fw-medium text-truncate">{{ b.personajeNombre }}</div>
           <div class="chat-baneados__meta">
@@ -2261,6 +2261,14 @@ onUnmounted(() => {
   height: 100vh;
   overflow: hidden;
   background: var(--pl-bg-soft);
+}
+/* Selección de personaje: si la lista no cabe, scrollea en vertical. */
+.chat-seleccion {
+  overflow-y: auto;
+}
+.chat-seleccion__inner {
+  width: 100%;
+  max-width: 720px;
 }
 .bg-gradient-selection {
   background: linear-gradient(
@@ -3031,6 +3039,7 @@ onUnmounted(() => {
 }
 
 .busqueda-panel { top: 56px; }
+.busqueda-resultados { max-height: 320px; }
 .busqueda-resultado:hover { background: rgba(var(--pl-primary-rgb), 0.07); }
 .busqueda-resultado + .busqueda-resultado { border-top: 1px solid var(--pl-border); }
 
@@ -3047,7 +3056,6 @@ onUnmounted(() => {
 .scroll-bottom-btn:hover { opacity: 1; }
 .fade-enter-active, .fade-leave-active { transition: opacity var(--pl-duration-base) var(--pl-ease-standard); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
-.mensaje-burbuja { border-radius: 16px; max-width: 100%; }
 
 .miembros-link {
   padding: 0;
@@ -3091,7 +3099,6 @@ onUnmounted(() => {
   background: var(--pl-surface);
   box-shadow: var(--pl-shadow-lg);
 }
-.hover-bg:hover { background: rgba(var(--pl-primary-rgb), 0.06); }
 .min-w-0 { min-width: 0; }
 .min-h-0 { min-height: 0; }
 

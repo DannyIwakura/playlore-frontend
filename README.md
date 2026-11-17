@@ -64,8 +64,12 @@ src/
   components/       — Componentes reutilizables (modales, NavBar, Footer...)
   services/         — api.ts (axios), chatApi.ts, websocket.ts
   store/            — userStore.ts (estado de sesión)
-  composables/      — useModalFocus
-  style.css         — Estilos globales (modales compartidos)
+  composables/      — useModalFocus, useFocoPrimerError, usePestanas
+  style.css         — Tokens, utilidades y estilos globales compartidos
+docs/
+  COMPONENTES-UI.md — Sistema visual: tokens, utilidades y componentes reutilizables
+  CHECKLIST-UI.md   — Checklist de revisión antes de cerrar un cambio de UI
+  ACCESIBILIDAD.md  — Informe de accesibilidad y deuda pendiente
 ```
 
 ---
@@ -75,6 +79,8 @@ src/
 - Los `alert()`/`confirm()`/`prompt()` nativos están **prohibidos**; usar `ModalAviso.vue`, `ModalConfirmacion.vue`, `ModalInput.vue`.
 - HTML de usuario se renderiza con `v-sanitize` (nunca `v-html` solo).
 - Los tests viven junto al módulo como `*.test.ts`.
+- Sistema visual (tokens, utilidades y componentes): `docs/COMPONENTES-UI.md`. Antes de cerrar un cambio de UI, pasar `docs/CHECKLIST-UI.md`.
+- No usar `style="..."` estático si existe una clase del sistema; `:style` solo para valores calculados en ejecución.
 
 ---
 

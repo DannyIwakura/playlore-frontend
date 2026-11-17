@@ -456,12 +456,6 @@ section[id] {
   padding: 1.5rem;
 }
 
-.pl-divider {
-  height: 1px;
-  margin: 1.4rem 0;
-  background: var(--pl-border);
-}
-
 .pl-status-pill {
   display: inline-flex;
   align-items: center;
@@ -498,6 +492,15 @@ section[id] {
 .pl-avatar {
   border-radius: 50%;
   object-fit: cover;
+}
+
+/* Utilidades puntuales: sustituyen estilos inline repetidos. */
+.pl-pre-wrap {
+  white-space: pre-wrap;
+}
+
+.pl-text-xs {
+  font-size: 0.75rem;
 }
 
 .pl-list-item {
@@ -992,20 +995,6 @@ section[id] {
   border-color: var(--pl-primary);
 }
 
-.btn-success {
-  color: #fff;
-  background: var(--pl-success-strong);
-  border-color: transparent;
-  box-shadow: var(--pl-shadow-sm);
-}
-
-.btn-success:hover,
-.btn-success:focus-visible {
-  color: #fff;
-  background: #087f5b;
-  border-color: transparent;
-}
-
 .btn-danger {
   color: #fff;
   background: var(--pl-danger-strong);
@@ -1031,19 +1020,6 @@ section[id] {
   color: #c92a2a;
   background: rgba(var(--pl-danger-rgb), 0.14);
   border-color: var(--pl-danger);
-}
-
-.btn-secondary {
-  color: var(--pl-ink);
-  background: #fff;
-  border-color: var(--pl-border);
-}
-
-.btn-secondary:hover,
-.btn-secondary:focus-visible {
-  color: var(--pl-ink);
-  background: var(--pl-surface-soft);
-  border-color: rgba(var(--pl-primary-rgb), 0.34);
 }
 
 .btn-outline-secondary {
@@ -1080,18 +1056,6 @@ section[id] {
   overflow: hidden;
 }
 
-.card-header {
-  padding: 1.15rem 1.35rem;
-  color: var(--pl-ink);
-  background: rgba(255, 255, 255, 0.76);
-  border-bottom: 1px solid var(--pl-border);
-  border-radius: var(--pl-radius-lg) var(--pl-radius-lg) 0 0;
-}
-
-.card-body {
-  padding: 1.5rem;
-}
-
 .form-control,
 .form-select {
   min-height: 46px;
@@ -1124,10 +1088,6 @@ section[id] {
   margin-bottom: 0.42rem;
   color: var(--pl-ink);
   font-weight: 750;
-}
-
-.form-text {
-  color: var(--pl-muted);
 }
 
 /* Campos de formulario: contenedor, ayuda y error */
@@ -1244,71 +1204,12 @@ section[id] {
   accent-color: var(--pl-primary);
 }
 
-.alert {
-  border: 1px solid transparent;
-  border-radius: var(--pl-radius-md);
-  padding: 0.85rem 1rem;
-  box-shadow: var(--pl-shadow-sm);
-}
-
-.alert-success {
-  color: #067647;
-  background: #ecfdf3;
-  border-color: #abefc6;
-}
-
-.alert-danger {
-  color: #b42318;
-  background: #fef3f2;
-  border-color: #fecdca;
-}
-
-.alert-warning {
-  color: #93370d;
-  background: #fffaeb;
-  border-color: #fedf89;
-}
-
-.alert-info {
-  color: #075985;
-  background: #ecfeff;
-  border-color: #a5f3fc;
-}
-
 .badge {
   border-radius: 999px;
   padding: 0.25rem 0.58rem;
   font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.35;
-}
-
-.pagination .page-link {
-  min-width: 38px;
-  min-height: 38px;
-  padding: 0.45rem 0.7rem;
-  border: 1px solid var(--pl-border);
-  border-radius: var(--pl-radius-md);
-  color: var(--pl-muted);
-  background: #fff;
-  font-weight: 700;
-}
-
-.pagination .page-link:hover {
-  color: var(--pl-primary);
-  border-color: rgba(var(--pl-primary-rgb), 0.34);
-  background: rgba(var(--pl-primary-rgb), 0.08);
-}
-
-.pagination .page-item.active .page-link {
-  color: #fff;
-  border-color: var(--pl-primary);
-  background: var(--pl-primary);
-}
-
-.pagination .page-item.disabled .page-link {
-  color: #98a2b3;
-  background: var(--pl-surface-soft);
 }
 
 .modal-backdrop-custom {
@@ -1323,39 +1224,17 @@ section[id] {
   backdrop-filter: blur(7px);
 }
 
-.modal-content-custom,
-.modal-dialog-custom {
-  border: 0;
-  border-radius: var(--pl-radius-xl);
-  background: var(--pl-surface);
-  box-shadow: var(--pl-shadow-lg);
-}
-
 .modal-content-custom {
   width: 100%;
   max-width: 440px;
   margin: 1rem;
   max-height: 90vh;
   overflow-y: auto;
-}
-
-.modal-dialog-custom {
-  margin: 1rem;
-}
-
-.modal-content,
-.modal-content-custom,
-.modal-dialog-custom {
+  border: 0;
+  border-radius: var(--pl-radius-xl);
+  background: var(--pl-surface);
   color: var(--pl-ink);
-}
-
-.modal-header,
-.modal-footer {
-  border-color: var(--pl-border);
-}
-
-.modal-content .btn-close {
-  filter: none;
+  box-shadow: var(--pl-shadow-lg);
 }
 
 .table {
@@ -2134,11 +2013,6 @@ table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
   /* El spinner de Bootstrap no tiene estado estatico: se deja quieto y visible. */
   .spinner-border {
     animation: none;
-  }
-
-  .spinner-grow {
-    animation: none;
-    opacity: 0.65;
   }
 }
 
