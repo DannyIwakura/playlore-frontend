@@ -50,17 +50,19 @@ const resumenPersonajes = computed(() => {
 })
 
 const cargarPersonajes = async (pagina = 0) => {
-  const userId = userStore.usuario.value?.id
-
   cargando.value = true
   errorCarga.value = null
+
+  // El guard de rutas hidrata el usuario, pero si el token aparecio despues de
+  // cargar la app se reintenta aqui antes de dar la sesion por perdida.
+  const userId = userStore.hidratarDesdeToken()
 
   if (!userId) {
     personajes.value = []
     totalPaginas.value = 0
     totalPersonajes.value = 0
-    errorCarga.value = 'No pudimos identificar tu cuenta. Vuelve a iniciar sesión.'
     cargando.value = false
+    void router.replace({ path: '/login' })
     return
   }
 

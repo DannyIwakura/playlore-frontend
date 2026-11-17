@@ -72,9 +72,19 @@ router.beforeEach((to, _from, next) => {
     return;
   }
 
+  // El usuario se hidrata desde el token en cada navegacion protegida: el token
+  // pudo aparecer despues de cargar la app (otra pestaña) o el store pudo
+  // quedar vacio, y las paginas necesitan el id antes de montarse.
+  if (to.meta.requiresAuth) {
+    if (userStore.hidratarDesdeToken() == null) {
+      localStorage.removeItem('token');
+      next('/login');
+      return;
+    }
+  }
+
   // Comprobación de rol ADMIN y MOD
   if (to.meta.requiresAdmin) {
-    userStore.cargarDesdeToken();
     const role = userStore.usuario.value?.role
     if (role !== 'ADMIN' && role !== 'MOD') {
       next('/dashboard');

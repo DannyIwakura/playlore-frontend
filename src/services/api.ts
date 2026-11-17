@@ -25,6 +25,16 @@ api.interceptors.request.use(config => {
   return config
 })
 
+/**
+ * Indica si la peticion fallida viajo con un token de sesion de personaje
+ * (chat) en vez de con el token del usuario. Un 401 de ese token no debe
+ * cerrar la sesion del usuario.
+ */
+export function usaTokenDePersonaje(authHeader: unknown, tokenUsuario: string | null): boolean {
+  const header = typeof authHeader === 'string' ? authHeader : ''
+  return header.startsWith('Bearer ') && header !== `Bearer ${tokenUsuario}`
+}
+
 //interceptor de respuesta: si la API devuelve 401, la sesión ha caducado o el
 //token es inválido → limpiamos la sesión y redirigimos al login
 api.interceptors.response.use(
@@ -34,8 +44,13 @@ api.interceptors.response.use(
       const url: string = error.config?.url ?? ''
       const esEndpointPublico =
         url.includes('/usuarios/login') || url.includes('/usuarios/google-login')
+      const tokenUsuario = localStorage.getItem('token')
+      const tokenDePersonaje = usaTokenDePersonaje(
+        error.config?.headers?.Authorization,
+        tokenUsuario
+      )
 
-      if (!esEndpointPublico) {
+      if (!esEndpointPublico && !tokenDePersonaje) {
         localStorage.removeItem('token')
         const { userStore } = await import('../store/userStore')
         userStore.setUsuario(null)
