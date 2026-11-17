@@ -79,23 +79,41 @@ function irAIndice(indice: number) {
   indiceActual.value = indice
 }
 
-function manejarTecla(e: KeyboardEvent) {
-  if (indiceActual.value === null) return
-  if (e.key === 'Escape') cerrarCarousel()
-  if (e.key === 'ArrowLeft') irAnterior()
-  if (e.key === 'ArrowRight') irSiguiente()
+const dialogRef = ref<HTMLDialogElement | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+
+// <dialog> nativo: atrapa el foco, cierra con Escape y devuelve el foco al
+// disparador. Solo hay que sincronizar el estado y bloquear el scroll del body.
+watch(
+  indiceActual,
+  (nuevo) => {
+    const dialogo = dialogRef.value
+    if (nuevo !== null) {
+      if (dialogo && !dialogo.open) {
+        dialogo.showModal()
+        document.body.style.overflow = 'hidden'
+      }
+      return
+    }
+    // Al cerrar el diálogo puede desmontarse antes de este watcher: no
+    // dependemos de `dialogo` para restaurar el scroll.
+    if (dialogo?.open) dialogo.close()
+    document.body.style.overflow = ''
+  },
+  { flush: 'post' }
+)
+
+function onDialogClick(e: MouseEvent) {
+  // Clic en el área del diálogo (fuera del contenido) = cerrar.
+  if (e.target === dialogRef.value) cerrarCarousel()
 }
 
-watch(indiceActual, (nuevo) => {
-  if (nuevo !== null) {
-    document.addEventListener('keydown', manejarTecla)
-  } else {
-    document.removeEventListener('keydown', manejarTecla)
-  }
-})
+function abrirSelector() {
+  fileInput.value?.click()
+}
 
 onUnmounted(() => {
-  document.removeEventListener('keydown', manejarTecla)
+  document.body.style.overflow = ''
 })
 
 async function cargarImagenes() {
@@ -200,37 +218,40 @@ onMounted(cargarImagenes)
       </span>
     </div>
 
-    <!-- Zona de drag & drop -->
-    <div
-      v-if="puedeSubir"
-      class="drop-zone"
-      :class="{ 'drop-zone--active': dragOver, 'drop-zone--subiendo': subiendo }"
-      @dragover="onDragOver"
-      @dragleave="onDragLeave"
-      @drop="onDrop"
-      @click="$refs.fileInput?.click()"
-    >
-      <div v-if="subiendo" class="drop-zone-content">
-        <div class="spinner-border text-primary mb-2" role="status"></div>
-        <span>Subiendo imagen...</span>
-      </div>
-      <div v-else class="drop-zone-content">
-        <i class="bi bi-cloud-arrow-up fs-2"></i>
-        <span v-if="imageCount >= MAX_IMAGENES" class="text-muted">
-          Límite de {{ MAX_IMAGENES }} imágenes alcanzado
+    <!-- Zona de drag & drop: botón real para que funcione con teclado -->
+    <div v-if="puedeSubir" class="drop-zone-wrap">
+      <button
+        type="button"
+        class="drop-zone"
+        :class="{ 'drop-zone--active': dragOver, 'drop-zone--subiendo': subiendo }"
+        :aria-busy="subiendo"
+        @dragover="onDragOver"
+        @dragleave="onDragLeave"
+        @drop="onDrop"
+        @click="abrirSelector"
+      >
+        <span v-if="subiendo" class="drop-zone-content">
+          <span class="spinner-border text-primary" role="status" aria-hidden="true"></span>
+          <span>Subiendo imagen...</span>
         </span>
-        <span v-else>
-          Arrastra una imagen aquí o <strong>haz clic para seleccionar</strong>
+        <span v-else class="drop-zone-content">
+          <i class="bi bi-cloud-arrow-up fs-2" aria-hidden="true"></i>
+          <span>Arrastra una imagen aquí o <strong>haz clic para seleccionar</strong></span>
         </span>
-      </div>
+      </button>
       <input
         ref="fileInput"
         type="file"
         accept="image/jpeg,image/png,image/webp,image/gif"
         class="d-none"
+        tabindex="-1"
+        aria-hidden="true"
         @change="handleFileInput"
       />
     </div>
+    <p v-else-if="esPropietario" class="galeria-limite">
+      Has alcanzado el límite de {{ MAX_IMAGENES }} imágenes.
+    </p>
 
     <!-- Grilla de imágenes -->
     <div v-if="cargando" class="text-center py-4">
@@ -250,36 +271,47 @@ onMounted(cargarImagenes)
         :key="img.idImagen"
         class="imagen-item"
       >
-        <img
-          :src="imagenUrl(img.url)"
-          :alt="img.nombreOriginal || 'Imagen de galería'"
-          class="imagen-thumb"
+        <button
+          type="button"
+          class="imagen-abrir"
+          :aria-label="`Ampliar imagen: ${img.nombreOriginal || 'sin nombre'}`"
           @click="abrirCarousel(index)"
-        />
+        >
+          <img
+            :src="imagenUrl(img.url)"
+            alt=""
+            class="imagen-thumb"
+            loading="lazy"
+            decoding="async"
+          />
+        </button>
 
         <!-- Botón eliminar -->
         <button
           v-if="esPropietario"
+          type="button"
           class="btn-eliminar"
+          :aria-label="`Eliminar imagen: ${img.nombreOriginal || 'sin nombre'}`"
           @click.stop="eliminarConfirm = img.idImagen"
-          title="Eliminar imagen"
         >
-          <i class="bi bi-trash3"></i>
+          <i class="bi bi-trash3" aria-hidden="true"></i>
         </button>
 
         <!-- Confirmación de eliminación -->
         <div
           v-if="eliminarConfirm === img.idImagen"
           class="eliminar-overlay"
+          role="group"
+          aria-label="Confirmar eliminación de la imagen"
           @click.stop
         >
           <div class="eliminar-confirm">
             <p class="mb-2 small">¿Eliminar esta imagen?</p>
             <div class="d-flex gap-2">
-              <button class="btn btn-sm btn-danger" @click.stop="eliminarImagen(img.idImagen)">
+              <button type="button" class="btn btn-sm btn-danger" @click.stop="eliminarImagen(img.idImagen)">
                 Eliminar
               </button>
-              <button class="btn btn-sm btn-outline-secondary" @click.stop="eliminarConfirm = null">
+              <button type="button" class="btn btn-sm btn-outline-secondary" @click.stop="eliminarConfirm = null">
                 Cancelar
               </button>
             </div>
@@ -288,40 +320,51 @@ onMounted(cargarImagenes)
       </div>
     </div>
 
-    <!-- Carrusel / Lightbox -->
+    <!-- Carrusel / Lightbox: <dialog> nativo, atrapa el foco y cierra con Escape -->
     <Teleport to="body">
-      <div
+      <dialog
         v-if="indiceActual !== null && imagenActual"
-        class="carousel-backdrop"
-        @click.self="cerrarCarousel"
+        ref="dialogRef"
+        class="carousel-dialog"
+        aria-label="Visor de imágenes"
+        @cancel="cerrarCarousel"
+        @click="onDialogClick"
+        @keydown.left.prevent="irAnterior"
+        @keydown.right.prevent="irSiguiente"
       >
-        <button class="carousel-close" @click="cerrarCarousel" title="Cerrar">
-          <i class="bi bi-x-lg"></i>
+        <button
+          type="button"
+          class="carousel-close"
+          aria-label="Cerrar visor"
+          @click="cerrarCarousel"
+        >
+          <i class="bi bi-x-lg" aria-hidden="true"></i>
         </button>
 
         <!-- Imagen principal -->
-        <div class="carousel-main" @click="cerrarCarousel">
+        <div class="carousel-main">
           <button
+            type="button"
             class="carousel-nav carousel-nav--prev"
-            @click.stop="irAnterior"
-            title="Anterior"
+            aria-label="Imagen anterior"
+            @click="irAnterior"
           >
-            <i class="bi bi-chevron-left"></i>
+            <i class="bi bi-chevron-left" aria-hidden="true"></i>
           </button>
 
           <img
             :src="imagenUrl(imagenActual.url)"
             :alt="imagenActual.nombreOriginal || 'Imagen de galería'"
             class="carousel-image"
-            @click="cerrarCarousel"
           />
 
           <button
+            type="button"
             class="carousel-nav carousel-nav--next"
-            @click.stop="irSiguiente"
-            title="Siguiente"
+            aria-label="Imagen siguiente"
+            @click="irSiguiente"
           >
-            <i class="bi bi-chevron-right"></i>
+            <i class="bi bi-chevron-right" aria-hidden="true"></i>
           </button>
         </div>
 
@@ -337,17 +380,22 @@ onMounted(cargarImagenes)
           <button
             v-for="(img, index) in imagenes"
             :key="img.idImagen"
+            type="button"
             class="carousel-thumb"
             :class="{ 'carousel-thumb--active': index === indiceActual }"
+            :aria-current="index === indiceActual ? 'true' : undefined"
+            :aria-label="`Ver imagen ${index + 1} de ${totalImagenes}`"
             @click="irAIndice(index)"
           >
             <img
               :src="imagenUrl(img.url)"
-              :alt="img.nombreOriginal || 'Miniatura'"
+              alt=""
+              loading="lazy"
+              decoding="async"
             />
           </button>
         </div>
-      </div>
+      </dialog>
     </Teleport>
   </div>
 
@@ -362,36 +410,59 @@ onMounted(cargarImagenes)
 .galeria-titulo {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #1e1b4b;
+  color: var(--pl-ink);
 }
 
 .image-count {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #6b7280;
+  color: var(--pl-muted);
 }
 
-/* Zona de drop */
+.galeria-limite {
+  margin-bottom: 1.25rem;
+  color: var(--pl-muted);
+  font-size: 0.9rem;
+}
+
+/* Zona de drop (es un <button>: se resetean los estilos nativos) */
+.drop-zone-wrap {
+  margin-bottom: 1.25rem;
+}
+
 .drop-zone {
-  border: 2px dashed #d1d5db;
-  border-radius: 12px;
+  display: block;
+  width: 100%;
   padding: 2rem 1rem;
+  border: 2px dashed rgba(var(--pl-primary-rgb), 0.32);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface-soft);
+  color: inherit;
+  font: inherit;
   text-align: center;
   cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 1.25rem;
-  background: #fafafa;
+  transition: border-color 0.2s ease, background 0.2s ease;
 }
 
 .drop-zone:hover {
-  border-color: #4f46e5;
-  background: #eef2ff;
+  border-color: var(--pl-primary);
+  background: rgba(var(--pl-primary-rgb), 0.06);
+}
+
+.drop-zone:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 2px;
 }
 
 .drop-zone--active {
-  border-color: #4f46e5;
-  background: #e0e7ff;
-  transform: scale(1.01);
+  border-color: var(--pl-primary);
+  background: rgba(var(--pl-primary-rgb), 0.12);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .drop-zone--active {
+    transform: scale(1.01);
+  }
 }
 
 .drop-zone--subiendo {
@@ -404,12 +475,12 @@ onMounted(cargarImagenes)
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
-  color: #6b7280;
+  color: var(--pl-muted);
   font-size: 0.9rem;
 }
 
 .drop-zone-content strong {
-  color: #4f46e5;
+  color: var(--pl-primary);
 }
 
 /* Grilla */
@@ -421,109 +492,169 @@ onMounted(cargarImagenes)
 
 .imagen-item {
   position: relative;
-  border-radius: 10px;
+  border-radius: var(--pl-radius-md);
   overflow: hidden;
   aspect-ratio: 1;
-  background: #f3f4f6;
-  border: 1px solid #e8eaf0;
-  transition: transform 0.18s ease;
+  background: var(--pl-surface-soft);
+  border: 1px solid var(--pl-border);
+  transition: box-shadow 0.18s ease;
 }
 
 .imagen-item:hover {
-  transform: translateY(-2px);
+  box-shadow: var(--pl-shadow-md);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .imagen-item {
+    transition: box-shadow 0.18s ease, transform 0.18s ease;
+  }
+
+  .imagen-item:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.imagen-abrir {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: zoom-in;
+}
+
+.imagen-abrir:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -4px;
 }
 
 .imagen-thumb {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  cursor: pointer;
-  display: block;
 }
 
 .btn-eliminar {
   position: absolute;
   top: 6px;
   right: 6px;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(0, 0, 0, 0.55);
-  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(17, 24, 39, 0.72);
+  color: #fff;
+  font-size: 0.8rem;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.18s ease;
-  font-size: 0.8rem;
+  transition: opacity 0.18s ease, background 0.18s ease;
 }
 
-.imagen-item:hover .btn-eliminar {
+.imagen-item:hover .btn-eliminar,
+.btn-eliminar:focus-visible {
   opacity: 1;
 }
 
 .btn-eliminar:hover {
-  background: rgba(220, 38, 38, 0.85);
+  background: var(--pl-danger-strong);
+}
+
+.btn-eliminar:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Sin hover no hay forma de revelarlo: se deja siempre visible. */
+@media (hover: none) {
+  .btn-eliminar {
+    opacity: 1;
+  }
 }
 
 /* Confirmación eliminar */
 .eliminar-overlay {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0.5rem;
+  background: rgba(15, 23, 42, 0.66);
   z-index: 2;
 }
 
 .eliminar-confirm {
-  background: #fff;
-  border-radius: 10px;
+  max-width: 200px;
   padding: 1rem;
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  color: var(--pl-ink);
   text-align: center;
-  max-width: 180px;
 }
 
-/* Carrusel / Lightbox */
-.carousel-backdrop {
+/* Carrusel / Lightbox: <dialog> nativo a pantalla completa */
+.carousel-dialog {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.88);
-  z-index: 2000;
+  width: 100%;
+  max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
+  margin: 0;
+  padding: 1.5rem;
+  border: 0;
+  background: rgba(9, 12, 20, 0.94);
+  color: #fff;
+  overflow: hidden;
+  overscroll-behavior: contain;
+  user-select: none;
+}
+
+.carousel-dialog[open] {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 1.5rem;
-  user-select: none;
+}
+
+.carousel-dialog::backdrop {
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .carousel-close {
-  position: fixed;
+  position: absolute;
   top: 1rem;
-  right: 1.5rem;
-  background: rgba(255, 255, 255, 0.1);
-  border: none;
-  color: #fff;
-  font-size: 1.4rem;
-  cursor: pointer;
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
+  right: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.7;
-  transition: all 0.18s ease;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1.4rem;
+  cursor: pointer;
+  opacity: 0.8;
+  transition: opacity 0.18s ease, background 0.18s ease;
   z-index: 10;
 }
 
 .carousel-close:hover {
   opacity: 1;
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.carousel-close:focus-visible {
+  opacity: 1;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .carousel-main {
@@ -533,15 +664,13 @@ onMounted(cargarImagenes)
   justify-content: center;
   max-width: 85vw;
   max-height: 65vh;
-  flex: 1;
 }
 
 .carousel-image {
   max-width: 100%;
   max-height: 65vh;
-  border-radius: 10px;
+  border-radius: var(--pl-radius-md);
   object-fit: contain;
-  cursor: pointer;
   box-shadow: 0 4px 40px rgba(0, 0, 0, 0.5);
 }
 
@@ -549,25 +678,31 @@ onMounted(cargarImagenes)
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  width: 44px;
-  height: 44px;
-  border-radius: 50%;
-  border: none;
-  background: rgba(255, 255, 255, 0.12);
-  color: #fff;
-  font-size: 1.3rem;
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 1.3rem;
   cursor: pointer;
-  opacity: 0.6;
-  transition: all 0.18s ease;
+  opacity: 0.75;
+  transition: opacity 0.18s ease, background 0.18s ease;
   z-index: 5;
 }
 
 .carousel-nav:hover {
   opacity: 1;
   background: rgba(255, 255, 255, 0.25);
+}
+
+.carousel-nav:focus-visible {
+  opacity: 1;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .carousel-nav--prev {
@@ -578,17 +713,39 @@ onMounted(cargarImagenes)
   right: -56px;
 }
 
+/* En pantallas estrechas los botones no caben fuera de la imagen. */
+@media (max-width: 575.98px) {
+  .carousel-main {
+    max-width: 100%;
+  }
+
+  .carousel-nav {
+    background: rgba(9, 12, 20, 0.72);
+  }
+
+  .carousel-nav--prev {
+    left: 0.25rem;
+  }
+
+  .carousel-nav--next {
+    right: 0.25rem;
+  }
+}
+
 .carousel-info {
-  margin-top: 0.75rem;
-  color: #d1d5db;
-  font-size: 0.85rem;
   display: flex;
-  gap: 1.25rem;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
+  gap: 0.35rem 1.25rem;
+  margin-top: 0.75rem;
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .carousel-date {
-  color: #9ca3af;
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .carousel-counter {
@@ -599,31 +756,37 @@ onMounted(cargarImagenes)
 
 .carousel-thumbnails {
   display: flex;
-  gap: 0.5rem;
-  margin-top: 1rem;
-  max-width: 85vw;
-  overflow-x: auto;
-  padding: 0.5rem;
   justify-content: center;
+  gap: 0.5rem;
+  max-width: 85vw;
+  margin-top: 1rem;
+  padding: 0.5rem;
+  overflow-x: auto;
 }
 
 .carousel-thumb {
   flex-shrink: 0;
   width: 56px;
   height: 56px;
-  border-radius: 8px;
+  padding: 0;
   overflow: hidden;
   border: 2px solid transparent;
-  background: #1f2937;
+  border-radius: var(--pl-radius-sm);
+  background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
-  padding: 0;
-  transition: all 0.18s ease;
   opacity: 0.5;
+  transition: opacity 0.18s ease, border-color 0.18s ease;
 }
 
 .carousel-thumb:hover {
   opacity: 0.8;
   border-color: rgba(255, 255, 255, 0.4);
+}
+
+.carousel-thumb:focus-visible {
+  opacity: 1;
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .carousel-thumb--active {
@@ -632,9 +795,9 @@ onMounted(cargarImagenes)
 }
 
 .carousel-thumb img {
+  display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  display: block;
 }
 </style>
