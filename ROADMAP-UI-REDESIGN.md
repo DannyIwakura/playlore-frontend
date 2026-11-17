@@ -632,7 +632,7 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 | Uso de `toSorted()`/ES2023 en `src` | comprobado | Sin coincidencias de `toSorted`, `findLast`, `toReversed`, `toSpliced`, `with(` ni `groupBy`; `lib` sigue en ES2020. |
 | Mensaje "No pudimos identificar tu cuenta" en Tus personajes | `d999b90` | `hidratarDesdeToken()`, guard que redirige a `/login` y filtro del 401 de sesión de personaje en `api.ts`. 218 tests y 4 escenarios Playwright. |
 | Tablas admin con cabeceras incompletas y Denuncias con scroll horizontal | `42a5e8d` | Cabeceras al 100% en las 6 tablas; Denuncias 900/900 en escritorio y 364/364 en móvil. |
-| Movimiento sin tokens ni respeto a `prefers-reduced-motion` | `1192abf` | Tokens `--pl-duration-*`/`--pl-ease-*` en todo el CSS; el desplazamiento espacial vive en `no-preference`; esqueletos y spinners se detienen con `reduce`; entrada limitada al hero. Playwright: CLS 0 y sin scroll horizontal en 1280 y 375. |
+| Movimiento sin tokens ni respeto a `prefers-reduced-motion` | `400f5c1` | Tokens `--pl-duration-*`/`--pl-ease-*` en todo el CSS; el desplazamiento espacial vive en `no-preference`; esqueletos y spinners se detienen con `reduce`; entrada limitada al hero. Playwright: CLS 0 y sin scroll horizontal en 1280 y 375. |
 
 ### Abiertos
 
