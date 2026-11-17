@@ -104,11 +104,20 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
         <!-- CONTENIDO DERECHO -->
         <div class="col-lg-9">
           <div v-if="pestanaActiva === 'categorias'" class="admin-section">
-            <h2 class="admin-section-title">Gestión de categorías</h2>
+            <div class="admin-section-header">
+              <h2 class="admin-section-title">Gestión de categorías</h2>
+              <button
+                type="button"
+                class="pl-btn pl-btn--primary"
+                data-bs-toggle="modal"
+                data-bs-target="#modalNuevaCategoria"
+              >
+                <i class="bi bi-plus-lg" aria-hidden="true"></i>
+                Nueva categoría
+              </button>
+            </div>
             <CategoriasLista />
-            <hr class="pl-divider" />
-            <h3 class="admin-section-subtitle">Nueva categoría</h3>
-            <CategoriaNueva />
+            <CategoriaNueva :mostrar-boton="false" />
           </div>
 
           <div v-if="pestanaActiva === 'usuarios'" class="admin-section">
@@ -204,11 +213,20 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
   letter-spacing: -0.03em;
 }
 
-.admin-section-subtitle {
-  margin: 0 0 0.75rem;
-  color: var(--pl-ink);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
+.admin-section-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.admin-section-header .admin-section-title {
+  margin-bottom: 0;
+}
+
+.admin-section-header .pl-btn {
+  margin-left: auto;
 }
 </style>

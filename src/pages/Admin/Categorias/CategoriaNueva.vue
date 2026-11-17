@@ -5,6 +5,8 @@ import axios from 'axios'
 
 const emit = defineEmits(['creada'])
 
+withDefaults(defineProps<{ mostrarBoton?: boolean }>(), { mostrarBoton: true })
+
 const nombre = ref('')
 const descripcion = ref('')
 const tipo = ref('GENERO')
@@ -55,12 +57,15 @@ const crearCategoria = async () => {
 </script>
 
 <template>
-  <!-- Botón que abre el modal -->
+  <!-- Botón que abre el modal (oculto cuando el disparador vive en el encabezado) -->
   <button
-    class="btn btn-primary mb-4"
+    v-if="mostrarBoton"
+    type="button"
+    class="pl-btn pl-btn--primary mb-4"
     data-bs-toggle="modal"
     data-bs-target="#modalNuevaCategoria"
   >
+    <i class="bi bi-plus-lg" aria-hidden="true"></i>
     Nueva categoría
   </button>
 
