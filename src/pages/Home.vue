@@ -232,6 +232,21 @@ onBeforeUnmount(() => {
   border-radius: 0 0 1.25rem 1.25rem;
 }
 
+/* Bootstrap hace clicable toda la franja lateral del 15% del carrusel, que
+   se come los botones del hero. Solo la flecha debe recibir el clic. */
+.pl-hero .carousel-control-prev,
+.pl-hero .carousel-control-next {
+  pointer-events: none;
+}
+
+.pl-hero .carousel-control-prev-icon,
+.pl-hero .carousel-control-next-icon {
+  width: 2.75rem;
+  height: 2.75rem;
+  background-size: 2rem 2rem;
+  pointer-events: auto;
+}
+
 .pl-visual-card {
   position: relative;
   min-height: 420px;
