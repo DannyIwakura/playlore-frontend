@@ -1,12 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
+import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
+import ModalFormulario from '../../components/ModalFormulario.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
+import { indicePestanaParaTecla } from '../../composables/usePestanas'
+import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
 import defaultAvatar from '../../assets/img/AVATAR.png'
 
 const BASE_URL = import.meta.env.VITE_API_URL
@@ -50,7 +54,6 @@ interface UsuarioDTO {
 interface CategoriaDTO {
   idCategoria: number
   nombre: string
-  color?: string
   descripcion?: string
 }
 
@@ -60,12 +63,20 @@ const usuario = ref<UsuarioDTO | null>(null)
 const categorias = ref<CategoriaDTO[]>([])
 const cargando = ref(true)
 const error = ref<string | null>(null)
+const noEncontrado = ref(false)
 
 const aviso = ref<string | null>(null)
 
-const activeTab = ref<'trasfondo' | 'categorias' | 'galeria'>('trasfondo')
+const PESTANAS = [
+  { id: 'trasfondo', etiqueta: 'Trasfondo', icono: 'bi-book' },
+  { id: 'categorias', etiqueta: 'Categorías', icono: 'bi-tags' },
+  { id: 'galeria', etiqueta: 'Galería', icono: 'bi-images' },
+] as const
 
-const modalScrollClass = computed(() => props.modoModal ? 'py-3' : 'py-5')
+type Pestana = (typeof PESTANAS)[number]['id']
+
+const tabActiva = ref<Pestana>('trasfondo')
+const tablistRef = ref<HTMLElement | null>(null)
 
 const miId = computed(() => userStore.usuario.value?.id)
 const esMiPersonaje = computed(() => personaje.value?.userId === miId.value)
@@ -74,18 +85,14 @@ const puedeModerarPersonaje = computed(() => {
   return rol === 'ADMIN' || rol === 'MOD'
 })
 
-async function cambiarEstadoPersonaje(nuevoEstado: 'ACTIVO' | 'DESACTIVADO') {
-  if (!personaje.value) return
-  try {
-    await api.put(`/personajes/admin/${personaje.value.idPersonaje}/estado`, {
-      estado: nuevoEstado
-    })
-    personaje.value = { ...personaje.value, estadoPersonaje: nuevoEstado }
-    aviso.value = `Personaje ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'} correctamente.`
-  } catch {
-    aviso.value = 'Error al cambiar el estado del personaje.'
-  }
-}
+const estaDesactivado = computed(() => personaje.value?.estadoPersonaje === 'DESACTIVADO')
+const bloqueadoParaMi = computed(() => estaDesactivado.value && !puedeModerarPersonaje.value)
+
+const conectadoAhora = computed(() => {
+  const fecha = usuario.value?.ultimaConexion
+  if (!fecha) return false
+  return Date.now() - new Date(fecha).getTime() < 300000
+})
 
 // --- Helpers ---
 function avatarPersonajeUrl(avatar: string | null | undefined): string {
@@ -124,41 +131,85 @@ function formatFecha(fecha: string): string {
   })
 }
 
+// El backend no envia color por categoria: el punto es decorativo y estable.
+const COLORES_CATEGORIA = [
+  'var(--pl-primary)',
+  'var(--pl-cyan)',
+  'var(--pl-success)',
+  'var(--pl-warning)',
+  'var(--pl-info)',
+  'var(--pl-danger)',
+]
+
+function colorCategoria(categoria: CategoriaDTO): string {
+  const indice = Math.abs(categoria.idCategoria) % COLORES_CATEGORIA.length
+  return COLORES_CATEGORIA[indice]
+}
+
 // --- Carga de datos ---
 async function cargar() {
   cargando.value = true
   error.value = null
+  noEncontrado.value = false
+  personaje.value = null
+  usuario.value = null
+  categorias.value = []
+  tabActiva.value = 'trasfondo'
+
+  const id = props.personajeId ?? Number(route.params.id)
+
+  if (!Number.isFinite(id) || id <= 0) {
+    noEncontrado.value = true
+    cargando.value = false
+    return
+  }
+
   try {
-    const id = props.personajeId ?? Number(route.params.id)
     const { data } = await api.get<PerfilPersonajeDTO>(`/personajes/${id}`)
     personaje.value = data
 
-    // Cargar usuario propietario
-    const { data: usu } = await api.get<UsuarioDTO>(`/usuarios/${data.userId}`)
-    usuario.value = usu
-
-    // Cargar categorías del personaje
+    // El propietario y las categorias son informativos: si fallan, el perfil sigue visible.
     try {
-        const { data: cats } = await api.get<any[]>(`/personaje-categorias/personaje/${id}`)
-        categorias.value = cats.map(pc => ({
-          idCategoria: pc.idCategoria,
-          nombre: pc.nombreCategoria,
-          descripcion: pc.descripcionCategoria ?? ''
-        }))
+      const { data: usu } = await api.get<UsuarioDTO>(`/usuarios/${data.userId}`)
+      usuario.value = usu
     } catch {
-        categorias.value = []
+      usuario.value = null
+    }
+
+    try {
+      const { data: cats } = await api.get<any[]>(`/personaje-categorias/personaje/${id}`)
+      categorias.value = (cats ?? []).map((pc) => ({
+        idCategoria: pc.idCategoria,
+        nombre: pc.nombreCategoria,
+        descripcion: pc.descripcionCategoria ?? '',
+      }))
+    } catch {
+      categorias.value = []
     }
   } catch (e: any) {
-    if (e.response?.status === 404) {
-      error.value = 'Personaje no encontrado.'
+    if (e?.response?.status === 404) {
+      noEncontrado.value = true
     } else {
-      error.value = 'Error al cargar el perfil del personaje.'
+      error.value = 'No pudimos cargar el perfil del personaje. Revisa tu conexión e inténtalo de nuevo.'
     }
   } finally {
     cargando.value = false
   }
 }
 
+// --- Pestanas (patron ARIA) ---
+function onTeclaPestana(event: KeyboardEvent, indice: number) {
+  const nuevo = indicePestanaParaTecla(event.key, indice, PESTANAS.length)
+  if (nuevo === null) return
+
+  event.preventDefault()
+  tabActiva.value = PESTANAS[nuevo].id
+  nextTick(() => {
+    tablistRef.value?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nuevo]?.focus()
+  })
+}
+
+// --- Acciones ---
 function irAlPerfil() {
   if (usuario.value) router.push(`/perfil/${usuario.value.userId}`)
 }
@@ -179,17 +230,72 @@ async function enviarAmistad() {
   }
 }
 
+// --- Cambio de estado (moderacion) ---
+const confirmacionDesactivar = ref(false)
+const cambiandoEstado = ref(false)
+
+async function aplicarEstado(nuevoEstado: 'ACTIVO' | 'DESACTIVADO') {
+  if (!personaje.value || cambiandoEstado.value) return
+  cambiandoEstado.value = true
+  try {
+    await api.put(`/personajes/admin/${personaje.value.idPersonaje}/estado`, {
+      estado: nuevoEstado
+    })
+    personaje.value = { ...personaje.value, estadoPersonaje: nuevoEstado }
+    aviso.value = `Personaje ${nuevoEstado === 'ACTIVO' ? 'activado' : 'desactivado'} correctamente.`
+  } catch {
+    aviso.value = 'No pudimos cambiar el estado del personaje. Inténtalo de nuevo.'
+  } finally {
+    cambiandoEstado.value = false
+    confirmacionDesactivar.value = false
+  }
+}
+
+function solicitarDesactivar() {
+  if (estaDesactivado.value) {
+    void aplicarEstado('ACTIVO')
+    return
+  }
+  confirmacionDesactivar.value = true
+}
+
 // --- Denunciar personaje ---
 const modalDenuncia = ref(false)
 const denuncia = ref({ motivo: '', detalle: '' })
+const erroresDenuncia = reactive<Record<string, string>>({})
 const enviandoDenuncia = ref(false)
+const formDenuncia = ref<HTMLFormElement | null>(null)
+
+function limpiarErroresDenuncia() {
+  Object.keys(erroresDenuncia).forEach((clave) => delete erroresDenuncia[clave])
+}
+
+function abrirDenuncia() {
+  denuncia.value = { motivo: '', detalle: '' }
+  limpiarErroresDenuncia()
+  modalDenuncia.value = true
+}
+
+function onMotivoEditado() {
+  delete erroresDenuncia.motivo
+  delete erroresDenuncia.general
+}
+
+function cerrarDenuncia() {
+  modalDenuncia.value = false
+  limpiarErroresDenuncia()
+}
 
 async function enviarDenuncia() {
   if (!personaje.value) return
+  limpiarErroresDenuncia()
+
   if (!denuncia.value.motivo.trim()) {
-    aviso.value = 'El motivo es obligatorio para enviar la denuncia.'
+    erroresDenuncia.motivo = 'El motivo es obligatorio para enviar la denuncia.'
+    await enfocarPrimerError(formDenuncia.value)
     return
   }
+
   enviandoDenuncia.value = true
   try {
     await api.post('/denuncias', {
@@ -198,12 +304,11 @@ async function enviarDenuncia() {
       motivo: denuncia.value.motivo.trim(),
       detalle: denuncia.value.detalle.trim() || null,
     })
-    modalDenuncia.value = false
-    denuncia.value = { motivo: '', detalle: '' }
+    cerrarDenuncia()
     aviso.value = 'Denuncia enviada. Gracias por ayudar a mantener la comunidad segura.'
   } catch (e: any) {
     const data = e?.response?.data
-    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
+    erroresDenuncia.general = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
   } finally {
     enviandoDenuncia.value = false
   }
@@ -212,6 +317,7 @@ async function enviarDenuncia() {
 // --- Banear personaje (solo ADMIN/MOD) ---
 const modalBaneo = ref(false)
 const baneo = ref({ duracion: 'PERMANENTE', motivo: '' })
+const errorBaneo = ref('')
 const baneando = ref(false)
 
 const opcionesDuracion = [
@@ -221,9 +327,21 @@ const opcionesDuracion = [
   { value: 'PERMANENTE', label: 'Permanente' },
 ]
 
+function abrirBaneo() {
+  baneo.value = { duracion: 'PERMANENTE', motivo: '' }
+  errorBaneo.value = ''
+  modalBaneo.value = true
+}
+
+function cerrarBaneo() {
+  modalBaneo.value = false
+  errorBaneo.value = ''
+}
+
 async function banearPersonaje() {
   if (!personaje.value) return
   const dur = baneo.value.duracion
+  errorBaneo.value = ''
   baneando.value = true
   try {
     await api.post('/moderacion/baneos', {
@@ -232,12 +350,11 @@ async function banearPersonaje() {
       duracion: baneo.value.duracion,
       motivo: baneo.value.motivo.trim() || null,
     })
-    modalBaneo.value = false
-    baneo.value = { duracion: 'PERMANENTE', motivo: '' }
+    cerrarBaneo()
     aviso.value = `Personaje baneado${dur !== 'PERMANENTE' ? ' temporalmente' : ''}.`
   } catch (e: any) {
     const data = e?.response?.data
-    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al banear al personaje.'
+    errorBaneo.value = data?.error || data?.message || data?.mensaje || 'Error al banear al personaje.'
   } finally {
     baneando.value = false
   }
@@ -245,674 +362,879 @@ async function banearPersonaje() {
 
 onMounted(async () => {
   await userStore.cargarDesdeToken()
-  cargar()
+  await cargar()
 })
+
+watch(
+  () => props.personajeId ?? route.params.id,
+  (nuevo, anterior) => {
+    if (nuevo && nuevo !== anterior) void cargar()
+  }
+)
 </script>
 
 <template>
   <NavBar v-if="!modoModal" :logeado="true" />
 
-  <div v-if="modoModal" class="modal-header-bar">
-    <h5 class="mb-0">Perfil del personaje</h5>
-    <button type="button" class="btn-close" @click="emit('cerrar')"></button>
+  <div v-if="modoModal" class="perfil-modal-cabecera">
+    <h2 class="pl-modal-title mb-0">Perfil del personaje</h2>
+    <button type="button" class="btn-close" aria-label="Cerrar perfil" @click="emit('cerrar')"></button>
   </div>
 
-  <div :class="{ 'modal-scrollable': modoModal }">
-
-    <div v-if="cargando" class="d-flex justify-content-center align-items-center" :style="{ minHeight: modoModal ? '40vh' : '60vh' }">
-      <div class="spinner-border text-primary" role="status">
-        <span class="visually-hidden">Cargando...</span>
+  <div :class="{ 'perfil-modal-scroll': modoModal }">
+    <!-- Carga -->
+    <div v-if="cargando" class="container perfil-contenedor">
+      <p class="visually-hidden" role="status">Cargando el perfil del personaje…</p>
+      <div class="perfil-layout" aria-hidden="true">
+        <div class="perfil-esqueleto perfil-esqueleto--lateral"></div>
+        <div class="perfil-esqueleto perfil-esqueleto--contenido"></div>
       </div>
     </div>
 
-    <div v-else-if="error" :class="{ 'container mt-5': !modoModal, 'p-4': modoModal }">
-      <div class="alert alert-danger">{{ error }}</div>
-    </div>
-
-    <div v-else-if="personaje?.estadoPersonaje === 'DESACTIVADO' && !puedeModerarPersonaje"
-         :class="{ 'container mt-5': !modoModal, 'p-4': modoModal }">
-      <div class="alert alert-warning d-flex align-items-center gap-3">
-        <i class="bi bi-slash-circle fs-4"></i>
-        <div>
-          <strong>Perfil desactivado</strong><br>
-          Este perfil ha sido desactivado por no cumplir las normas de contenido.
+    <!-- No encontrado -->
+    <main v-else-if="noEncontrado" :class="modoModal ? 'perfil-modal-pagina' : 'pl-page'">
+      <div class="container perfil-contenedor">
+        <div class="pl-empty-state">
+          <span class="pl-empty-state__icon" aria-hidden="true">
+            <i class="bi bi-person-x"></i>
+          </span>
+          <h1 class="perfil-vacio__titulo">Personaje no encontrado</h1>
+          <p>Puede que se haya eliminado o que el enlace esté mal.</p>
+          <button
+            v-if="modoModal"
+            type="button"
+            class="pl-btn pl-btn--secondary"
+            @click="emit('cerrar')"
+          >
+            Cerrar
+          </button>
+          <router-link v-else to="/personajes" class="pl-btn pl-btn--primary">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            Volver a mis personajes
+          </router-link>
         </div>
       </div>
-    </div>
+    </main>
 
-    <main v-else-if="personaje" class="perfil-personaje-bg" :class="modalScrollClass">
-      <div class="container">
-        <div class="row g-4">
-          <div class="col-12 col-lg-4">
-            <div class="perfil-card shadow-sm h-100 d-flex flex-column gap-3">
+    <!-- Error de red -->
+    <main v-else-if="error" :class="modoModal ? 'perfil-modal-pagina' : 'pl-page'">
+      <div class="container perfil-contenedor">
+        <div class="pl-alert pl-alert--danger" role="alert">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
+          <span class="flex-grow-1">{{ error }}</span>
+          <button type="button" class="pl-btn pl-btn--secondary pl-btn--sm" @click="cargar()">
+            Reintentar
+          </button>
+        </div>
+      </div>
+    </main>
 
-            <!-- Avatar del personaje -->
-            <div class="text-center">
-              <img
-                :src="avatarPersonajeUrl(personaje.avatar)"
-                :alt="`Avatar de ${personaje.nombre}`"
-                class="avatar-personaje"
-              />
-            </div>
+    <!-- Perfil desactivado y el visitante no modera -->
+    <main v-else-if="bloqueadoParaMi" :class="modoModal ? 'perfil-modal-pagina' : 'pl-page'">
+      <div class="container perfil-contenedor">
+        <div class="pl-alert pl-alert--warning" role="alert">
+          <i class="bi bi-slash-circle" aria-hidden="true"></i>
+          <div>
+            <strong>Perfil desactivado</strong>
+            <p class="mb-0">Este perfil ha sido desactivado por no cumplir las normas de contenido.</p>
+          </div>
+        </div>
+      </div>
+    </main>
 
-            <!-- Nombre y estado -->
-            <div class="text-center">
-              <h2 class="personaje-nombre mb-0">{{ personaje.nombre }}</h2>
-              <span class="badge-clase mt-1 d-inline-block">{{ personaje.clase || 'Sin clase' }}</span>
-            </div>
+    <!-- Perfil -->
+    <main v-else-if="personaje" :class="modoModal ? 'perfil-modal-pagina' : 'pl-page'">
+      <div class="container perfil-contenedor">
+        <div v-if="!modoModal" class="pl-toolbar perfil-toolbar">
+          <router-link to="/personajes" class="pl-btn pl-btn--ghost pl-btn--sm">
+            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+            Mis personajes
+          </router-link>
+          <router-link to="/personajes/buscar" class="pl-btn pl-btn--ghost pl-btn--sm">
+            Buscar personajes
+            <i class="bi bi-arrow-right" aria-hidden="true"></i>
+          </router-link>
+        </div>
 
-            <hr class="divider" />
+        <div v-if="estaDesactivado" class="pl-alert pl-alert--warning" role="status">
+          <i class="bi bi-slash-circle" aria-hidden="true"></i>
+          <span>Perfil desactivado · Solo visible para moderadores.</span>
+        </div>
 
-            <!-- Datos principales -->
-            <ul class="datos-lista">
-              <li v-if="personaje.raza">
-                <span class="dato-icono">🧬</span>
-                <div><span class="dato-label">Raza</span><span class="dato-val">{{ personaje.raza }}</span></div>
-              </li>
-              <li v-if="personaje.genero">
-                <span class="dato-icono">⚧</span>
-                <div><span class="dato-label">Género</span><span class="dato-val">{{ personaje.genero }}</span></div>
-              </li>
-              <li v-if="personaje.edadPersonaje != null">
-                <span class="dato-icono">🎂</span>
-                <div><span class="dato-label">Edad</span><span class="dato-val">{{ personaje.edadPersonaje }} años</span></div>
-              </li>
-              <li>
-                <span class="dato-icono">📅</span>
-                <div>
-                  <span class="dato-label">Creado</span>
-                  <span class="dato-val">{{ formatFecha(personaje.fechaCreacion) }}</span>
-                </div>
-              </li>
-            </ul>
+        <div class="perfil-layout">
+          <!-- Columna lateral -->
+          <aside class="pl-card perfil-lateral" aria-label="Datos del personaje">
+            <img
+              class="perfil-media"
+              :src="avatarPersonajeUrl(personaje.avatar)"
+              :alt="`Avatar de ${personaje.nombre}`"
+              width="640"
+              height="640"
+            />
 
-            <hr class="divider" />
-
-            <!-- Bloque usuario propietario -->
-            <div v-if="usuario" class="usuario-bloque">
-              <p class="dato-label mb-2">Personaje de</p>
-              <div class="d-flex align-items-center gap-3">
-                <img
-                  :src="avatarUsuarioUrl(usuario.avatar)"
-                  :alt="`Avatar de ${usuario.nombre}`"
-                  class="avatar-usuario"
-                />
-                <div>
-                  <p class="usuario-nombre mb-0">{{ usuario.nombre }}</p>
-                  <p class="ultima-conexion mb-0">
-                    <i class="bi bi-circle-fill me-1" :class="{'text-success': !usuario.ultimaConexion || (new Date().getTime() - new Date(usuario.ultimaConexion).getTime()) < 300000, 'text-secondary': usuario.ultimaConexion && (new Date().getTime() - new Date(usuario.ultimaConexion).getTime()) >= 300000}"></i>
-                    {{ tiempoDesdeConexion(usuario.ultimaConexion) }}
-                  </p>
+            <div class="perfil-lateral__cuerpo">
+              <div>
+                <h1 class="perfil-nombre">{{ personaje.nombre }}</h1>
+                <div class="perfil-pildoras">
+                  <span class="pl-status-pill pl-status-pill--neutral">
+                    <i class="bi bi-shield" aria-hidden="true"></i>
+                    {{ personaje.clase || 'Sin clase' }}
+                  </span>
+                  <span
+                    v-if="estaDesactivado"
+                    class="pl-status-pill pl-status-pill--danger"
+                  >
+                    <i class="bi bi-slash-circle" aria-hidden="true"></i>
+                    Desactivado
+                  </span>
                 </div>
               </div>
 
-              <!-- Botones de acción -->
-              <div v-if="!esMiPersonaje" class="d-flex flex-column gap-2 mt-3">
-                <button type="button" class="btn-accion btn-accion--primary" @click="irAlPerfil">
-                  <i class="bi bi-person-fill me-2"></i>Ver perfil
-                </button>
-                <template v-if="puedeModerarPersonaje">
-                    <div
-                      v-if="personaje.estadoPersonaje === 'DESACTIVADO'"
-                      class="alerta-desactivado mb-2"
+              <dl class="perfil-datos">
+                <div v-if="personaje.raza" class="perfil-dato">
+                  <dt><i class="bi bi-stars" aria-hidden="true"></i>Raza</dt>
+                  <dd>{{ personaje.raza }}</dd>
+                </div>
+                <div v-if="personaje.genero" class="perfil-dato">
+                  <dt><i class="bi bi-gender-ambiguous" aria-hidden="true"></i>Género</dt>
+                  <dd>{{ personaje.genero }}</dd>
+                </div>
+                <div v-if="personaje.edadPersonaje != null" class="perfil-dato">
+                  <dt><i class="bi bi-hourglass-split" aria-hidden="true"></i>Edad</dt>
+                  <dd>{{ personaje.edadPersonaje }} años</dd>
+                </div>
+                <div class="perfil-dato">
+                  <dt><i class="bi bi-calendar3" aria-hidden="true"></i>Creado</dt>
+                  <dd>{{ formatFecha(personaje.fechaCreacion) }}</dd>
+                </div>
+              </dl>
+
+              <div v-if="usuario" class="perfil-propietario">
+                <p class="perfil-etiqueta">Personaje de</p>
+                <div class="perfil-propietario__fila">
+                  <img
+                    :src="avatarUsuarioUrl(usuario.avatar)"
+                    :alt="`Avatar de ${usuario.nombre}`"
+                    class="pl-avatar perfil-propietario__avatar"
+                    width="44"
+                    height="44"
+                  />
+                  <div class="perfil-propietario__info">
+                    <p class="perfil-propietario__nombre">{{ usuario.nombre }}</p>
+                    <p class="perfil-propietario__estado">
+                      <span
+                        class="perfil-punto"
+                        :class="{ 'perfil-punto--online': conectadoAhora }"
+                        aria-hidden="true"
+                      ></span>
+                      {{ tiempoDesdeConexion(usuario.ultimaConexion) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Las acciones no dependen de que cargue el propietario: si su
+                   peticion falla, denunciar y moderar deben seguir disponibles. -->
+              <div class="perfil-acciones" :class="{ 'perfil-acciones--suelta': !usuario }">
+                <template v-if="!esMiPersonaje">
+                  <button
+                    v-if="usuario"
+                    type="button"
+                    class="pl-btn pl-btn--primary"
+                    @click="irAlPerfil"
+                  >
+                    <i class="bi bi-person" aria-hidden="true"></i>
+                    Ver perfil del jugador
+                  </button>
+                  <button
+                    v-if="usuario"
+                    type="button"
+                    class="pl-btn pl-btn--secondary"
+                    @click="enviarAmistad"
+                  >
+                    <i class="bi bi-person-plus" aria-hidden="true"></i>
+                    Petición de amistad
+                  </button>
+                  <button type="button" class="pl-btn pl-btn--danger-ghost" @click="abrirDenuncia">
+                    <i class="bi bi-flag" aria-hidden="true"></i>
+                    Denunciar personaje
+                  </button>
+
+                  <template v-if="puedeModerarPersonaje">
+                    <p class="perfil-etiqueta perfil-etiqueta--moderacion">Moderación</p>
+                    <button
+                      type="button"
+                      class="pl-btn"
+                      :class="estaDesactivado ? 'pl-btn--success' : 'pl-btn--danger-ghost'"
+                      :disabled="cambiandoEstado"
+                      @click="solicitarDesactivar"
                     >
-                      <i class="bi bi-slash-circle me-2"></i>
-                      Perfil desactivado · Solo visible para moderadores
-                    </div>
-                  <button
-                    type="button"
-                    v-if="personaje.estadoPersonaje !== 'DESACTIVADO'"
-                    class="btn-accion btn-accion--danger"
-                    @click="cambiarEstadoPersonaje('DESACTIVADO')">
-                    <i class="bi bi-slash-circle me-2"></i>Desactivar perfil
-                  </button>
-                  <button
-                    type="button"
-                    v-else
-                    class="btn-accion btn-accion--success"
-                    @click="cambiarEstadoPersonaje('ACTIVO')">
-                    <i class="bi bi-check-circle me-2"></i>Activar perfil
-                  </button>
-                  <button type="button" class="btn-accion btn-accion--danger" @click="modalBaneo = true">
-                    <i class="bi bi-hammer me-2"></i>Banear personaje
-                  </button>
+                      <span v-if="cambiandoEstado" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                      <i v-else :class="estaDesactivado ? 'bi bi-check-circle' : 'bi bi-slash-circle'" aria-hidden="true"></i>
+                      {{ estaDesactivado ? 'Activar perfil' : 'Desactivar perfil' }}
+                    </button>
+                    <button type="button" class="pl-btn pl-btn--danger" @click="abrirBaneo">
+                      <i class="bi bi-hammer" aria-hidden="true"></i>
+                      Banear personaje
+                    </button>
+                  </template>
                 </template>
-                <button type="button" class="btn-accion btn-accion--ghost" @click="enviarAmistad">
-                  <i class="bi bi-person-plus-fill me-2"></i>Petición de amistad
-                </button>
-                <button type="button" class="btn-accion btn-accion--denunciar" @click="modalDenuncia = true">
-                  <i class="bi bi-flag-fill me-2"></i>Denunciar personaje
-                </button>
-              </div>
 
-              <!-- Si es mi personaje, botón de edición -->
-              <div v-else class="mt-3">
                 <router-link
+                  v-else
                   :to="`/personajes/editar/${personaje.idPersonaje}`"
-                  class="btn-accion btn-accion--primary d-block text-center text-decoration-none"
+                  class="pl-btn pl-btn--primary"
                 >
-                  <i class="bi bi-pencil-fill me-2"></i>Editar personaje
+                  <i class="bi bi-pencil-square" aria-hidden="true"></i>
+                  Editar personaje
                 </router-link>
               </div>
             </div>
+          </aside>
 
-          </div>
-        </div>
-
-        <!-- ===================== COLUMNA DERECHA ===================== -->
-        <div class="col-12 col-lg-8 d-flex flex-column gap-4">
-
-          <!-- Tabs -->
-          <div class="perfil-card shadow-sm p-0">
-            <div class="tabs-nav">
+          <!-- Columna de contenido -->
+          <div class="perfil-contenido">
+            <div ref="tablistRef" class="perfil-tabs" role="tablist" aria-label="Contenido del personaje">
               <button
+                v-for="(pestana, indice) in PESTANAS"
+                :id="`tab-${pestana.id}`"
+                :key="pestana.id"
                 type="button"
-                class="tab-btn"
-                :class="{ 'tab-btn--active': activeTab === 'trasfondo' }"
-                @click="activeTab = 'trasfondo'"
+                role="tab"
+                class="perfil-tab"
+                :class="{ 'is-active': tabActiva === pestana.id }"
+                :aria-selected="tabActiva === pestana.id"
+                :aria-controls="`panel-${pestana.id}`"
+                :tabindex="tabActiva === pestana.id ? 0 : -1"
+                @click="tabActiva = pestana.id"
+                @keydown="onTeclaPestana($event, indice)"
               >
-                <span class="seccion-icono">📖</span>
-                Trasfondo
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ 'tab-btn--active': activeTab === 'categorias' }"
-                @click="activeTab = 'categorias'"
-              >
-                <span class="seccion-icono">🏷️</span>
-                Categorías
-              </button>
-              <button
-                type="button"
-                class="tab-btn"
-                :class="{ 'tab-btn--active': activeTab === 'galeria' }"
-                @click="activeTab = 'galeria'"
-              >
-                <span class="seccion-icono">🖼️</span>
-                Galería
+                <i :class="`bi ${pestana.icono}`" aria-hidden="true"></i>
+                {{ pestana.etiqueta }}
               </button>
             </div>
-          </div>
 
-          <!-- Tab: Trasfondo -->
-          <div v-if="activeTab === 'trasfondo'" class="perfil-card shadow-sm">
-            <div
-              v-if="personaje.trasfondo"
-              class="trasfondo-contenido"
-              v-sanitize="personaje.trasfondo"
-            ></div>
-            <p v-else class="text-muted fst-italic mb-0">Este personaje aún no tiene trasfondo escrito.</p>
-          </div>
+            <section
+              v-if="tabActiva === 'trasfondo'"
+              id="panel-trasfondo"
+              class="pl-card perfil-panel"
+              role="tabpanel"
+              aria-labelledby="tab-trasfondo"
+              tabindex="0"
+            >
+              <div
+                v-if="personaje.trasfondo"
+                class="perfil-trasfondo"
+                v-sanitize="personaje.trasfondo"
+              ></div>
+              <div v-else class="pl-empty-state pl-empty-state--compact">
+                <span class="pl-empty-state__icon" aria-hidden="true">
+                  <i class="bi bi-book"></i>
+                </span>
+                <p class="mb-0">Este personaje aún no tiene trasfondo escrito.</p>
+              </div>
+            </section>
 
-          <!-- Tab: Categorías -->
-          <div v-if="activeTab === 'categorias'" class="perfil-card shadow-sm">
-            <div v-if="categorias.length > 0" class="d-flex flex-wrap gap-2">
-              <span
-                v-for="cat in categorias"
-                :key="cat.idCategoria"
-                class="categoria-badge"
-                :class="{ 'has-tooltip': cat.descripcion }"
-                :style="cat.color ? { backgroundColor: cat.color + '22', borderColor: cat.color, color: cat.color } : {}"
-                :data-tooltip="cat.descripcion || ''"
-              >
-                {{ cat.nombre }}
-              </span>
-            </div>
-            <p v-else class="text-muted fst-italic mb-0">Sin categorías asignadas.</p>
-          </div>
+            <section
+              v-else-if="tabActiva === 'categorias'"
+              id="panel-categorias"
+              class="pl-card perfil-panel"
+              role="tabpanel"
+              aria-labelledby="tab-categorias"
+              tabindex="0"
+            >
+              <ul v-if="categorias.length > 0" class="perfil-categorias">
+                <li
+                  v-for="cat in categorias"
+                  :key="cat.idCategoria"
+                  class="perfil-categoria"
+                >
+                  <span
+                    class="perfil-categoria__punto"
+                    :style="{ background: colorCategoria(cat) }"
+                    aria-hidden="true"
+                  ></span>
+                  <div class="perfil-categoria__texto">
+                    <p class="perfil-categoria__nombre">{{ cat.nombre }}</p>
+                    <p v-if="cat.descripcion" class="perfil-categoria__desc">{{ cat.descripcion }}</p>
+                  </div>
+                </li>
+              </ul>
+              <div v-else class="pl-empty-state pl-empty-state--compact">
+                <span class="pl-empty-state__icon" aria-hidden="true">
+                  <i class="bi bi-tags"></i>
+                </span>
+                <p class="mb-0">Sin categorías asignadas.</p>
+              </div>
+            </section>
 
-          <!-- Tab: Galería -->
-          <div v-if="activeTab === 'galeria'" class="perfil-card shadow-sm">
-            <GaleriaImagenes
-              :personaje-id="personaje.idPersonaje"
-              :es-propietario="esMiPersonaje"
-            />
+            <section
+              v-else
+              id="panel-galeria"
+              class="pl-card perfil-panel"
+              role="tabpanel"
+              aria-labelledby="tab-galeria"
+              tabindex="0"
+            >
+              <GaleriaImagenes
+                :personaje-id="personaje.idPersonaje"
+                :es-propietario="esMiPersonaje"
+              />
+            </section>
           </div>
-
         </div>
       </div>
-    </div>
-  </main>
+    </main>
   </div>
+
+  <Footer v-if="!modoModal" />
+
   <!-- Modal de denuncia -->
-  <div v-if="modalDenuncia" class="modal-backdrop-custom" @click.self="modalDenuncia = false">
-    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Denunciar a {{ personaje?.nombre }}</h5>
-        <button type="button" class="btn-close" @click="modalDenuncia = false"></button>
+  <ModalFormulario
+    v-if="modalDenuncia"
+    :titulo="`Denunciar a ${personaje?.nombre ?? ''}`"
+    @cerrar="cerrarDenuncia"
+  >
+    <form ref="formDenuncia" novalidate @submit.prevent="enviarDenuncia">
+      <div class="pl-field">
+        <label class="form-label" for="denuncia-motivo">
+          Motivo <span class="text-danger" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="denuncia-motivo"
+          v-model="denuncia.motivo"
+          type="text"
+          class="form-control"
+          maxlength="200"
+          required
+          placeholder="¿Por qué lo denuncias?"
+          :aria-invalid="erroresDenuncia.motivo ? 'true' : undefined"
+          :aria-describedby="erroresDenuncia.motivo ? 'denuncia-motivo-error' : undefined"
+          @input="onMotivoEditado"
+        />
+        <p v-if="erroresDenuncia.motivo" id="denuncia-motivo-error" class="pl-field__error">
+          <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresDenuncia.motivo }}
+        </p>
       </div>
-      <div class="mb-3">
-        <label class="form-label">Motivo <span class="text-danger">*</span></label>
-        <input v-model="denuncia.motivo" type="text" class="form-control" maxlength="200" placeholder="¿Por qué lo denuncias?" />
+
+      <div class="pl-field">
+        <label class="form-label" for="denuncia-detalle">Detalle (opcional)</label>
+        <textarea
+          id="denuncia-detalle"
+          v-model="denuncia.detalle"
+          class="form-control"
+          rows="4"
+          maxlength="2000"
+          placeholder="Amplía la información si lo necesitas..."
+          aria-describedby="denuncia-detalle-contador"
+        ></textarea>
+        <p id="denuncia-detalle-contador" class="pl-field__hint text-end">
+          {{ denuncia.detalle.length }}/2000
+        </p>
       </div>
-      <div class="mb-4">
-        <label class="form-label">Detalle (opcional)</label>
-        <textarea v-model="denuncia.detalle" class="form-control" rows="4" maxlength="2000" placeholder="Amplía la información si lo necesitas..."></textarea>
-        <div class="text-end text-muted small mt-1">{{ denuncia.detalle.length }}/2000</div>
-      </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-outline-secondary" @click="modalDenuncia = false">Cancelar</button>
-        <button
-          type="button"
-          class="btn btn-outline-danger"
-          :disabled="enviandoDenuncia || !denuncia.motivo.trim()"
-          @click="enviarDenuncia"
-        >
-          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-flag me-1"></i>
-          Enviar denuncia
+
+      <p v-if="erroresDenuncia.general" class="pl-alert pl-alert--danger mb-0" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresDenuncia.general }}
+      </p>
+
+      <div class="perfil-form__acciones">
+        <button type="button" class="pl-btn pl-btn--secondary" @click="cerrarDenuncia">Cancelar</button>
+        <button type="submit" class="pl-btn pl-btn--danger-ghost" :disabled="enviandoDenuncia">
+          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <i v-else class="bi bi-flag" aria-hidden="true"></i>
+          {{ enviandoDenuncia ? 'Enviando…' : 'Enviar denuncia' }}
         </button>
       </div>
-    </div>
-  </div>
+    </form>
+  </ModalFormulario>
 
   <!-- Modal de baneo -->
-  <div v-if="modalBaneo" class="modal-backdrop-custom" @click.self="modalBaneo = false">
-    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Banear a {{ personaje?.nombre }}</h5>
-        <button type="button" class="btn-close" @click="modalBaneo = false"></button>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Duración</label>
-        <select v-model="baneo.duracion" class="form-select">
+  <ModalFormulario
+    v-if="modalBaneo"
+    :titulo="`Banear a ${personaje?.nombre ?? ''}`"
+    @cerrar="cerrarBaneo"
+  >
+    <form @submit.prevent="banearPersonaje">
+      <div class="pl-field">
+        <label class="form-label" for="baneo-duracion">Duración</label>
+        <select id="baneo-duracion" v-model="baneo.duracion" class="form-select">
           <option v-for="op in opcionesDuracion" :key="op.value" :value="op.value">
             {{ op.label }}
           </option>
         </select>
       </div>
-      <div class="mb-4">
-        <label class="form-label">Motivo (opcional)</label>
-        <input v-model="baneo.motivo" type="text" class="form-control" maxlength="300" placeholder="Motivo del baneo" />
+
+      <div class="pl-field">
+        <label class="form-label" for="baneo-motivo">Motivo (opcional)</label>
+        <input
+          id="baneo-motivo"
+          v-model="baneo.motivo"
+          type="text"
+          class="form-control"
+          maxlength="300"
+          placeholder="Motivo del baneo"
+        />
       </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button type="button" class="btn btn-outline-secondary" @click="modalBaneo = false">Cancelar</button>
-        <button
-          type="button"
-          class="btn btn-danger"
-          :disabled="baneando"
-          @click="banearPersonaje"
-        >
-          <span v-if="baneando" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-hammer me-1"></i>
-          Banear
+
+      <p v-if="errorBaneo" class="pl-alert pl-alert--danger mb-0" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errorBaneo }}
+      </p>
+
+      <div class="perfil-form__acciones">
+        <button type="button" class="pl-btn pl-btn--secondary" @click="cerrarBaneo">Cancelar</button>
+        <button type="submit" class="pl-btn pl-btn--danger" :disabled="baneando">
+          <span v-if="baneando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <i v-else class="bi bi-hammer" aria-hidden="true"></i>
+          {{ baneando ? 'Baneando…' : 'Banear' }}
         </button>
       </div>
-    </div>
-  </div>
-  <Footer v-if="!modoModal" />
+    </form>
+  </ModalFormulario>
+
+  <!-- Confirmacion antes de desactivar -->
+  <ModalConfirmacion
+    v-if="confirmacionDesactivar"
+    :mensaje="`¿Desactivar el perfil de «${personaje?.nombre ?? ''}»? Dejará de ser visible para el resto de la comunidad.`"
+    titulo="Desactivar perfil"
+    boton-confirmar="Desactivar"
+    :peligro="true"
+    @confirmar="aplicarEstado('DESACTIVADO')"
+    @cancelar="confirmacionDesactivar = false"
+  />
 
   <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>
 
 <style scoped>
-/* ---- Fondo general ---- */
-.perfil-personaje-bg {
-  min-height: 80vh;
-  background: linear-gradient(135deg, #f0f4ff 0%, #fafafa 60%, #f5f0ff 100%);
+.perfil-contenedor {
+  padding-top: 0.5rem;
+  padding-bottom: 1.5rem;
 }
 
-/* ---- Tarjeta base ---- */
-.perfil-card {
-  background: #ffffff;
-  border-radius: 16px;
-  padding: 1.75rem;
-  border: 1px solid #e8eaf0;
+.perfil-toolbar {
+  margin-bottom: 1.25rem;
 }
 
-/* ---- Avatar personaje ---- */
-.avatar-personaje {
-  width: 160px;
-  height: 160px;
-  object-fit: cover;
-  border-radius: 50%;
-  border: 4px solid #e0e7ff;
-  box-shadow: 0 4px 20px rgba(99, 102, 241, 0.15);
+.perfil-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
 }
 
-/* ---- Nombre ---- */
-.personaje-nombre {
-  font-size: 1.6rem;
-  font-weight: 700;
-  color: #1e1b4b;
-  letter-spacing: -0.02em;
-}
-
-/* ---- Badge de clase ---- */
-.badge-clase {
-  font-size: 0.78rem;
-  font-weight: 600;
-  padding: 0.3em 0.9em;
-  border-radius: 99px;
-  background: #ede9fe;
-  color: #6d28d9;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-/* ---- Divider ---- */
-.divider {
-  border-color: #e8eaf0;
-  margin: 0;
-}
-
-/* ---- Lista de datos ---- */
-.datos-lista {
-  list-style: none;
+/* ---- Columna lateral ---- */
+.perfil-lateral {
+  overflow: hidden;
   padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
 }
 
-.datos-lista li {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-}
-
-.dato-icono {
-  font-size: 1.1rem;
-  width: 24px;
-  text-align: center;
-  flex-shrink: 0;
-}
-
-.dato-label {
-  display: block;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #9ca3af;
-  font-weight: 600;
-}
-
-.dato-val {
-  display: block;
-  font-size: 0.93rem;
-  color: #374151;
-  font-weight: 500;
-}
-
-/* ---- Usuario propietario ---- */
-.usuario-bloque {
-  /* contenedor del bloque usuario */
-}
-
-.avatar-usuario {
-  width: 46px;
-  height: 46px;
-  border-radius: 50%;
-  object-fit: cover;
-  border: 2px solid #e0e7ff;
-}
-
-.usuario-nombre {
-  font-weight: 700;
-  font-size: 0.95rem;
-  color: #1e1b4b;
-}
-
-.ultima-conexion {
-  font-size: 0.78rem;
-  color: #9ca3af;
-}
-
-/* ---- Botones de acción ---- */
-.btn-accion {
+.perfil-media {
   display: block;
   width: 100%;
-  padding: 0.6rem 1rem;
-  border-radius: 10px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  border: 2px solid transparent;
-  text-align: center;
+  /* Sin esto el atributo height del <img> gana al aspect-ratio. */
+  height: auto;
+  aspect-ratio: 1;
+  background: linear-gradient(135deg, rgba(var(--pl-primary-rgb), 0.16), rgba(var(--pl-cyan-rgb), 0.2));
+  object-fit: cover;
+  object-position: center 25%;
 }
 
-.btn-accion--primary {
-  background: #4f46e5;
-  color: #fff;
-  border-color: #4f46e5;
-}
-.btn-accion--primary:hover {
-  background: #4338ca;
-  border-color: #4338ca;
+.perfil-lateral__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  padding: 1.15rem;
 }
 
-.btn-accion--outline {
-  background: transparent;
-  color: #4f46e5;
-  border-color: #4f46e5;
-}
-.btn-accion--outline:hover {
-  background: #eef2ff;
-}
-
-.btn-accion--ghost {
-  background: transparent;
-  color: #6b7280;
-  border-color: #d1d5db;
-}
-.btn-accion--ghost:hover {
-  background: #f3f4f6;
-  color: #374151;
+.perfil-nombre {
+  margin: 0 0 0.5rem;
+  color: var(--pl-ink);
+  font-size: clamp(1.35rem, 2.4vw, 1.6rem);
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
 }
 
-.btn-accion--denunciar {
-  background: transparent;
-  color: #d97706;
-  border-color: #d97706;
+.perfil-pildoras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
 }
 
-.btn-accion--denunciar:hover {
-  background: #fffbeb;
-  color: #b45309;
+/* ---- Datos ---- */
+.perfil-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--pl-border);
 }
 
-/* ---- Secciones derecha ---- */
-.seccion-icono {
-  font-size: 1.3rem;
+.perfil-dato dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-bottom: 0.15rem;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
 
-.seccion-titulo {
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: #1e1b4b;
+.perfil-dato dt i {
+  color: var(--pl-primary-ink);
+  font-size: 0.95em;
 }
 
-/* ---- Trasfondo HTML ---- */
-.trasfondo-contenido {
-  line-height: 1.8;
+.perfil-dato dd {
+  margin: 0;
+  color: var(--pl-ink);
+  font-size: 0.92rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Propietario ---- */
+.perfil-propietario {
+  padding-top: 1rem;
+  border-top: 1px solid var(--pl-border);
+}
+
+.perfil-etiqueta {
+  margin: 0 0 0.5rem;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.perfil-etiqueta--moderacion {
+  margin-top: 0.35rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--pl-border);
+}
+
+.perfil-propietario__fila {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+
+.perfil-propietario__avatar {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 3px #fff, 0 0 0 4px var(--pl-border);
+}
+
+.perfil-propietario__info {
+  min-width: 0;
+}
+
+.perfil-propietario__nombre {
+  margin: 0;
+  color: var(--pl-ink);
   font-size: 0.95rem;
-  color: #374151;
-  word-break: break-word;
+  font-weight: 750;
+  overflow-wrap: anywhere;
 }
 
-/* Estilos para el HTML del trasfondo */
-.trasfondo-contenido :deep(h1),
-.trasfondo-contenido :deep(h2),
-.trasfondo-contenido :deep(h3) {
-  color: #1e1b4b;
+.perfil-propietario__estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  color: var(--pl-muted);
+  font-size: 0.78rem;
+}
+
+.perfil-punto {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--pl-muted);
+}
+
+.perfil-punto--online {
+  background: var(--pl-success);
+  box-shadow: 0 0 0 3px rgba(var(--pl-success-rgb), 0.18);
+}
+
+.perfil-acciones {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
   margin-top: 1rem;
 }
 
-.trasfondo-contenido :deep(strong) {
-  color: #111827;
+/* Sin bloque de propietario, las acciones abren su propia seccion. */
+.perfil-acciones--suelta {
+  margin-top: 0;
+  padding-top: 1rem;
+  border-top: 1px solid var(--pl-border);
 }
 
-.trasfondo-contenido :deep(img) {
-  max-width: 100%;
-  border-radius: 8px;
-  margin: 0.5rem 0;
-}
-
-.trasfondo-contenido :deep(blockquote) {
-  border-left: 3px solid #6d28d9;
-  padding-left: 1rem;
-  color: #6b7280;
-  font-style: italic;
-  margin: 1rem 0;
-}
-
-/* ---- Badges de categoría ---- */
-.categoria-badge {
-  display: inline-block;
-  padding: 0.35em 0.85em;
-  border-radius: 99px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  background: #f3f4f6;
-  border: 1.5px solid #d1d5db;
-  color: #374151;
-  letter-spacing: 0.02em;
-}
-
-/* ---- Estilos para el modal de mensaje ---- */
-.modal-dialog-custom {
-  background: #fff;
+.perfil-acciones .pl-btn {
   width: 100%;
-  max-width: 520px;
-  margin: 1rem;
+  justify-content: center;
 }
 
-.btn-accion--danger {
-  background: transparent;
-  color: #dc2626;
-  border-color: #dc2626;
+/* ---- Columna de contenido ---- */
+.perfil-contenido {
+  min-width: 0;
 }
 
-.btn-accion--danger:hover {
-  background: #fef2f2;
-}
-
-.btn-accion--success {
-  background: transparent;
-  color: #16a34a;
-  border-color: #16a34a;
-}
-
-.btn-accion--success:hover {
-  background: #f0fdf4;
-
-}
-
-.alerta-desactivado {
-  font-size: 0.78rem;
-  font-weight: 600;
-  color: #b45309;
-  background: #fffbeb;
-  border: 1px solid #fcd34d;
-  border-radius: 8px;
-  padding: 0.45rem 0.75rem;
-  text-align: center;
-}
-
-/* ---- Tooltip CSS en categorías ---- */
-.categoria-badge.has-tooltip {
-  position: relative;
-  cursor: default;
-}
-
-.categoria-badge.has-tooltip::after {
-  content: attr(data-tooltip);
-  position: absolute;
-  bottom: calc(100% + 8px);
-  left: 50%;
-  transform: translateX(-50%);
-  background: #1e1b4b;
-  color: #fff;
-  font-size: 0.75rem;
-  font-weight: 400;
-  padding: 0.4em 0.75em;
-  border-radius: 6px;
-  white-space: nowrap;
-  max-width: 220px;
-  white-space: normal;
-  text-align: center;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  z-index: 100;
-  line-height: 1.4;
-}
-
-.categoria-badge.has-tooltip::before {
-  content: '';
-  position: absolute;
-  bottom: calc(100% + 2px);
-  left: 50%;
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: #1e1b4b;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  z-index: 100;
-}
-
-.categoria-badge.has-tooltip:hover::after,
-.categoria-badge.has-tooltip:hover::before {
-  opacity: 1;
-}
-
-/* ---- Tabs de navegación ---- */
-.tabs-nav {
+.perfil-tabs {
   display: flex;
-  border-bottom: 1px solid #e8eaf0;
-  background: transparent;
+  gap: 0.3rem;
+  margin-bottom: 1rem;
+  padding: 0.4rem;
+  overflow-x: auto;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-lg);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-sm);
 }
 
-.tab-btn {
-  flex: 1;
-  display: flex;
+.perfil-tab {
+  display: inline-flex;
+  flex: 1 1 auto;
   align-items: center;
   justify-content: center;
-  gap: 0.5rem;
-  padding: 0.85rem 1rem;
-  border: none;
+  gap: 0.45rem;
+  min-height: 44px;
+  padding: 0.6rem 0.9rem;
+  border: 1px solid transparent;
+  border-radius: var(--pl-radius-md);
+  color: var(--pl-muted);
   background: transparent;
-  color: #6b7280;
   font-size: 0.9rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.18s ease;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -1px;
+  font-weight: 700;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 
-.tab-btn:hover {
-  color: #4f46e5;
-  background: #f9fafb;
+.perfil-tab:hover {
+  color: var(--pl-ink);
+  background: var(--pl-surface-soft);
 }
 
-.tab-btn--active {
-  color: #4f46e5;
-  border-bottom-color: #4f46e5;
-  background: transparent;
+.perfil-tab.is-active {
+  color: var(--pl-primary-ink);
+  background: rgba(var(--pl-primary-rgb), 0.1);
+  border-color: rgba(var(--pl-primary-rgb), 0.22);
 }
 
-.tab-btn .seccion-icono {
-  font-size: 1rem;
+.perfil-panel {
+  padding: 1.5rem;
 }
 
-/* ---- Modo modal ---- */
-.modal-header-bar {
+.perfil-panel:focus-visible {
+  outline: 3px solid rgba(var(--pl-primary-rgb), 0.24);
+  outline-offset: 3px;
+}
+
+/* ---- Trasfondo ---- */
+.perfil-trasfondo {
+  color: var(--pl-ink);
+  font-size: 0.95rem;
+  line-height: 1.8;
+  overflow-wrap: anywhere;
+}
+
+.perfil-trasfondo :deep(h1),
+.perfil-trasfondo :deep(h2),
+.perfil-trasfondo :deep(h3) {
+  margin-top: 1.2rem;
+  margin-bottom: 0.6rem;
+  color: var(--pl-ink);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.perfil-trasfondo :deep(p:last-child) {
+  margin-bottom: 0;
+}
+
+.perfil-trasfondo :deep(strong) {
+  color: var(--pl-ink);
+  font-weight: 800;
+}
+
+.perfil-trasfondo :deep(img) {
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border-radius: var(--pl-radius-md);
+}
+
+.perfil-trasfondo :deep(blockquote) {
+  margin: 1rem 0;
+  padding-left: 1rem;
+  border-left: 3px solid var(--pl-primary);
+  color: var(--pl-muted);
+  font-style: italic;
+}
+
+.perfil-trasfondo :deep(a) {
+  color: var(--pl-primary-ink);
+}
+
+/* ---- Categorias ---- */
+.perfil-categorias {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.perfil-categoria {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.8rem 0.95rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface-soft);
+}
+
+.perfil-categoria__punto {
+  width: 10px;
+  height: 10px;
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.perfil-categoria__texto {
+  min-width: 0;
+}
+
+.perfil-categoria__nombre {
+  margin: 0;
+  color: var(--pl-ink);
+  font-size: 0.95rem;
+  font-weight: 750;
+  overflow-wrap: anywhere;
+}
+
+.perfil-categoria__desc {
+  margin: 0.15rem 0 0;
+  color: var(--pl-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Vacio ---- */
+.perfil-vacio__titulo {
+  margin: 0 0 0.35rem;
+  color: var(--pl-ink);
+  font-size: 1.2rem;
+  font-weight: 850;
+}
+
+/* ---- Formularios en modales ---- */
+.perfil-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+/* ---- Esqueletos ---- */
+.perfil-esqueleto {
+  border-radius: var(--pl-radius-lg);
+  background: linear-gradient(
+    100deg,
+    var(--pl-surface-soft) 30%,
+    var(--pl-surface) 50%,
+    var(--pl-surface-soft) 70%
+  );
+  background-size: 200% 100%;
+  box-shadow: inset 0 0 0 1px var(--pl-border);
+  animation: perfil-esqueleto 1.4s ease-in-out infinite;
+}
+
+.perfil-esqueleto--lateral {
+  min-height: 520px;
+}
+
+.perfil-esqueleto--contenido {
+  min-height: 360px;
+}
+
+@keyframes perfil-esqueleto {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* ---- Modo modal (chat) ---- */
+.perfil-modal-cabecera {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1.25rem;
-  background: #fff;
-  border-bottom: 1px solid #e8eaf0;
+  gap: 1rem;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--pl-border);
+  background: var(--pl-surface);
   flex-shrink: 0;
 }
-.modal-scrollable {
-  overflow-y: auto;
+
+.perfil-modal-scroll {
   flex: 1;
   min-height: 0;
+  overflow-y: auto;
+}
+
+.perfil-modal-pagina {
+  padding: 1.25rem 0 2rem;
+}
+
+@media (max-width: 991.98px) {
+  .perfil-layout {
+    grid-template-columns: minmax(0, 260px) minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 767.98px) {
+  .perfil-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .perfil-esqueleto--lateral {
+    min-height: 320px;
+  }
+
+  .perfil-panel {
+    padding: 1.15rem;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .perfil-tabs {
+    overflow-x: visible;
+  }
+
+  .perfil-tab {
+    flex: 1 1 0;
+    padding: 0.55rem 0.4rem;
+    font-size: 0.84rem;
+  }
+
+  .perfil-form__acciones {
+    flex-direction: column-reverse;
+  }
+
+  .perfil-form__acciones .pl-btn {
+    width: 100%;
+  }
 }
 </style>
