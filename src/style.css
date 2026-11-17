@@ -353,6 +353,10 @@ section[id] {
   max-width: 820px;
 }
 
+.pl-page-header.text-center .pl-lead {
+  margin-inline: auto;
+}
+
 .pl-empty-state {
   display: flex;
   flex-direction: column;
