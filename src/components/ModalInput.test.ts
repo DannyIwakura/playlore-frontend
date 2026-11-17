@@ -36,4 +36,23 @@ describe('ModalInput', () => {
     await wrapper.find('button[type="button"]').trigger('click')
     expect(wrapper.emitted('cancelar')).toBeTruthy()
   })
+
+  it('asocia la etiqueta y el mensaje al input', () => {
+    const wrapper = mount(ModalInput, {
+      props: { titulo: 'T', etiqueta: 'Nombre', mensaje: 'Se guardará en tu perfil' },
+    })
+    const input = wrapper.find('input')
+    const id = input.attributes('id')
+    expect(id).toBeTruthy()
+    expect(wrapper.find(`label[for="${id}"]`).text()).toContain('Nombre')
+
+    const descrito = input.attributes('aria-describedby')
+    expect(descrito).toBeTruthy()
+    expect(wrapper.find(`#${descrito}`).text()).toContain('Se guardará en tu perfil')
+  })
+
+  it('no describe el input cuando no hay mensaje', () => {
+    const wrapper = mount(ModalInput, { props: { titulo: 'T', etiqueta: 'E' } })
+    expect(wrapper.find('input').attributes('aria-describedby')).toBeUndefined()
+  })
 })

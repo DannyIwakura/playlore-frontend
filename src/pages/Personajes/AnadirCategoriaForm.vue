@@ -80,12 +80,12 @@ const eliminarCategoria = async (idRelacion: number) => {
 
 <template>
   <div class="modal-backdrop fade show"></div>
-  <div class="modal fade show d-block" tabindex="-1" role="dialog">
+  <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="categorias-modal-title">
     <div class="modal-dialog modal-dialog-centered" role="document">
       <div class="modal-content shadow-lg">
         <div class="modal-header">
-          <h5 class="modal-title">Gestionar Categorías</h5>
-          <button type="button" class="btn-close" @click="$emit('close')"></button>
+          <h5 id="categorias-modal-title" class="modal-title">Gestionar Categorías</h5>
+          <button type="button" class="btn-close" aria-label="Cerrar" @click="$emit('close')"></button>
         </div>
         
         <div class="modal-body">
@@ -99,7 +99,7 @@ const eliminarCategoria = async (idRelacion: number) => {
               :key="cat.idCategoria"
               class="badge bg-primary px-3 py-2">
                 {{ cat.nombre }}
-            <button class="btn-eliminar" @click="eliminarCategoria(cat.idRelacion)">
+            <button type="button" class="btn-eliminar-pildora" :aria-label="`Quitar categoría ${cat.nombre}`" @click="eliminarCategoria(cat.idRelacion)">
                 &times;
             </button>
               </span>
@@ -111,8 +111,8 @@ const eliminarCategoria = async (idRelacion: number) => {
 
           <form @submit.prevent="guardarCategorias">
             <div class="mb-3">
-              <label class="form-label font-weight-bold">Añadir Nueva Categoría</label>
-              <select class="form-select" v-model="categoriaSeleccionada" required>
+              <label class="form-label fw-bold" for="categoria-nueva">Añadir Nueva Categoría</label>
+              <select id="categoria-nueva" class="form-select" v-model="categoriaSeleccionada" required>
                 <option value="" disabled>Selecciona una categoría...</option>
                 <option v-for="cat in categoriasDisponibles" :key="cat.idCategoria" :value="cat.idCategoria">
                   {{ cat.nombre }}

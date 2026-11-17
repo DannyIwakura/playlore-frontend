@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, useId } from 'vue'
 import { useModalFocus } from '../composables/useModalFocus'
 
 const props = withDefaults(
@@ -37,6 +37,8 @@ useModalFocus({
 
 const valor = ref(props.valorInicial)
 const inputRef = ref<HTMLInputElement | null>(null)
+const inputId = useId()
+const mensajeId = `${inputId}-mensaje`
 
 watch(() => props.valorInicial, (v) => {
   valor.value = v
@@ -64,19 +66,21 @@ function cancelar() {
         <h5 class="mb-0"><i class="bi bi-pencil-square me-2 text-primary"></i>{{ titulo }}</h5>
         <button class="btn-close" type="button" aria-label="Cerrar" @click="cancelar"></button>
       </div>
-      <p v-if="mensaje" class="mb-3" style="white-space: pre-wrap">{{ mensaje }}</p>
+      <p v-if="mensaje" :id="mensajeId" class="mb-3" style="white-space: pre-wrap">{{ mensaje }}</p>
       <form @submit.prevent="confirmar">
-        <label class="form-label d-block">
+        <label class="form-label" :for="inputId">
           <span class="small text-muted">{{ etiqueta }}</span>
-          <input
-            ref="inputRef"
-            v-model="valor"
-            class="form-control"
-            :type="type"
-            :placeholder="placeholder"
-            autofocus
-          />
         </label>
+        <input
+          :id="inputId"
+          ref="inputRef"
+          v-model="valor"
+          class="form-control mb-3"
+          :type="type"
+          :placeholder="placeholder"
+          :aria-describedby="mensaje ? mensajeId : undefined"
+          autofocus
+        />
         <div class="d-flex justify-content-end gap-2">
           <button type="button" class="btn btn-outline-secondary" @click="cancelar">{{ botonCancelar }}</button>
           <button type="submit" class="btn btn-primary" :disabled="!valor">{{ botonConfirmar }}</button>
