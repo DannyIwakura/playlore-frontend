@@ -194,132 +194,21 @@ const registrarUsuario = async () => {
 </template>
 
 <style scoped>
+/* Solo lo distinto de la ficha compartida de style.css: otra imagen de fondo y
+   otro halo decorativo. */
 .auth-visual {
-  position: relative;
-  display: flex;
-  min-height: 650px;
-  flex-direction: column;
-  justify-content: flex-end;
-  overflow: hidden;
-  padding: clamp(2rem, 5vw, 4rem);
-  color: #fff;
   background: #172033 url('../assets/img/register-bg.jpg') center / cover no-repeat;
 }
 
-.auth-visual::before {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(180deg, rgba(23, 32, 51, 0.18), rgba(23, 32, 51, 0.92));
-  content: '';
-}
-
 .auth-visual::after {
-  position: absolute;
+  top: auto;
+  right: auto;
   bottom: 12%;
   left: 12%;
-  width: 260px;
-  height: 260px;
-  border-radius: 50%;
   background: radial-gradient(circle, rgba(108, 92, 231, 0.58), rgba(108, 92, 231, 0) 68%);
-  content: '';
-}
-
-.auth-visual-content {
-  position: relative;
-  z-index: 1;
-  max-width: 560px;
-}
-
-.auth-visual-content h2 {
-  margin-bottom: 0.9rem;
-  font-size: clamp(2rem, 4vw, 3.6rem);
-  letter-spacing: -0.045em;
-  line-height: 1.05;
-}
-
-.auth-visual-content p {
-  max-width: 480px;
-  margin-bottom: 0;
-  color: rgba(255, 255, 255, 0.76);
-}
-
-.auth-panel {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: clamp(2rem, 5vw, 4rem);
-  background: var(--pl-surface);
-}
-
-.auth-card {
-  width: 100%;
-  max-width: 490px;
-  padding: clamp(1.5rem, 4vw, 2.75rem);
-  border: 1px solid var(--pl-border);
-  border-radius: var(--pl-radius-xl);
-  background: var(--pl-surface);
-  box-shadow: var(--pl-shadow-md);
-}
-
-.auth-heading {
-  margin-bottom: 0.4rem;
-  font-size: clamp(1.8rem, 4vw, 2.55rem);
-  font-weight: 850;
-  letter-spacing: -0.04em;
-  line-height: 1.1;
-}
-
-.auth-subtitle {
-  margin-bottom: 1.75rem;
-  color: var(--pl-muted);
-}
-
-.auth-field {
-  margin-bottom: 1rem;
-}
-
-.auth-submit {
-  width: 100%;
-  margin-top: 0.25rem;
 }
 
 .text-muted {
   color: var(--pl-muted) !important;
-}
-
-.auth-switch {
-  margin: 1.25rem 0 0;
-  color: var(--pl-muted);
-  text-align: center;
-}
-
-@media (max-width: 991.98px) {
-  .auth-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .auth-visual {
-    min-height: 310px;
-  }
-
-  .auth-panel {
-    min-height: auto;
-    padding: 2rem 1rem;
-  }
-}
-
-@media (max-width: 575.98px) {
-  .auth-visual {
-    min-height: 280px;
-    padding: 1.5rem;
-  }
-
-  .auth-panel {
-    padding: 1.5rem 1rem;
-  }
-
-  .auth-card {
-    padding: 1.4rem 1rem;
-  }
 }
 </style>

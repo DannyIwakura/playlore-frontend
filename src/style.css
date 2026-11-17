@@ -691,10 +691,10 @@ section[id] {
   content: "";
 }
 
-.auth-error {
-  margin-top: 0.55rem;
-  color: var(--pl-danger-ink);
-  font-size: 0.84rem;
+.auth-switch {
+  margin: 1.25rem 0 0;
+  color: var(--pl-muted);
+  text-align: center;
 }
 
 .pl-alert {
