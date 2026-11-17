@@ -222,6 +222,16 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* El hero es full-bleed: va pegado a la navbar y sin esquinas
+   redondeadas arriba, que dejarian ver el fondo claro de la pagina. */
+.pl-page {
+  padding-top: 0;
+}
+
+.pl-hero {
+  border-radius: 0 0 1.25rem 1.25rem;
+}
+
 .pl-visual-card {
   position: relative;
   min-height: 420px;
