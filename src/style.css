@@ -1551,6 +1551,51 @@ section[id] {
   font-size: 0.8rem;
 }
 
+/* Grupo de opciones excluyentes (estado de las denuncias). Son radios nativos
+   ocultos: las flechas del teclado cambian de opcion sin JS extra. */
+.pl-segmentado {
+  display: inline-flex;
+  flex: 1 1 100%;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  width: fit-content;
+  margin: 0;
+  padding: 0.25rem;
+  border: 1px solid var(--pl-border);
+  border-radius: 999px;
+  background: var(--pl-surface-soft);
+}
+
+.pl-segmentado__opcion {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 0.35rem 0.9rem;
+  border-radius: 999px;
+  color: var(--pl-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.pl-segmentado__opcion:hover {
+  color: var(--pl-ink);
+  background: rgba(var(--pl-primary-rgb), 0.08);
+}
+
+.pl-segmentado__opcion:has(input:checked) {
+  color: #fff;
+  background: var(--pl-primary-strong);
+  box-shadow: var(--pl-shadow-sm);
+}
+
+.pl-segmentado__opcion:has(input:focus-visible) {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 2px;
+}
+
 /* ---- Tablas de administracion ---- */
 
 .pl-tabla-admin {
