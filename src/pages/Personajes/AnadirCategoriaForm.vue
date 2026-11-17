@@ -151,7 +151,7 @@ const eliminarCategoria = async (idRelacion: number) => {
 
 .btn-eliminar-pildora:hover {
     opacity: 1;
-    color: #ff4d4d;
+    color: #fff;
 }
 
 .badge {
