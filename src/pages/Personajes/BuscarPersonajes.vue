@@ -433,7 +433,7 @@ const limpiarFiltros = () => {
   font-weight: 750;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .filtros-toggle:hover {
@@ -541,6 +541,13 @@ const limpiarFiltros = () => {
 @keyframes buscar-esqueleto {
   to {
     background-position: -200% 0;
+  }
+}
+
+/* Sin movimiento: el esqueleto se queda como bloque estatico con el mismo tinte. */
+@media (prefers-reduced-motion: reduce) {
+  .buscar-esqueleto {
+    animation: none;
   }
 }
 

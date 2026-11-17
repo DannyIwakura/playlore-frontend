@@ -50,11 +50,15 @@ watch(() => props.text, () => { expanded.value = false; checkOverflow() })
   position: relative;
 }
 .expandable-content {
-  transition: max-height 0.3s ease;
   display: -webkit-box;
   -webkit-box-orient: vertical;
   word-break: break-word;
   line-height: 1.4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .expandable-content {
+    transition: max-height var(--pl-duration-slow) var(--pl-ease-standard);
+  }
 }
 .expandable-content:not(.expanded) {
   -webkit-line-clamp: v-bind('props.maxLines');

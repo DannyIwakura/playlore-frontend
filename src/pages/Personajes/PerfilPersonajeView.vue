@@ -1015,7 +1015,7 @@ watch(
   font-size: 0.9rem;
   font-weight: 700;
   white-space: nowrap;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .perfil-tab:hover {
@@ -1173,6 +1173,13 @@ watch(
 @keyframes perfil-esqueleto {
   to {
     background-position: -200% 0;
+  }
+}
+
+/* Sin movimiento: el esqueleto se queda como bloque estatico con el mismo tinte. */
+@media (prefers-reduced-motion: reduce) {
+  .perfil-esqueleto {
+    animation: none;
   }
 }
 

@@ -47,6 +47,15 @@
   --pl-shadow-lg: 0 10px 15px -3px rgba(15, 23, 42, 0.1), 0 4px 6px -4px rgba(15, 23, 42, 0.1);
   --pl-glow: 0 8px 20px rgba(91, 84, 217, 0.16);
 
+  /* Movimiento (ROADMAP-UI-REDESIGN.md §12): duraciones cortas y curvas
+     compartidas. El movimiento espacial se activa solo dentro de
+     prefers-reduced-motion: no-preference. */
+  --pl-duration-fast: 140ms;
+  --pl-duration-base: 200ms;
+  --pl-duration-slow: 300ms;
+  --pl-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --pl-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+
   --bs-body-bg: var(--pl-bg);
   --bs-body-color: var(--pl-ink);
   --bs-body-font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -201,13 +210,18 @@ section[id] {
   border-radius: var(--pl-radius-lg);
   background: var(--pl-surface);
   box-shadow: var(--pl-shadow-sm);
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+  transition: border-color var(--pl-duration-base) var(--pl-ease-standard), box-shadow var(--pl-duration-base) var(--pl-ease-standard), transform var(--pl-duration-base) var(--pl-ease-standard);
 }
 
 .pl-card-hover:hover {
   border-color: rgba(var(--pl-primary-rgb), 0.22);
   box-shadow: var(--pl-shadow-lg);
-  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-card-hover:hover {
+    transform: translateY(-2px);
+  }
 }
 
 .pl-card-hover {
@@ -258,7 +272,7 @@ section[id] {
   border-radius: var(--pl-radius-md);
   font-weight: 700;
   letter-spacing: 0.01em;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), box-shadow var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-btn:hover {
@@ -267,6 +281,12 @@ section[id] {
 
 .pl-btn:active {
   transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-btn:active {
+    scale: 0.985;
+  }
 }
 
 .pl-btn:disabled,
@@ -456,7 +476,7 @@ section[id] {
 }
 
 .pl-list-item {
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-list-item:hover {
@@ -871,12 +891,17 @@ section[id] {
 
 .pl-footer-links a {
   color: rgba(255, 255, 255, 0.72);
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition: color var(--pl-duration-fast) var(--pl-ease-standard), transform var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-footer-links a:hover {
   color: #fff;
-  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-footer-links a:hover {
+    transform: translateX(2px);
+  }
 }
 
 .pl-footer-bottom {
@@ -891,7 +916,7 @@ section[id] {
   border-radius: var(--pl-radius-md);
   font-weight: 700;
   letter-spacing: 0.01em;
-  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), box-shadow var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .btn:hover {
@@ -900,6 +925,12 @@ section[id] {
 
 .btn:active {
   transform: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .btn:active {
+    scale: 0.985;
+  }
 }
 
 .btn:disabled {
@@ -1043,7 +1074,7 @@ section[id] {
   border-radius: var(--pl-radius-md);
   background-color: #fff;
   box-shadow: inset 0 1px 2px rgba(23, 32, 51, 0.04);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease;
+  transition: border-color var(--pl-duration-fast) var(--pl-ease-standard), box-shadow var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .form-control:focus,
@@ -1323,7 +1354,7 @@ section[id] {
 }
 
 .table > tbody tr {
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .table > tbody tr:hover {
@@ -1415,7 +1446,7 @@ section[id] {
   font-size: 0.9rem;
   font-weight: 700;
   text-align: start;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-admin-nav__item:hover {
@@ -1577,7 +1608,7 @@ section[id] {
   font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-segmentado__opcion:hover {
@@ -1694,7 +1725,7 @@ table.pl-tabla-admin tbody tr:last-child > * {
 }
 
 table.pl-tabla-admin tbody tr {
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 table.pl-tabla-admin tbody tr:hover {
@@ -2064,14 +2095,45 @@ table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
   }
 }
 
+/* Movimiento reducido: se apaga el desplazamiento espacial y las animaciones
+   continuas, pero se mantienen las transiciones de color, borde, sombra y
+   opacidad (guia modern-web-guidance: no usar animation-duration: 0.01ms
+   global). Cada componente declara su bloque cuando mueve algo. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
     scroll-behavior: auto !important;
-    transition-duration: 0.01ms !important;
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
+  }
+
+  /* El spinner de Bootstrap no tiene estado estatico: se deja quieto y visible. */
+  .spinner-border {
+    animation: none;
+  }
+
+  .spinner-grow {
+    animation: none;
+    opacity: 0.65;
+  }
+}
+
+/* Entrada de elementos clave: una sola vez, corta y sin mover el layout. */
+@media (prefers-reduced-motion: no-preference) {
+  .pl-animate-in,
+  .pl-hero-content {
+    animation: pl-fade-up var(--pl-duration-slow) var(--pl-ease-out) both;
+  }
+
+  @keyframes pl-fade-up {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 }
 .pl-kicker--light {

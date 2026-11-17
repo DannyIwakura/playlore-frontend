@@ -441,7 +441,7 @@ onMounted(cargarImagenes)
   font: inherit;
   text-align: center;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition: border-color var(--pl-duration-base) var(--pl-ease-standard), background var(--pl-duration-base) var(--pl-ease-standard);
 }
 
 .drop-zone:hover {
@@ -497,7 +497,7 @@ onMounted(cargarImagenes)
   aspect-ratio: 1;
   background: var(--pl-surface-soft);
   border: 1px solid var(--pl-border);
-  transition: box-shadow 0.18s ease;
+  transition: box-shadow var(--pl-duration-base) var(--pl-ease-standard);
 }
 
 .imagen-item:hover {
@@ -506,7 +506,7 @@ onMounted(cargarImagenes)
 
 @media (prefers-reduced-motion: no-preference) {
   .imagen-item {
-    transition: box-shadow 0.18s ease, transform 0.18s ease;
+    transition: box-shadow var(--pl-duration-base) var(--pl-ease-standard), transform var(--pl-duration-base) var(--pl-ease-standard);
   }
 
   .imagen-item:hover {
@@ -552,7 +552,7 @@ onMounted(cargarImagenes)
   font-size: 0.8rem;
   cursor: pointer;
   opacity: 0;
-  transition: opacity 0.18s ease, background 0.18s ease;
+  transition: opacity var(--pl-duration-base) var(--pl-ease-standard), background var(--pl-duration-base) var(--pl-ease-standard);
 }
 
 .imagen-item:hover .btn-eliminar,
@@ -642,7 +642,7 @@ onMounted(cargarImagenes)
   font-size: 1.4rem;
   cursor: pointer;
   opacity: 0.8;
-  transition: opacity 0.18s ease, background 0.18s ease;
+  transition: opacity var(--pl-duration-base) var(--pl-ease-standard), background var(--pl-duration-base) var(--pl-ease-standard);
   z-index: 10;
 }
 
@@ -690,7 +690,7 @@ onMounted(cargarImagenes)
   font-size: 1.3rem;
   cursor: pointer;
   opacity: 0.75;
-  transition: opacity 0.18s ease, background 0.18s ease;
+  transition: opacity var(--pl-duration-base) var(--pl-ease-standard), background var(--pl-duration-base) var(--pl-ease-standard);
   z-index: 5;
 }
 
@@ -775,7 +775,7 @@ onMounted(cargarImagenes)
   background: rgba(255, 255, 255, 0.08);
   cursor: pointer;
   opacity: 0.5;
-  transition: opacity 0.18s ease, border-color 0.18s ease;
+  transition: opacity var(--pl-duration-base) var(--pl-ease-standard), border-color var(--pl-duration-base) var(--pl-ease-standard);
 }
 
 .carousel-thumb:hover {

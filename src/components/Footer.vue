@@ -97,12 +97,18 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
 
 .pl-footer-links a {
   color: rgba(255, 255, 255, 0.72);
-  transition: color 0.15s ease, transform 0.15s ease;
+  transition: color var(--pl-duration-fast) var(--pl-ease-standard),
+    transform var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .pl-footer-links a:hover {
   color: #fff;
-  transform: translateX(2px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .pl-footer-links a:hover {
+    transform: translateX(2px);
+  }
 }
 
 .pl-footer-bottom {
@@ -122,11 +128,7 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
 
 @media (prefers-reduced-motion: reduce) {
   .pl-footer-links a {
-    transition: none;
-  }
-
-  .pl-footer-links a:hover {
-    transform: none;
+    transition: color var(--pl-duration-fast) var(--pl-ease-standard);
   }
 }
 </style>

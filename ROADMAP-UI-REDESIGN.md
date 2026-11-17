@@ -71,14 +71,18 @@ Conocer el estado actual antes de modificar la interfaz y evitar cambios visuale
 
 ### Tareas
 
-- [ ] Inventario de todas las rutas y pantallas.
-- [ ] Capturas de cada vista importante en escritorio y móvil.
-- [ ] Identificación de estilos globales, scoped y duplicados.
-- [ ] Revisión de formularios, tablas, modales, menús y estados vacíos.
-- [ ] Revisión de contraste y foco visible.
-- [ ] Revisión de rendimiento de imágenes y animaciones.
-- [ ] Confirmación de flujos que deben conservarse exactamente.
-- [ ] Creación de una rama exclusiva para el rediseño.
+- [x] Inventario de todas las rutas y pantallas.
+- [x] Capturas de cada vista importante en escritorio y móvil.
+- [x] Identificación de estilos globales, scoped y duplicados.
+- [x] Revisión de formularios, tablas, modales, menús y estados vacíos.
+- [x] Revisión de contraste y foco visible.
+- [x] Revisión de rendimiento de imágenes y animaciones.
+- [x] Confirmación de flujos que deben conservarse exactamente.
+- [x] Creación de una rama exclusiva para el rediseño.
+
+> Cierre retrospectivo: el trabajo se hizo directamente sobre `main`, sin rama exclusiva, y no se
+> conservaron en el repo la matriz de pantallas ni las capturas iniciales. Las fases 1-3 se
+> ejecutaron en `8cd8313`, `542e95d`, `17862f1` y `7d3460b`.
 
 ### Entregables
 
@@ -103,17 +107,17 @@ Crear una base visual común para que toda la aplicación se sienta uniforme.
 
 ### Tareas
 
-- [ ] Definir tokens de color: primario, secundario, acento, fondo, superficie, texto, éxito, advertencia, peligro e información.
-- [ ] Definir una paleta clara y oscura opcional, sin forzar el modo oscuro en esta primera entrega.
-- [ ] Definir tipografías y escalas para títulos, subtítulos, texto, pequeño y estados.
-- [ ] Definir espaciados, tamaños de fuente, alturas mínimas y anchos máximos.
-- [ ] Definir radios de borde por componente.
-- [ ] Definir sombras, capas y efectos sutiles inspirados en SmoothUI.
-- [ ] Definir estilos para botones primarios, secundarios, delicados, peligrosos y de navegación.
-- [ ] Definir tarjetas, listas, tablas, badges, alertas, inputs, selects, textareas y checkboxes.
-- [ ] Definir estados `default`, `hover`, `active`, `focus`, `disabled`, `loading`, `success`, `error` y `empty`.
-- [ ] Sobrescribir de forma controlada las variables y clases base de Bootstrap.
-- [ ] Crear una capa CSS de sistema de diseño antes de rediseñar páginas.
+- [x] Definir tokens de color: primario, secundario, acento, fondo, superficie, texto, éxito, advertencia, peligro e información.
+- [x] Definir una paleta clara y oscura opcional, sin forzar el modo oscuro en esta primera entrega.
+- [x] Definir tipografías y escalas para títulos, subtítulos, texto, pequeño y estados.
+- [x] Definir espaciados, tamaños de fuente, alturas mínimas y anchos máximos.
+- [x] Definir radios de borde por componente.
+- [x] Definir sombras, capas y efectos sutiles inspirados en SmoothUI.
+- [x] Definir estilos para botones primarios, secundarios, delicados, peligrosos y de navegación.
+- [x] Definir tarjetas, listas, tablas, badges, alertas, inputs, selects, textareas y checkboxes.
+- [x] Definir estados `default`, `hover`, `active`, `focus`, `disabled`, `loading`, `success`, `error` y `empty`.
+- [x] Sobrescribir de forma controlada las variables y clases base de Bootstrap.
+- [x] Crear una capa CSS de sistema de diseño antes de rediseñar páginas.
 
 ### Entregables
 
@@ -139,15 +143,15 @@ Modernizar el entorno común de todas las vistas sin tocar todavía el contenido
 
 ### Tareas
 
-- [ ] Revisar `App.vue` y decidir si conviene crear un shell compartido.
-- [ ] Rediseñar `NavBar.vue` con navegación responsive.
-- [ ] Mejorar el menú móvil con cierre automático, foco accesible y jerarquía clara.
-- [ ] Modernizar logo, enlaces, avatar, badges y acciones de usuario.
-- [ ] Unificar espaciados entre cabecera, contenido y footer.
-- [ ] Crear encabezados de página reutilizables para secciones protegidas.
-- [ ] Crear estados globales de carga, error y contenido vacío.
+- [x] Revisar `App.vue` y decidir si conviene crear un shell compartido.
+- [x] Rediseñar `NavBar.vue` con navegación responsive.
+- [x] Mejorar el menú móvil con cierre automático, foco accesible y jerarquía clara.
+- [x] Modernizar logo, enlaces, avatar, badges y acciones de usuario.
+- [x] Unificar espaciados entre cabecera, contenido y footer.
+- [x] Crear encabezados de página reutilizables para secciones protegidas.
+- [x] Crear estados globales de carga, error y contenido vacío.
 - [x] Unificar el diseño de `Footer.vue`.
-- [ ] Mantener las rutas y permisos actuales del router.
+- [x] Mantener las rutas y permisos actuales del router.
 
 ### Entregables
 
@@ -173,15 +177,15 @@ Convertir la página de inicio en una presentación más atractiva y orientada a
 
 ### Tareas
 
-- [ ] Rediseñar el hero principal con composición responsive.
-- [ ] Sustituir el carrusel de altura fija por una experiencia más flexible y accesible.
-- [ ] Mejorar titulares, copy, jerarquía visual y llamadas a la acción.
-- [ ] Crear secciones de valor: comunidad, personajes, chat y creatividad.
-- [ ] Añadir tarjetas o bloques visuales inspirados en SmoothUI.
-- [ ] Incorporar movimiento sutil en elementos estáticos.
-- [ ] Optimizar la carga y el recorte de imágenes.
-- [ ] Rediseñar el bloque de registro y CTA final.
-- [ ] Corregir textos y errores visibles del contenido actual.
+- [x] Rediseñar el hero principal con composición responsive.
+- [x] Sustituir el carrusel de altura fija por una experiencia más flexible y accesible.
+- [x] Mejorar titulares, copy, jerarquía visual y llamadas a la acción.
+- [x] Crear secciones de valor: comunidad, personajes, chat y creatividad.
+- [x] Añadir tarjetas o bloques visuales inspirados en SmoothUI.
+- [x] Incorporar movimiento sutil en elementos estáticos.
+- [x] Optimizar la carga y el recorte de imágenes.
+- [x] Rediseñar el bloque de registro y CTA final.
+- [x] Corregir textos y errores visibles del contenido actual.
 
 ### Entregables
 
@@ -381,14 +385,14 @@ Añadir personalidad y fluidez sin convertir la aplicación en una interfaz lent
 
 ### Tareas
 
-- [ ] Definir duraciones y curvas de transición.
-- [ ] Añadir transiciones suaves en hover, foco, despliegue y cambio de estado.
-- [ ] Añadir microinteracciones en botones, tarjetas, pestañas y menús.
-- [ ] Añadir animaciones de entrada limitadas a elementos clave.
-- [ ] Implementar skeletons o loading states donde corresponda.
-- [ ] Respetar `prefers-reduced-motion`.
-- [ ] Evitar animaciones continuas en fondos, avatares y chats.
-- [ ] Verificar que las animaciones no generan scroll ni cambios de layout bruscos.
+- [x] Definir duraciones y curvas de transición.
+- [x] Añadir transiciones suaves en hover, foco, despliegue y cambio de estado.
+- [x] Añadir microinteracciones en botones, tarjetas, pestañas y menús.
+- [x] Añadir animaciones de entrada limitadas a elementos clave.
+- [x] Implementar skeletons o loading states donde corresponda.
+- [x] Respetar `prefers-reduced-motion`.
+- [x] Evitar animaciones continuas en fondos, avatares y chats.
+- [x] Verificar que las animaciones no generan scroll ni cambios de layout bruscos.
 
 ### Entregables
 
@@ -402,6 +406,14 @@ Añadir personalidad y fluidez sin convertir la aplicación en una interfaz lent
 - No hay movimiento perpetuo.
 - La interfaz sigue siendo cómoda para usuarios sensibles al movimiento.
 - El rendimiento no se degrada en dispositivos móviles.
+
+> Implementación: duraciones y curvas en tokens `--pl-duration-fast/base/slow` y `--pl-ease-standard/out`,
+> usados por todas las transiciones de `src/style.css` y de los componentes. El desplazamiento espacial
+> (elevación de tarjetas, zoom de imágenes, giro del caret, pulsación con `scale`) solo se activa dentro
+> de `@media (prefers-reduced-motion: no-preference)`; con `reduce` se conservan color, borde, sombra y
+> opacidad. Los esqueletos y los spinners de Bootstrap se detienen con `reduce`. La entrada se limita a
+> `.pl-animate-in` y al hero de la portada (`pl-fade-up`, 300 ms, una sola vez, sin mover el layout).
+> Se retiró el `animation-duration: 0.01ms` global que desaconseja la guía de movimiento.
 
 ---
 
@@ -620,11 +632,12 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 | Uso de `toSorted()`/ES2023 en `src` | comprobado | Sin coincidencias de `toSorted`, `findLast`, `toReversed`, `toSpliced`, `with(` ni `groupBy`; `lib` sigue en ES2020. |
 | Mensaje "No pudimos identificar tu cuenta" en Tus personajes | `d999b90` | `hidratarDesdeToken()`, guard que redirige a `/login` y filtro del 401 de sesión de personaje en `api.ts`. 218 tests y 4 escenarios Playwright. |
 | Tablas admin con cabeceras incompletas y Denuncias con scroll horizontal | `42a5e8d` | Cabeceras al 100% en las 6 tablas; Denuncias 900/900 en escritorio y 364/364 en móvil. |
+| Movimiento sin tokens ni respeto a `prefers-reduced-motion` | `1192abf` | Tokens `--pl-duration-*`/`--pl-ease-*` en todo el CSS; el desplazamiento espacial vive en `no-preference`; esqueletos y spinners se detienen con `reduce`; entrada limitada al hero. Playwright: CLS 0 y sin scroll horizontal en 1280 y 375. |
 
 ### Abiertos
 
-- **Fases 9-11**: movimiento e interacciones, calidad visual/accesibilidad final y limpieza/documentación.
+- **Fases 10-11**: calidad visual/accesibilidad final y limpieza/documentación.
 - **Chunk `RichTextEditor`**: ~379 kB (120 kB gzip). No se ha partido; valorar carga diferida del editor o extensiones bajo demanda en la Fase 11.
-- **Cierre retrospectivo de las fases 0-3**: el trabajo está en commits anteriores a este documento (`8cd8313` sistema de diseño, `542e95d` navegación, `17862f1` web pública y autenticación, `7d3460b` dashboard/personajes/administración), pero sus casillas siguen sin marcar porque el plan se escribió después. Fase 0 no dejó artefactos (matriz de pantallas ni capturas) en el repo.
+- **Cierre retrospectivo de las fases 0-3**: cerradas en este documento con los commits `8cd8313` (sistema de diseño), `542e95d` (navegación), `17862f1` (web pública y autenticación) y `7d3460b` (dashboard/personajes/administración). La Fase 0 se hizo sobre `main` y no conservó matriz de pantallas ni capturas.
 
 

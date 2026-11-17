@@ -885,7 +885,7 @@ onUnmounted(() => {
   background: transparent;
   color: inherit;
   font-size: 0.8rem;
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-aviso__cerrar:hover {
@@ -926,7 +926,7 @@ onUnmounted(() => {
   color: var(--pl-muted);
   font-size: 0.85rem;
   line-height: 1;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-toolbar__btn:hover {
@@ -1024,7 +1024,7 @@ onUnmounted(() => {
   color: var(--pl-muted);
   font-size: 0.72rem;
   font-weight: 600;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-picker__categoria:hover {
@@ -1055,7 +1055,7 @@ onUnmounted(() => {
   background: transparent;
   font-size: 1.15rem;
   line-height: 1;
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-emoji:hover {
@@ -1102,7 +1102,7 @@ onUnmounted(() => {
   color: var(--pl-ink);
   font-size: 0.8rem;
   font-weight: 600;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-dado:hover {
@@ -1182,7 +1182,7 @@ onUnmounted(() => {
   line-height: 1.45;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  transition: border-color 0.15s ease, background 0.15s ease;
+  transition: border-color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .chat-editor:hover {
@@ -1215,7 +1215,7 @@ onUnmounted(() => {
   background: var(--pl-primary-strong);
   color: #fff;
   font-size: 1rem;
-  transition: background 0.15s ease, opacity 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), opacity var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-enviar:hover:not(:disabled) {

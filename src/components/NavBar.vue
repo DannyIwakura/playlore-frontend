@@ -277,7 +277,7 @@ onUnmounted(() => {
   padding: 0.45rem 0.7rem;
   border-radius: 999px;
   font-size: 0.88rem;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .user-trigger:hover {
@@ -288,7 +288,12 @@ onUnmounted(() => {
 .caret {
   font-size: 0.6rem;
   opacity: 0.7;
-  transition: transform 0.2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .caret {
+    transition: transform var(--pl-duration-base) var(--pl-ease-standard);
+  }
 }
 
 .caret.open {
@@ -315,7 +320,7 @@ onUnmounted(() => {
   padding: 0.6rem 0.75rem;
   color: var(--pl-ink);
   font-size: 0.875rem;
-  transition: background 0.12s ease, color 0.12s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .dropdown-item:hover {
@@ -338,7 +343,7 @@ onUnmounted(() => {
   padding: 0.55rem 0.8rem;
   font-size: 0.95rem;
   border-radius: var(--pl-radius-md);
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .btn-nav-dropdown:hover {
@@ -437,7 +442,7 @@ onUnmounted(() => {
   color: rgba(255, 255, 255, 0.76) !important;
   border-radius: var(--pl-radius-md);
   font-weight: 650;
-  transition: color 0.15s ease, background 0.15s ease;
+  transition: color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .nav-link-pl:hover,

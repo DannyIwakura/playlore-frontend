@@ -309,6 +309,13 @@ const recargarDatos = async () => {
   }
 }
 
+/* Sin movimiento: el esqueleto se queda como bloque estatico con el mismo tinte. */
+@media (prefers-reduced-motion: reduce) {
+  .personaje-esqueleto {
+    animation: none;
+  }
+}
+
 @media (max-width: 575.98px) {
   .personajes-toolbar__acciones {
     width: 100%;

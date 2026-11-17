@@ -258,7 +258,7 @@ function confirmarImagen(url: string) {
   border: 1px solid var(--pl-border);
   border-radius: var(--pl-radius-md);
   background: var(--pl-surface);
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition: border-color var(--pl-duration-fast) var(--pl-ease-standard), box-shadow var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .editor-content:focus-within {
@@ -286,7 +286,7 @@ function confirmarImagen(url: string) {
   color: var(--pl-ink);
   font-size: 13px;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 @media (hover: hover) {
@@ -328,7 +328,7 @@ function confirmarImagen(url: string) {
   background: transparent;
   color: var(--pl-muted);
   cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 @media (hover: hover) {

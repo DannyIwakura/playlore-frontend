@@ -2280,13 +2280,21 @@ onUnmounted(() => {
 
 .personaje-card {
   border-radius: var(--pl-radius-lg);
-  transition: box-shadow 0.18s, transform 0.18s;
+  transition: box-shadow var(--pl-duration-base) var(--pl-ease-standard);
   cursor: pointer;
   background: var(--pl-surface);
 }
 .personaje-card:hover {
   box-shadow: var(--pl-shadow-md);
-  transform: translateY(-3px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .personaje-card {
+    transition: box-shadow var(--pl-duration-base) var(--pl-ease-standard),
+      transform var(--pl-duration-base) var(--pl-ease-standard);
+  }
+  .personaje-card:hover {
+    transform: translateY(-3px);
+  }
 }
 .personaje-card:disabled {
   opacity: 0.5;
@@ -2333,7 +2341,7 @@ onUnmounted(() => {
   border-radius: var(--pl-radius-md);
   background: var(--pl-surface);
   cursor: pointer;
-  transition: border-color 0.12s, background 0.12s;
+  transition: border-color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .chat-opcion-radio:hover {
   border-color: rgba(var(--pl-primary-rgb), 0.4);
@@ -2433,7 +2441,7 @@ onUnmounted(() => {
   color: var(--pl-muted);
   font-size: 0.82rem;
   font-weight: 600;
-  transition: color 0.12s, border-color 0.12s;
+  transition: color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .chat-lista-tabs__tab:hover {
   color: var(--pl-primary-ink);
@@ -2461,7 +2469,7 @@ onUnmounted(() => {
   border-radius: var(--pl-radius-md);
   background: transparent;
   text-align: start;
-  transition: background 0.12s, border-color 0.12s;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .chat-canal-fila:hover {
   background: var(--pl-surface-soft);
@@ -2541,7 +2549,7 @@ onUnmounted(() => {
   align-items: center;
   white-space: nowrap;
   border-bottom: 2px solid transparent;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .chat-tab:hover {
   background: rgba(var(--pl-primary-rgb), 0.06);
@@ -2803,7 +2811,7 @@ onUnmounted(() => {
   text-align: left;
   cursor: pointer;
   box-shadow: inset 3px 0 0 transparent;
-  transition: background 0.12s, box-shadow 0.12s;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), box-shadow var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .channel-item:hover {
   background: rgba(var(--pl-primary-rgb), 0.06);
@@ -2850,7 +2858,7 @@ onUnmounted(() => {
   color: var(--pl-muted);
   opacity: 0;
   z-index: 2;
-  transition: opacity 0.1s, background 0.1s;
+  transition: opacity var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .channel-item-wrap:hover .conversation-close-btn,
 .conversation-close-btn:focus-visible {
@@ -2932,7 +2940,7 @@ onUnmounted(() => {
   border-radius: var(--pl-radius-md);
   background: transparent;
   color: var(--pl-muted);
-  transition: background 0.12s, color 0.12s;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .chat-header__btn:hover {
   background: rgba(var(--pl-primary-rgb), 0.1);
@@ -3034,7 +3042,7 @@ onUnmounted(() => {
   opacity: 0.9;
 }
 .scroll-bottom-btn:hover { opacity: 1; }
-.fade-enter-active, .fade-leave-active { transition: opacity 0.2s; }
+.fade-enter-active, .fade-leave-active { transition: opacity var(--pl-duration-base) var(--pl-ease-standard); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .mensaje-burbuja { border-radius: 16px; max-width: 100%; }
 
@@ -3186,7 +3194,7 @@ onUnmounted(() => {
   background: transparent;
   color: var(--pl-muted);
   opacity: 0;
-  transition: opacity 0.12s, background 0.12s;
+  transition: opacity var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 .miembro-fila:hover .miembro-fila__acciones,
 .miembro-fila__acciones:focus-visible,
@@ -3335,21 +3343,6 @@ onUnmounted(() => {
   }
   .context-menu-item {
     min-height: 44px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .personaje-card,
-  .chat-tab,
-  .channel-item,
-  .conversation-close-btn,
-  .chat-header__btn,
-  .fade-enter-active,
-  .fade-leave-active {
-    transition: none;
-  }
-  .personaje-card:hover {
-    transform: none;
   }
 }
 </style>

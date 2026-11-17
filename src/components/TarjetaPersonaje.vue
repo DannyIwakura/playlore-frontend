@@ -110,7 +110,6 @@ function usarAvatarDefecto(event: Event) {
   background: linear-gradient(135deg, rgba(var(--pl-primary-rgb), 0.16), rgba(var(--pl-cyan-rgb), 0.2));
   object-fit: cover;
   object-position: center 30%;
-  transition: transform 0.3s ease;
 }
 
 .personaje-card__title {
@@ -134,7 +133,6 @@ function usarAvatarDefecto(event: Event) {
 .personaje-card__link i {
   color: var(--pl-primary);
   font-size: 0.9em;
-  transition: transform 0.2s ease;
 }
 
 .personaje-card__link:focus-visible {
@@ -157,15 +155,29 @@ function usarAvatarDefecto(event: Event) {
 .personaje-card:has(.personaje-card__link:hover) {
   border-color: rgba(var(--pl-primary-rgb), 0.22);
   box-shadow: var(--pl-shadow-lg);
-  transform: translateY(-2px);
 }
 
-.personaje-card:has(.personaje-card__link:hover) .personaje-card__media {
-  transform: scale(1.04);
-}
+/* El desplazamiento y el zoom son decorativos: se apagan con movimiento reducido. */
+@media (prefers-reduced-motion: no-preference) {
+  .personaje-card__media {
+    transition: transform var(--pl-duration-slow) var(--pl-ease-standard);
+  }
 
-.personaje-card:has(.personaje-card__link:hover) .personaje-card__link i {
-  transform: translateX(3px);
+  .personaje-card__link i {
+    transition: transform var(--pl-duration-base) var(--pl-ease-standard);
+  }
+
+  .personaje-card:has(.personaje-card__link:hover) {
+    transform: translateY(-2px);
+  }
+
+  .personaje-card:has(.personaje-card__link:hover) .personaje-card__media {
+    transform: scale(1.04);
+  }
+
+  .personaje-card:has(.personaje-card__link:hover) .personaje-card__link i {
+    transform: translateX(3px);
+  }
 }
 
 .personaje-card:has(.personaje-card__link:focus-visible) {

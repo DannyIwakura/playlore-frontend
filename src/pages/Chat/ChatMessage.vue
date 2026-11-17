@@ -162,7 +162,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
   border: 0;
   border-radius: 50%;
   background: transparent;
-  transition: box-shadow 0.15s ease;
+  transition: box-shadow var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .msg-avatar img {
@@ -307,7 +307,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
   font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: background 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .msg-reply-preview:hover {
@@ -354,7 +354,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
   background: var(--pl-surface);
   box-shadow: var(--pl-shadow-md);
   opacity: 0;
-  transition: opacity 0.12s ease;
+  transition: opacity var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .msg-row:hover .msg-acciones,
@@ -389,7 +389,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
   background: transparent;
   color: var(--pl-muted);
   font-size: 0.85rem;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .msg-acciones button:hover {

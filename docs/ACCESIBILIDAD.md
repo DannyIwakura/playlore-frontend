@@ -25,7 +25,7 @@ documentado el resto como deuda priorizada.
 Implementación: composable compartido `src/composables/useModalFocus.ts` (trap + Esc + restore) usado
 por los tres modales.
 
-## Resuelto en el rediseño de UI (fases 2 y 6-8)
+## Resuelto en el rediseño de UI (fases 2 y 6-9)
 
 | Hallazgo | Resolución |
 |---|---|
@@ -34,6 +34,7 @@ por los tres modales.
 | `GaleriaImagenes.vue`: cierre del carousel solo con `title` | `aria-label` en cierre, anterior, siguiente, ampliar y eliminar imagen. |
 | `ChatWindow.vue`: modales inline sin foco, `Esc`, trap ni restauración | Migrados a `ModalFormulario`/`ModalConfirmacion`/`ModalAviso`, que usan `useModalFocus` (fase 7). |
 | Dropdown del NavBar y menús contextuales del chat sin teclado | `aria-expanded`/`aria-controls` y cierre con `Esc` (fases 2 y 7). |
+| Movimiento sin respeto a `prefers-reduced-motion` | Tokens `--pl-duration-*`/`--pl-ease-*`; el desplazamiento espacial y las animaciones continuas viven en `@media (prefers-reduced-motion: no-preference)`; esqueletos y spinners se detienen con `reduce`; la entrada se limita a `.pl-animate-in` y al hero (fase 9). |
 
 ## Hallazgos pendientes (deuda priorizada)
 

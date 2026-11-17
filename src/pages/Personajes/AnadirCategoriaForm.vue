@@ -284,7 +284,7 @@ onMounted(cargar)
   color: var(--pl-primary-ink);
   background: transparent;
   font-size: 0.72rem;
-  transition: background 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .categorias-chip__quitar:hover:not(:disabled) {

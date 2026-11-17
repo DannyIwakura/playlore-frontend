@@ -665,7 +665,7 @@ onMounted(async () => {
   font-size: 0.9rem;
   font-weight: 700;
   text-align: left;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 .amigos-tab:hover {

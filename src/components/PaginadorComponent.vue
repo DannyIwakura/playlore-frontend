@@ -89,7 +89,7 @@ function irA(pagina: number, totalPaginas: number) {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
 @media (hover: hover) {
