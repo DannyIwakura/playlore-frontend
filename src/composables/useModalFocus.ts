@@ -47,7 +47,13 @@ export function useModalFocus({ containerRef, cerrar }: UseModalFocusOptions) {
     elementoPrevio = document.activeElement
     const cont = containerRef.value
     if (cont) {
-      if (!cont.querySelector('[autofocus]')) {
+      // Si el contenido pide autofocus, se enfoca ese campo; si no, el dialogo.
+      // El atributo autofocus por si solo no basta cuando el modal se monta
+      // despues de cargar la pagina.
+      const autoenfocable = cont.querySelector<HTMLElement>('[autofocus]')
+      if (autoenfocable) {
+        autoenfocable.focus()
+      } else {
         const dialogo = cont.querySelector<HTMLElement>('[role="dialog"]') ?? cont
         dialogo.focus()
       }

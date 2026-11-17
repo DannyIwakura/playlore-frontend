@@ -18,6 +18,21 @@ const Wrapper = defineComponent({
   },
 })
 
+const WrapperConAutofocus = defineComponent({
+  template: `
+    <div ref="containerRef" tabindex="-1" role="dialog" aria-modal="true">
+      <input class="campo" autofocus />
+      <button class="ultimo">B</button>
+    </div>
+  `,
+  setup() {
+    const containerRef = ref<HTMLElement | null>(null)
+    const cerrar = vi.fn()
+    useModalFocus({ containerRef, cerrar })
+    return { containerRef, cerrar }
+  },
+})
+
 function montar(): { wrapper: VueWrapper; cerrar: ReturnType<typeof vi.fn> } {
   const wrapper = mount(Wrapper, { attachTo: document.body })
   return { wrapper, cerrar: (wrapper.vm as unknown as { cerrar: () => void }).cerrar }
@@ -29,6 +44,13 @@ describe('useModalFocus', () => {
     await nextTick()
     const dialog = wrapper.find('[role="dialog"]').element
     expect(document.activeElement).toBe(dialog)
+    wrapper.unmount()
+  })
+
+  it('enfoca el campo con autofocus cuando el modal lo declara', async () => {
+    const wrapper = mount(WrapperConAutofocus, { attachTo: document.body })
+    await nextTick()
+    expect(document.activeElement).toBe(wrapper.find('.campo').element)
     wrapper.unmount()
   })
 
