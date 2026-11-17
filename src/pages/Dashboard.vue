@@ -227,14 +227,18 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 1rem;
+  margin-top: auto;
+  padding-top: 1rem;
   color: var(--pl-primary);
   font-size: 0.85rem;
   font-weight: 750;
 }
 
 .quick-action-card {
-  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  height: 100%;
   padding: 1.35rem;
 }
 
@@ -244,7 +248,6 @@ onUnmounted(() => {
 }
 
 .quick-action-card p {
-  min-height: 3.4rem;
   margin-bottom: 0;
   color: var(--pl-muted);
   font-size: 0.9rem;
