@@ -177,26 +177,6 @@ describe('useChatPrivado', () => {
       expect(ctx.conversacionesPrivadas.value).toEqual([conv])
     })
   })
-
-  describe('contexto', () => {
-    it('abrirContextMenuConversacion limita las coordenadas al viewport', () => {
-      const { ctx } = setup()
-      ctx.abrirContextMenuConversacion(
-        { clientX: 99999, clientY: 99999, preventDefault: () => {} } as unknown as MouseEvent,
-        { personajeId: 1 },
-      )
-      expect(ctx.conversacionCtxTarget.value?.personajeId).toBe(1)
-      expect(ctx.conversacionCtxX.value).toBeLessThanOrEqual(window.innerWidth)
-      expect(ctx.conversacionCtxY.value).toBeLessThanOrEqual(window.innerHeight)
-    })
-
-    it('cerrarContextMenuConversacion limpia el objetivo', () => {
-      const { ctx } = setup()
-      ctx.conversacionCtxTarget.value = { personajeId: 1 }
-      ctx.cerrarContextMenuConversacion()
-      expect(ctx.conversacionCtxTarget.value).toBeNull()
-    })
-  })
 })
 
 function convMsg(overrides: Record<string, unknown> = {}) {

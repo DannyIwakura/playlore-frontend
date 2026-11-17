@@ -177,9 +177,65 @@ function cerrarBuscador() {
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
 
+const conversacionAEliminar = ref<any>(null)
+
+function pedirEliminarConversacion(conv: any) {
+  conversacionAEliminar.value = conv
+}
+
+function confirmarEliminarConversacion() {
+  const conv = conversacionAEliminar.value
+  conversacionAEliminar.value = null
+  if (conv) eliminarConversacionDeLista(conv)
+}
+
 function verPerfil(personajeId: number) {
   perfilPersonajeId.value = personajeId
   mostrarPerfil.value = true
+}
+
+// El perfil a pantalla completa no usa ModalFormulario (no es un formulario y
+// ocupa toda la ventana), asi que replicamos su contrato: foco al abrir,
+// Escape para cerrar, Tab atrapado y foco devuelto al elemento de origen.
+const perfilModalRef = ref<HTMLElement | null>(null)
+let perfilFocoPrevio: HTMLElement | null = null
+
+function cerrarPerfil() {
+  mostrarPerfil.value = false
+  nextTick(() => perfilFocoPrevio?.focus())
+}
+
+watch(mostrarPerfil, async (abierto) => {
+  if (!abierto) return
+  perfilFocoPrevio = document.activeElement as HTMLElement | null
+  await nextTick()
+  perfilModalRef.value?.focus()
+})
+
+function alNavegarPerfil(evento: KeyboardEvent) {
+  if (evento.key === 'Escape') {
+    evento.stopPropagation()
+    evento.preventDefault()
+    cerrarPerfil()
+    return
+  }
+  if (evento.key !== 'Tab') return
+  const cont = perfilModalRef.value
+  if (!cont) return
+  const items = Array.from(cont.querySelectorAll<HTMLElement>(
+    'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+  ))
+  if (items.length === 0) return
+  const primero = items[0]
+  const ultimo = items[items.length - 1]
+  const activo = document.activeElement
+  if (evento.shiftKey && (!cont.contains(activo) || activo === primero)) {
+    evento.preventDefault()
+    ultimo.focus()
+  } else if (!evento.shiftKey && activo === ultimo) {
+    evento.preventDefault()
+    primero.focus()
+  }
 }
 
 // Context menu (conectados)
@@ -271,10 +327,9 @@ const {
 
 const {
   conversacionesPrivadas, mensajesPrivados, noLeidosPriv, noLeidosCharacter, cargandoPriv,
-  conversacionCtxTarget, conversacionCtxX, conversacionCtxY, reproducirSonidoPM, cargarConversaciones,
+  reproducirSonidoPM, cargarConversaciones,
   abrirConversacionPrivada, seleccionarConversacion, cerrarConversacion, enviarMensajePrivadoWs,
-  handleSendPm, abrirContextMenuConversacion, cerrarContextMenuConversacion, eliminarConversacionPrivada,
-  eliminarConversacionDirecta,
+  handleSendPm, eliminarConversacionDeLista,
 } = useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal, cerrarContextMenu })
 
 const {
@@ -396,7 +451,7 @@ const cualquierModalAbierto = computed(() =>
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
   mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value ||
-  mostrarBaneados.value
+  mostrarBaneados.value || !!conversacionAEliminar.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -1356,8 +1411,7 @@ onUnmounted(() => {
                       class="channel-item w-100 d-flex align-items-center gap-3"
                       :class="{ active: conversacionActiva?.personajeId === conv.personajeId, 'channel-unread': (noLeidosPriv.get(conv.personajeId) ?? 0) > 0 }"
                       :aria-current="conversacionActiva?.personajeId === conv.personajeId ? 'true' : undefined"
-                      @click="abrirConversacion(conv)"
-                      @contextmenu.prevent="abrirContextMenuConversacion($event, conv)">
+                      @click="abrirConversacion(conv)">
                 <span class="position-relative flex-shrink-0">
                   <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" alt="" />
                   <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot" aria-hidden="true"></span>
@@ -1375,7 +1429,7 @@ onUnmounted(() => {
               <button type="button"
                       class="conversation-close-btn btn border-0 p-0 position-absolute d-flex align-items-center justify-content-center"
                       :aria-label="`Eliminar la conversación con ${conv.personajeNombre}`"
-                      @click.stop="eliminarConversacionDirecta(conv)">
+                      @click.stop="pedirEliminarConversacion(conv)">
                 <i class="bi bi-x" aria-hidden="true"></i>
               </button>
             </li>
@@ -2145,21 +2199,27 @@ onUnmounted(() => {
     </ul>
   </ModalFormulario>
 
-  <!-- Context menu: clic derecho en conversaciones privadas -->
-  <div v-if="conversacionCtxTarget" class="context-menu-overlay" @click="cerrarContextMenuConversacion" @contextmenu.prevent="cerrarContextMenuConversacion"></div>
-  <div v-if="conversacionCtxTarget" class="context-menu" :style="{ left: conversacionCtxX + 'px', top: conversacionCtxY + 'px' }" @contextmenu.prevent>
-    <button class="context-menu-item text-danger" @click="eliminarConversacionPrivada">
-      <i class="bi bi-trash3 me-2"></i> Eliminar conversación
-    </button>
-  </div>
+  <!-- Modal: Confirmación de eliminar conversación privada -->
+  <ModalConfirmacion
+    v-if="conversacionAEliminar"
+    titulo="Eliminar conversación"
+    :mensaje="`¿Seguro que quieres eliminar la conversación con ${conversacionAEliminar.personajeNombre}? Se borrarán los mensajes de tu bandeja.`"
+    boton-confirmar="Eliminar"
+    peligro
+    @confirmar="confirmarEliminarConversacion"
+    @cancelar="conversacionAEliminar = null"
+  />
 
   <!-- Modal: Perfil completo del personaje (pantalla completa) -->
-  <div v-if="mostrarPerfil && perfilPersonajeId" class="modal-backdrop-custom perfil-modal-full" @click.self="mostrarPerfil = false">
+  <div v-if="mostrarPerfil && perfilPersonajeId" ref="perfilModalRef"
+       class="modal-backdrop-custom perfil-modal-full"
+       role="dialog" aria-modal="true" aria-label="Perfil del personaje" tabindex="-1"
+       @click.self="cerrarPerfil" @keydown="alNavegarPerfil">
     <div class="perfil-modal-container">
       <PerfilPersonajeView
         :personaje-id="perfilPersonajeId"
         :modo-modal="true"
-        @cerrar="mostrarPerfil = false"
+        @cerrar="cerrarPerfil"
       />
     </div>
   </div>

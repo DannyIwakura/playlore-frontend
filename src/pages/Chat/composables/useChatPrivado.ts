@@ -18,10 +18,6 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
   const noLeidosPriv = ref<Map<number, number>>(new Map())
   const noLeidosCharacter = ref<Map<number, number>>(new Map())
   const cargandoPriv = ref(false)
-  const conversacionCtxTarget = ref<any>(null)
-  const conversacionCtxX = ref(0)
-  const conversacionCtxY = ref(0)
-
   function reproducirSonidoPM() {
     try {
       const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
@@ -132,31 +128,6 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     enviarMensajePrivadoWs(texto)
   }
 
-  function abrirContextMenuConversacion(e: MouseEvent, conv: any) {
-    e.preventDefault()
-    conversacionCtxTarget.value = conv
-    const menuW = 200, menuH = 80
-    const maxX = window.innerWidth - menuW
-    const maxY = window.innerHeight - menuH
-    conversacionCtxX.value = Math.min(e.clientX, maxX)
-    conversacionCtxY.value = Math.min(e.clientY, maxY)
-  }
-
-  function cerrarContextMenuConversacion() {
-    conversacionCtxTarget.value = null
-  }
-
-  function eliminarConversacionPrivada() {
-    const conv = conversacionCtxTarget.value
-    if (!conv) return
-    eliminarConversacionDeLista(conv)
-    cerrarContextMenuConversacion()
-  }
-
-  function eliminarConversacionDirecta(conv: any) {
-    eliminarConversacionDeLista(conv)
-  }
-
   async function eliminarConversacionDeLista(conv: any) {
     try {
       await chatApi.eliminarConversacion(conv.personajeId)
@@ -179,9 +150,6 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     noLeidosPriv,
     noLeidosCharacter,
     cargandoPriv,
-    conversacionCtxTarget,
-    conversacionCtxX,
-    conversacionCtxY,
     reproducirSonidoPM,
     cargarConversaciones,
     abrirConversacionPrivada,
@@ -189,10 +157,6 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     cerrarConversacion,
     enviarMensajePrivadoWs,
     handleSendPm,
-    abrirContextMenuConversacion,
-    cerrarContextMenuConversacion,
-    eliminarConversacionPrivada,
-    eliminarConversacionDirecta,
     eliminarConversacionDeLista,
   }
 }
