@@ -5,6 +5,7 @@ import ReCaptcha from '../components/ReCaptcha.vue'
 import { ref } from 'vue'
 import api from '../services/api'
 import { useRouter } from 'vue-router'
+import { enfocarPrimerError } from '../composables/useFocoPrimerError'
 
 const router = useRouter()
 const nombre = ref('')
@@ -14,6 +15,8 @@ const errores = ref<Record<string, string>>({})
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
 const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
+const formRef = ref<HTMLFormElement | null>(null)
+const enviando = ref(false)
 
 const onFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
@@ -26,6 +29,7 @@ const onFileChange = (event: Event) => {
 
 const registrarUsuario = async () => {
   errores.value = {}
+  enviando.value = true
 
   try {
     const captchaToken = await captchaRef.value?.getToken()
@@ -59,6 +63,10 @@ const registrarUsuario = async () => {
     } else {
       errores.value = { general: 'No se pudo crear la cuenta. Inténtalo de nuevo.' }
     }
+
+    await enfocarPrimerError(formRef.value)
+  } finally {
+    enviando.value = false
   }
 }
 </script>
@@ -87,7 +95,7 @@ const registrarUsuario = async () => {
           <i class="bi bi-exclamation-circle-fill me-2" aria-hidden="true"></i>{{ errores.general }}
         </div>
 
-        <form @submit.prevent="registrarUsuario">
+        <form ref="formRef" @submit.prevent="registrarUsuario" :aria-busy="enviando || undefined">
           <div class="auth-field">
             <label class="form-label" for="username">Nombre de usuario</label>
             <input
@@ -98,10 +106,12 @@ const registrarUsuario = async () => {
               autocomplete="username"
               placeholder="Ingresa tu nombre de usuario"
               required
+              :aria-invalid="errores.nombre ? 'true' : undefined"
+              :aria-describedby="errores.nombre ? 'nombre-error' : undefined"
             />
-            <div v-if="errores.nombre" class="auth-error" role="alert">
-              {{ errores.nombre }}
-            </div>
+            <p v-if="errores.nombre" id="nombre-error" class="pl-field__error">
+              <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.nombre }}
+            </p>
           </div>
 
           <div class="auth-field">
@@ -114,10 +124,12 @@ const registrarUsuario = async () => {
               autocomplete="email"
               placeholder="tu@email.com"
               required
+              :aria-invalid="errores.email ? 'true' : undefined"
+              :aria-describedby="errores.email ? 'email-error' : undefined"
             />
-            <div v-if="errores.email" class="auth-error" role="alert">
-              {{ errores.email }}
-            </div>
+            <p v-if="errores.email" id="email-error" class="pl-field__error">
+              <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.email }}
+            </p>
           </div>
 
           <div class="auth-field">
@@ -130,10 +142,12 @@ const registrarUsuario = async () => {
               autocomplete="new-password"
               placeholder="Ingresa tu contraseña"
               required
+              :aria-invalid="errores.password ? 'true' : undefined"
+              :aria-describedby="errores.password ? 'password-error' : undefined"
             />
-            <div v-if="errores.password" class="auth-error" role="alert">
-              {{ errores.password }}
-            </div>
+            <p v-if="errores.password" id="password-error" class="pl-field__error">
+              <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.password }}
+            </p>
           </div>
 
           <div class="auth-field">
@@ -143,24 +157,28 @@ const registrarUsuario = async () => {
               class="form-control"
               id="avatar"
               accept="image/*"
+              :aria-describedby="errores.avatarFile ? 'avatar-hint avatar-error' : 'avatar-hint'"
+              :aria-invalid="errores.avatarFile ? 'true' : undefined"
               @change="onFileChange"
             />
-            <small class="text-muted d-block mt-1">JPG, PNG o WEBP. Máx. 2 MB. 200x200 px</small>
+            <small id="avatar-hint" class="text-muted d-block mt-1">JPG, PNG o WEBP. Máx. 2 MB. 200x200 px</small>
             <div v-if="avatarPreview" class="mt-2">
               <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail" style="max-height: 96px;" />
             </div>
-            <div v-if="errores.avatarFile" class="auth-error" role="alert">
-              {{ errores.avatarFile }}
-            </div>
+            <p v-if="errores.avatarFile" id="avatar-error" class="pl-field__error">
+              <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.avatarFile }}
+            </p>
           </div>
 
           <ReCaptcha ref="captchaRef" />
-          <div v-if="errores.captcha" class="auth-error" role="alert">
-            {{ errores.captcha }}
+          <div v-if="errores.captcha" class="pl-alert pl-alert--danger" role="alert">
+            <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.captcha }}
           </div>
 
-          <button type="submit" class="pl-btn pl-btn--primary auth-submit">
-            <i class="bi bi-person-plus-fill me-1" aria-hidden="true"></i>Registrarme
+          <button type="submit" class="pl-btn pl-btn--primary auth-submit" :disabled="enviando">
+            <span v-if="enviando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <i v-else class="bi bi-person-plus-fill" aria-hidden="true"></i>
+            {{ enviando ? 'Creando cuenta…' : 'Registrarme' }}
           </button>
         </form>
 
@@ -267,12 +285,6 @@ const registrarUsuario = async () => {
 
 .text-muted {
   color: var(--pl-muted) !important;
-}
-
-.auth-error {
-  margin-top: 0.55rem;
-  color: var(--pl-danger);
-  font-size: 0.84rem;
 }
 
 .auth-switch {

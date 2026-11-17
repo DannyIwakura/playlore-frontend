@@ -6,6 +6,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../services/api'
 import { userStore } from '../store/userStore'
+import { enfocarPrimerError } from '../composables/useFocoPrimerError'
 
 declare global {
   interface Window {
@@ -22,6 +23,20 @@ const nombre = ref('')
 const password = ref('')
 const errorLogin = ref('')
 const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
+const formRef = ref<HTMLFormElement | null>(null)
+const enviando = ref(false)
+
+// El error es del formulario entero, así que se retira en cuanto el usuario
+// corrige cualquiera de los dos campos.
+function onNombreInput() {
+  nombre.value = nombre.value.replace(/\s/g, '')
+  errorLogin.value = ''
+}
+
+function onPasswordInput() {
+  password.value = password.value.replace(/\s/g, '')
+  errorLogin.value = ''
+}
 
 const handleCredentialResponse = async (response: any) => {
   errorLogin.value = ''
@@ -69,6 +84,7 @@ onUnmounted(() => {
 
 const iniciarSesion = async () => {
   errorLogin.value = ''
+  enviando.value = true
 
   try {
     const nombreSinEspacios = nombre.value.replace(/\s/g, '')
@@ -96,6 +112,10 @@ const iniciarSesion = async () => {
     } else {
       errorLogin.value = 'Error al iniciar sesión'
     }
+
+    await enfocarPrimerError(formRef.value)
+  } finally {
+    enviando.value = false
   }
 }
 </script>
@@ -124,18 +144,20 @@ const iniciarSesion = async () => {
           <i class="bi bi-check-circle-fill me-2" aria-hidden="true"></i>{{ mensajeRegistro }}
         </div>
 
-        <form @submit.prevent="iniciarSesion">
+        <form ref="formRef" @submit.prevent="iniciarSesion" :aria-busy="enviando || undefined">
           <div class="auth-field">
             <label class="form-label" for="nombre">Nombre de usuario</label>
             <input
               v-model="nombre"
-              @input="nombre = nombre.replace(/\s/g, '')"
+              @input="onNombreInput"
               type="text"
               class="form-control"
               id="nombre"
               autocomplete="username"
               placeholder="Ingresa tu nombre de usuario"
               required
+              :aria-invalid="errorLogin ? 'true' : undefined"
+              :aria-describedby="errorLogin ? 'login-error' : undefined"
             />
           </div>
 
@@ -143,23 +165,27 @@ const iniciarSesion = async () => {
             <label class="form-label" for="password">Contraseña</label>
             <input
               v-model="password"
-              @input="password = password.replace(/\s/g, '')"
+              @input="onPasswordInput"
               type="password"
               class="form-control"
               id="password"
               autocomplete="current-password"
               placeholder="Ingresa tu contraseña"
               required
+              :aria-invalid="errorLogin ? 'true' : undefined"
+              :aria-describedby="errorLogin ? 'login-error' : undefined"
             />
-            <div v-if="errorLogin" class="auth-error" role="alert">
-              {{ errorLogin }}
-            </div>
+            <p v-if="errorLogin" id="login-error" class="pl-field__error">
+              <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errorLogin }}
+            </p>
           </div>
 
           <ReCaptcha ref="captchaRef" />
 
-          <button type="submit" class="pl-btn pl-btn--primary auth-submit">
-            <i class="bi bi-box-arrow-in-right me-1" aria-hidden="true"></i>Iniciar sesión
+          <button type="submit" class="pl-btn pl-btn--primary auth-submit" :disabled="enviando">
+            <span v-if="enviando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+            <i v-else class="bi bi-box-arrow-in-right" aria-hidden="true"></i>
+            {{ enviando ? 'Entrando…' : 'Iniciar sesión' }}
           </button>
         </form>
 
@@ -282,12 +308,6 @@ const iniciarSesion = async () => {
   height: 1px;
   background: var(--pl-border);
   content: '';
-}
-
-.auth-error {
-  margin-top: 0.55rem;
-  color: var(--pl-danger);
-  font-size: 0.84rem;
 }
 
 .auth-switch {
