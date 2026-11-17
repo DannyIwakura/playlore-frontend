@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import CategoriasLista from '../Admin/Categorias/CategoriasLista.vue'
@@ -10,13 +11,47 @@ import PersonajesLista from '../Admin/Personajes/PersonajesLista.vue'
 import DenunciasLista from '../Admin/Denuncias/DenunciasLista.vue'
 import BaneosLista from '../Admin/Baneos/BaneosLista.vue'
 import AuditoriaLista from '../Admin/Auditoria/AuditoriaLista.vue'
+import { seccionInicial, seccionesVisibles } from './adminSecciones'
 
-const usuario = userStore.usuario
-const esAdmin = usuario.value?.role === 'ADMIN'
-const esModerador = usuario.value?.role === 'MOD'
+const route = useRoute()
+const router = useRouter()
 
-// Si es moderador, la pestaña inicial será personajes
-const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
+const rol = computed(() => userStore.usuario.value?.role ?? null)
+const secciones = computed(() => seccionesVisibles(rol.value))
+
+const seccionActiva = ref(seccionInicial(rol.value, route.hash))
+const seccionActual = computed(
+  () => secciones.value.find((seccion) => seccion.id === seccionActiva.value) ?? secciones.value[0] ?? null
+)
+
+const tituloRef = ref<HTMLElement | null>(null)
+
+// El guard del router ya limita /admin a ADMIN y MOD, pero el token se carga de
+// forma asíncrona: si el rol llega después del primer render, recolocamos la
+// sección activa en la primera que ese rol pueda ver.
+watch(rol, (nuevoRol) => {
+  if (!secciones.value.some((seccion) => seccion.id === seccionActiva.value)) {
+    seccionActiva.value = seccionInicial(nuevoRol, route.hash)
+  }
+})
+
+async function cambiarSeccion(id: string) {
+  if (id === seccionActiva.value) return
+  seccionActiva.value = id
+
+  // El hash conserva la sección al recargar y permite enlazarla; el router
+  // desplaza con su scrollBehavior, que ya respeta prefers-reduced-motion.
+  void router.replace({ hash: `#${id}` })
+  await nextTick()
+  // preventScroll evita competir con el desplazamiento suave del router.
+  tituloRef.value?.focus({ preventScroll: true })
+}
+
+onMounted(() => {
+  // Con un hash válido la sección se abre directamente; si no, el panel
+  // arranca arriba y no reescribe la URL para no forzar un desplazamiento.
+  if (route.hash) seccionActiva.value = seccionInicial(rol.value, route.hash)
+})
 </script>
 
 <template>
@@ -26,86 +61,45 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
     <div class="container">
       <header class="pl-page-header">
         <span class="pl-kicker">Administración</span>
-        <h1 class="pl-title">Panel de administrador</h1>
+        <h1 class="pl-title">Panel de administración</h1>
         <p class="pl-lead">
-          Bienvenido, {{ userStore.usuario.value?.username }}. Gestiona el contenido de la plataforma.
+          Hola, {{ userStore.usuario.value?.username }}. Revisa denuncias, modera personajes y
+          gestiona la plataforma desde un solo lugar.
         </p>
       </header>
 
-      <div class="row g-4">
+      <div v-if="secciones.length" class="pl-admin-layout">
+        <nav class="pl-admin-nav" aria-label="Secciones de administración">
+          <p class="pl-admin-nav__titulo">Secciones</p>
+          <ul class="pl-admin-nav__lista">
+            <li v-for="seccion in secciones" :key="seccion.id">
+              <button
+                type="button"
+                class="pl-admin-nav__item"
+                :aria-current="seccionActiva === seccion.id ? 'page' : undefined"
+                @click="cambiarSeccion(seccion.id)"
+              >
+                <i class="bi" :class="seccion.icono" aria-hidden="true"></i>
+                <span class="pl-admin-nav__texto">{{ seccion.etiqueta }}</span>
+              </button>
+            </li>
+          </ul>
+        </nav>
 
-        <!-- SIDEBAR IZQUIERDO -->
-        <div class="col-lg-3">
-          <nav class="card admin-nav" aria-label="Secciones de administración">
-            <h2 class="admin-nav-title">Secciones</h2>
-
-            <button
-              type="button"
-              v-if="esAdmin"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'categorias' }"
-              @click="pestanaActiva = 'categorias'"
-            >
-              <i class="bi bi-tags" aria-hidden="true"></i> Gestión de categorías
-            </button>
-
-            <button
-              type="button"
-              v-if="esAdmin"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'usuarios' }"
-              @click="pestanaActiva = 'usuarios'"
-            >
-              <i class="bi bi-people" aria-hidden="true"></i> Gestión de usuarios
-            </button>
-
-            <button
-              type="button"
-              v-if="esAdmin || esModerador"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'personajes' }"
-              @click="pestanaActiva = 'personajes'"
-            >
-              <i class="bi bi-person-badge" aria-hidden="true"></i> Gestión de personajes
-            </button>
-
-            <button
-              type="button"
-              v-if="esAdmin || esModerador"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'denuncias' }"
-              @click="pestanaActiva = 'denuncias'"
-            >
-              <i class="bi bi-flag" aria-hidden="true"></i> Denuncias
-            </button>
-
-            <button
-              type="button"
-              v-if="esAdmin || esModerador"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'baneos' }"
-              @click="pestanaActiva = 'baneos'"
-            >
-              <i class="bi bi-hammer" aria-hidden="true"></i> Baneos globales
-            </button>
-
-            <button
-              type="button"
-              v-if="esAdmin || esModerador"
-              class="admin-nav-item"
-              :class="{ 'admin-nav-item--active': pestanaActiva === 'auditoria' }"
-              @click="pestanaActiva = 'auditoria'"
-            >
-              <i class="bi bi-journal-text" aria-hidden="true"></i> Auditoría de moderación
-            </button>
-          </nav>
-        </div>
-
-        <!-- CONTENIDO DERECHO -->
-        <div class="col-lg-9">
-          <div v-if="pestanaActiva === 'categorias'" class="admin-section">
-            <div class="admin-section-header">
-              <h2 class="admin-section-title">Gestión de categorías</h2>
+        <section
+          v-if="seccionActual"
+          :id="seccionActiva"
+          class="pl-admin-panel"
+          aria-labelledby="admin-seccion-titulo"
+        >
+          <header class="pl-admin-panel__cabecera">
+            <div class="pl-admin-panel__introduccion">
+              <h2 id="admin-seccion-titulo" ref="tituloRef" class="pl-admin-panel__titulo" tabindex="-1">
+                {{ seccionActual.etiqueta }}
+              </h2>
+              <p class="pl-admin-panel__ayuda">{{ seccionActual.descripcion }}</p>
+            </div>
+            <div v-if="seccionActiva === 'categorias'" class="pl-admin-panel__acciones">
               <button
                 type="button"
                 class="pl-btn pl-btn--primary"
@@ -116,117 +110,28 @@ const pestanaActiva = ref(esAdmin ? 'categorias' : 'personajes')
                 Nueva categoría
               </button>
             </div>
-            <CategoriasLista />
-            <CategoriaNueva :mostrar-boton="false" />
-          </div>
+          </header>
 
-          <div v-if="pestanaActiva === 'usuarios'" class="admin-section">
-            <h2 class="admin-section-title">Gestión de usuarios</h2>
-            <UsuariosLista />
+          <div class="pl-admin-panel__cuerpo">
+            <DenunciasLista v-if="seccionActiva === 'denuncias'" />
+            <PersonajesLista v-else-if="seccionActiva === 'personajes'" />
+            <BaneosLista v-else-if="seccionActiva === 'baneos'" />
+            <AuditoriaLista v-else-if="seccionActiva === 'auditoria'" />
+            <UsuariosLista v-else-if="seccionActiva === 'usuarios'" />
+            <template v-else-if="seccionActiva === 'categorias'">
+              <CategoriasLista />
+              <CategoriaNueva :mostrar-boton="false" />
+            </template>
           </div>
+        </section>
+      </div>
 
-          <div v-if="pestanaActiva === 'personajes' && (esAdmin || esModerador)" class="admin-section">
-            <h2 class="admin-section-title">Gestión de personajes</h2>
-            <PersonajesLista />
-          </div>
-
-          <div v-if="pestanaActiva === 'denuncias' && (esAdmin || esModerador)" class="admin-section">
-            <h2 class="admin-section-title">Denuncias</h2>
-            <DenunciasLista />
-          </div>
-
-          <div v-if="pestanaActiva === 'baneos' && (esAdmin || esModerador)" class="admin-section">
-            <h2 class="admin-section-title">Baneos globales</h2>
-            <BaneosLista />
-          </div>
-
-          <div v-if="pestanaActiva === 'auditoria' && (esAdmin || esModerador)" class="admin-section">
-            <h2 class="admin-section-title">Auditoría de moderación</h2>
-            <AuditoriaLista />
-          </div>
-        </div>
-
+      <div v-else class="pl-empty-state" role="status">
+        <span class="pl-empty-state__icon"><i class="bi bi-shield-lock" aria-hidden="true"></i></span>
+        <p class="mb-0">Esta cuenta no tiene acceso al panel de administración.</p>
       </div>
     </div>
   </main>
 
   <Footer />
 </template>
-
-<style scoped>
-.admin-nav {
-  position: sticky;
-  top: 1.5rem;
-  padding: 1rem;
-}
-
-.admin-nav-title {
-  margin: 0 0 0.75rem;
-  padding: 0 0.5rem 0.75rem;
-  border-bottom: 1px solid var(--pl-border);
-  color: var(--pl-muted);
-  font-size: 0.78rem;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.admin-nav-item {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  width: 100%;
-  margin-bottom: 0.35rem;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid transparent;
-  border-radius: var(--pl-radius-md);
-  background: transparent;
-  color: var(--pl-muted);
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-align: left;
-  cursor: pointer;
-  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
-}
-
-.admin-nav-item:hover {
-  background: var(--pl-surface-soft);
-  color: var(--pl-primary);
-}
-
-.admin-nav-item--active {
-  color: #fff;
-  background: var(--pl-primary);
-  box-shadow: var(--pl-shadow-sm);
-}
-
-.admin-nav-item--active:hover {
-  color: #fff;
-  background: var(--pl-primary-dark);
-}
-
-.admin-section-title {
-  margin-bottom: 1.25rem;
-  color: var(--pl-ink);
-  font-size: 1.5rem;
-  font-weight: 850;
-  letter-spacing: -0.03em;
-}
-
-.admin-section-header {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem 1rem;
-  margin-bottom: 1.25rem;
-}
-
-.admin-section-header .admin-section-title {
-  margin-bottom: 0;
-}
-
-.admin-section-header .pl-btn {
-  margin-left: auto;
-}
-</style>
