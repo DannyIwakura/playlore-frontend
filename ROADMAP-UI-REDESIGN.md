@@ -310,16 +310,16 @@ Modernizar la experiencia de mensajería sin alterar el protocolo WebSocket ni l
 
 ### Tareas
 
-- [ ] Revisar `ChatWindow.vue` y su distribución responsive.
-- [ ] Crear una vista de canales más clara.
-- [ ] Mejorar la lista de miembros y presencia.
-- [ ] Rediseñar `ChatMessage.vue`.
-- [ ] Rediseñar `ChatEditor.vue`.
-- [ ] Mejorar el editor RichText con iconos nombrados y estados claros.
-- [ ] Rediseñar los modales inline del chat o migrarlos progresivamente a componentes compartidos.
-- [ ] Añadir estados de conexión, reconexión, carga y error.
-- [ ] Mejorar la experiencia móvil del chat, especialmente el editor y los controles.
-- [ ] Mantener búsqueda de mensajes, denuncias, silencios y baneos.
+- [x] Revisar `ChatWindow.vue` y su distribución responsive.
+- [x] Crear una vista de canales más clara.
+- [x] Mejorar la lista de miembros y presencia.
+- [x] Rediseñar `ChatMessage.vue`.
+- [x] Rediseñar `ChatEditor.vue`.
+- [x] Mejorar el editor RichText con iconos nombrados y estados claros.
+- [x] Rediseñar los modales inline del chat o migrarlos progresivamente a componentes compartidos.
+- [x] Añadir estados de conexión, reconexión, carga y error.
+- [x] Mejorar la experiencia móvil del chat, especialmente el editor y los controles.
+- [x] Mantener búsqueda de mensajes, denuncias, silencios y baneos.
 
 ### Entregables
 
