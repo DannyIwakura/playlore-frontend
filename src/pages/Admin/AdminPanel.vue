@@ -26,6 +26,11 @@ const seccionActual = computed(
 
 const tituloRef = ref<HTMLElement | null>(null)
 
+// El alta de categorías vive en su propio componente con modal compartido; el
+// botón de la cabecera lo abre por ref y el listado anuncia y recarga el alta.
+const categoriasListaRef = ref<InstanceType<typeof CategoriasLista> | null>(null)
+const categoriaNuevaRef = ref<InstanceType<typeof CategoriaNueva> | null>(null)
+
 // El guard del router ya limita /admin a ADMIN y MOD, pero el token se carga de
 // forma asíncrona: si el rol llega después del primer render, recolocamos la
 // sección activa en la primera que ese rol pueda ver.
@@ -103,8 +108,7 @@ onMounted(() => {
               <button
                 type="button"
                 class="pl-btn pl-btn--primary"
-                data-bs-toggle="modal"
-                data-bs-target="#modalNuevaCategoria"
+                @click="categoriaNuevaRef?.abrir()"
               >
                 <i class="bi bi-plus-lg" aria-hidden="true"></i>
                 Nueva categoría
@@ -119,8 +123,12 @@ onMounted(() => {
             <AuditoriaLista v-else-if="seccionActiva === 'auditoria'" />
             <UsuariosLista v-else-if="seccionActiva === 'usuarios'" />
             <template v-else-if="seccionActiva === 'categorias'">
-              <CategoriasLista />
-              <CategoriaNueva :mostrar-boton="false" />
+              <CategoriasLista ref="categoriasListaRef" />
+              <CategoriaNueva
+                ref="categoriaNuevaRef"
+                :mostrar-boton="false"
+                @creada="categoriasListaRef?.anunciarCreada($event)"
+              />
             </template>
           </div>
         </section>
