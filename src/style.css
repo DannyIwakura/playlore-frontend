@@ -1094,6 +1094,73 @@ section[id] {
   margin-top: 0.1rem;
 }
 
+/* Secciones de un formulario largo: agrupan campos con un titulo visible
+   para que el usuario sepa donde esta sin perder el hilo. */
+.pl-form-seccion {
+  margin: 0;
+  padding: 1.3rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-lg);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-sm);
+}
+
+.pl-form-seccion + .pl-form-seccion {
+  margin-top: 1rem;
+}
+
+.pl-form-seccion__titulo {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0 0 0.2rem;
+  color: var(--pl-ink);
+  font-size: 1.02rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.pl-form-seccion__numero {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  color: var(--pl-primary-ink);
+  background: rgba(var(--pl-primary-rgb), 0.12);
+  font-size: 0.8rem;
+  font-weight: 800;
+}
+
+.pl-form-seccion__ayuda {
+  margin: 0 0 1.1rem;
+  color: var(--pl-muted);
+  font-size: 0.86rem;
+}
+
+.pl-form-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 575.98px) {
+  .pl-form-seccion {
+    padding: 1.1rem;
+  }
+
+  .pl-form-acciones {
+    flex-direction: column-reverse;
+  }
+
+  .pl-form-acciones .pl-btn {
+    width: 100%;
+  }
+}
+
 /* El campo solo se marca en rojo cuando el usuario ya ha interactuado con el
    (:user-invalid) o cuando el backend devuelve un error para ese campo. */
 .form-control:user-invalid,
