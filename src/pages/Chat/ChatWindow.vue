@@ -13,6 +13,7 @@ import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
+import ModalFormulario from '../../components/ModalFormulario.vue'
 import { useChatPresencia } from './composables/useChatPresencia'
 import { useChatMensajes } from './composables/useChatMensajes'
 import { useChatBusqueda } from './composables/useChatBusqueda'
@@ -380,6 +381,8 @@ const mostrarEliminarCanal = ref(false)
 const passwordEliminarCanal = ref('')
 const errorEliminarCanal = ref('')
 const eliminandoCanal = ref(false)
+const botonEliminarCanalRef = ref<HTMLButtonElement | null>(null)
+const passwordEliminarCanalRef = ref<HTMLInputElement | null>(null)
 
 const imagenEdicionSrc = computed(() => {
   const p = imagenEdicionPreview.value
@@ -392,7 +395,8 @@ const cualquierModalAbierto = computed(() =>
   mostrarListaMiembros.value || mostrarSelectorPersonajes.value || mostrarListaCanales.value ||
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
-  mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value
+  mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value ||
+  mostrarBaneados.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -1029,6 +1033,21 @@ function abrirModalEditarCanal() {
   passwordEliminarCanal.value = ''
   errorEliminarCanal.value = ''
   mostrarModalEditarCanal.value = true
+}
+
+// Al abrir la confirmacion de borrado el boton que la dispara desaparece: sin
+// mover el foco el usuario de teclado se queda sin punto de anclaje dentro del
+// dialogo. Lo llevamos al campo de contrasena y, al cancelar, de vuelta al boton.
+async function abrirEliminarCanal() {
+  mostrarEliminarCanal.value = true
+  await nextTick()
+  passwordEliminarCanalRef.value?.focus()
+}
+
+async function cancelarEliminarCanal() {
+  mostrarEliminarCanal.value = false
+  await nextTick()
+  botonEliminarCanalRef.value?.focus()
 }
 
 async function onImagenEdicionCanalChange(event: Event) {
@@ -1741,254 +1760,247 @@ onUnmounted(() => {
   </div>
 
   <!-- Modal: Lista de miembros -->
-  <div v-if="mostrarListaMiembros" class="modal-backdrop-custom" @click.self="mostrarListaMiembros = false">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-people-fill me-2"></i>Miembros</h5>
-        <button class="btn-close" @click="mostrarListaMiembros = false"></button>
-      </div>
-      <div v-if="cargandoMiembros && miembrosLista.length === 0" class="text-center py-4">
-        <div class="spinner-border spinner-border-sm text-primary"></div>
-      </div>
-      <div v-else class="miembros-lista">
-        <div v-for="m in miembrosLista" :key="m.id"
-             class="d-flex align-items-center gap-3 py-2 px-1 rounded-3">
+  <ModalFormulario v-if="mostrarListaMiembros" titulo="Miembros" @cerrar="mostrarListaMiembros = false">
+    <div v-if="cargandoMiembros && miembrosLista.length === 0" class="chat-mensajes__estado" role="status">
+      <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+      <span>Cargando miembros</span>
+    </div>
+    <div v-else class="miembros-lista">
+      <ul class="chat-miembros-lista">
+        <li v-for="m in miembrosLista" :key="m.id" class="chat-miembros-lista__fila">
           <img :src="avatarUrl(m.personajeAvatar)" class="rounded-circle flex-shrink-0"
-               width="36" height="36" style="object-fit:cover;" />
+               width="36" height="36" style="object-fit:cover;" alt="" />
           <div class="flex-grow-1 min-w-0">
             <div class="fw-medium small text-truncate">{{ m.personajeNombre }}</div>
-            <span class="badge" style="font-size:0.6rem;"
-                  :class="m.rol === 'OWNER' ? 'bg-warning text-dark' : m.rol === 'ADMIN' ? 'bg-info text-dark' : m.rol === 'MOD' ? 'bg-success' : 'bg-secondary'">
+            <span class="badge chat-rol-badge" :class="`chat-rol-badge--${(m.rol || 'MEMBER').toLowerCase()}`">
               {{ m.rol }}
             </span>
           </div>
-        </div>
-        <div v-if="cargandoMiembros && miembrosLista.length > 0" class="text-center py-3">
-          <div class="spinner-border spinner-border-sm text-secondary"></div>
-        </div>
-        <button v-if="hayMasMiembros && !cargandoMiembros"
-                class="btn btn-outline-primary btn-sm w-100 mt-2" @click="cargarMasMiembros">
-          Mostrar más
-        </button>
-        <div v-if="!hayMasMiembros && miembrosLista.length > 0" class="text-center text-muted small py-2">
-          Todos los miembros cargados
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal selector de personajes (para añadir más) -->
-  <div v-if="mostrarSelectorPersonajes" class="modal-backdrop-custom" @click.self="mostrarSelectorPersonajes = false">
-    <div class="modal-content-custom shadow rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Seleccionar personaje</h5>
-        <button class="btn-close" @click="mostrarSelectorPersonajes = false"></button>
-      </div>
-      <div v-if="personajes.length === 0" class="text-muted small text-center py-3">
-        No tienes más personajes disponibles
-      </div>
-      <div class="row g-2">
-        <div v-for="p in personajes" :key="p.idPersonaje ?? p.id"
-             class="col-6">
-          <button class="card personaje-card h-100 w-100 border-0 shadow-sm text-center p-3"
-                  :disabled="characterSessionStore.sesiones.value.some((s:any) => s.personajeId === (p.idPersonaje ?? p.id))"
-                  @click="iniciarSesionPersonaje(p.idPersonaje ?? p.id)">
-            <img :src="avatarUrl(p.avatar)"
-                 class="rounded-circle mx-auto mb-2"
-                 width="48" height="48" style="object-fit: cover;" />
-            <h6 class="mb-0 text-truncate small">{{ p.nombre }}</h6>
-            <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.raza || '—' }}</small>
-            <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.clase || '' }}</small>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal: Lista de canales -->
-  <div v-if="mostrarListaCanales" class="modal-backdrop-custom" @click.self="mostrarListaCanales = false">
-    <div class="modal-content-custom shadow rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Lista de canales</h5>
-        <button class="btn-close" @click="mostrarListaCanales = false"></button>
-      </div>
-      <ul class="nav nav-tabs mb-3">
-        <li class="nav-item">
-          <button class="nav-link" :class="{ active: pestanaLista === 'oficiales' }"
-                  @click="pestanaLista = 'oficiales'">Canales oficiales</button>
-        </li>
-        <li class="nav-item">
-          <button class="nav-link" :class="{ active: pestanaLista === 'usuarios' }"
-                  @click="pestanaLista = 'usuarios'">Canales de usuarios</button>
         </li>
       </ul>
-      <div v-if="cargandoLista" class="text-center py-3">
-        <div class="spinner-border spinner-border-sm text-primary"></div>
+      <div v-if="cargandoMiembros && miembrosLista.length > 0" class="chat-mensajes__estado" role="status">
+        <span class="spinner-border spinner-border-sm text-secondary" aria-hidden="true"></span>
+        <span>Cargando más miembros</span>
       </div>
-      <template v-else-if="pestanaLista === 'oficiales'">
-        <div v-if="canalesOficiales.length === 0" class="text-muted small text-center py-3">
-          No hay canales oficiales disponibles
-        </div>
-        <div v-for="c in canalesOficiales" :key="c.id"
-             class="d-flex align-items-center gap-3 p-2 rounded-3 mb-1 hover-bg"
-             @click="unirseACanal(c.id)" style="cursor:pointer;">
-          <img :src="canalAvatar(c)" class="rounded-circle" width="36" height="36" />
-          <div class="flex-grow-1">
-            <small class="fw-medium d-block">{{ c.nombre }}</small>
-            <small class="text-muted">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</small>
-          </div>
-          <button class="btn btn-sm btn-outline-success" @click.stop="unirseACanal(c.id)">Unirse</button>
-        </div>
-      </template>
-      <template v-else>
-        <div v-if="canalesUsuarios.length === 0" class="text-muted small text-center py-3">
-          No hay canales de usuarios disponibles
-        </div>
-        <div v-for="c in canalesUsuarios" :key="c.id"
-             :class="canalActivo?.id === c.id ? 'd-flex align-items-center gap-3 p-2 rounded-3 mb-1 bg-light' : 'd-flex align-items-center gap-3 p-2 rounded-3 mb-1 hover-bg'"
-             @click="canalActivo?.id !== c.id ? unirseACanal(c.id) : (mostrarListaCanales=false)" style="cursor:pointer;">
-          <img :src="canalAvatar(c)" class="rounded-circle" width="36" height="36" />
-          <div class="flex-grow-1">
-            <div class="d-flex justify-content-between">
-              <small class="fw-medium d-block">{{ c.nombre }}</small>
-              <span v-if="c.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ c.miRol }}</span>
-            </div>
-            <small class="text-muted">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</small>
-          </div>
-        </div>
-        <hr class="my-2" />
-        <button class="btn btn-primary btn-sm w-100" @click="abrirModalCrear">
-          <i class="bi bi-plus-lg me-1"></i> Crear nuevo canal
-        </button>
-      </template>
+      <button v-if="hayMasMiembros && !cargandoMiembros" type="button"
+              class="btn btn-outline-primary btn-sm w-100 mt-2" @click="cargarMasMiembros">
+        Mostrar más
+      </button>
+      <p v-if="!hayMasMiembros && miembrosLista.length > 0" class="text-center text-muted small py-2 mb-0">
+        Todos los miembros cargados
+      </p>
     </div>
-  </div>
+  </ModalFormulario>
+
+  <!-- Modal selector de personajes (para añadir más) -->
+  <ModalFormulario v-if="mostrarSelectorPersonajes" titulo="Seleccionar personaje" ancho="md" @cerrar="mostrarSelectorPersonajes = false">
+    <p v-if="personajes.length === 0" class="text-muted small text-center py-3 mb-0">
+      No tienes más personajes disponibles
+    </p>
+    <div class="row g-2">
+      <div v-for="p in personajes" :key="p.idPersonaje ?? p.id" class="col-6">
+        <button type="button" class="card personaje-card h-100 w-100 border-0 shadow-sm text-center p-3"
+                :aria-label="`Entrar al chat con ${p.nombre}`"
+                :disabled="characterSessionStore.sesiones.value.some((s:any) => s.personajeId === (p.idPersonaje ?? p.id))"
+                @click="iniciarSesionPersonaje(p.idPersonaje ?? p.id)">
+          <img :src="avatarUrl(p.avatar)" class="rounded-circle mx-auto mb-2"
+               width="48" height="48" style="object-fit: cover;" alt="" />
+          <h6 class="mb-0 text-truncate small">{{ p.nombre }}</h6>
+          <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.raza || '—' }}</small>
+          <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.clase || '' }}</small>
+        </button>
+      </div>
+    </div>
+  </ModalFormulario>
+
+  <!-- Modal: Lista de canales -->
+  <ModalFormulario v-if="mostrarListaCanales" titulo="Lista de canales" ancho="md" @cerrar="mostrarListaCanales = false">
+    <div class="chat-lista-tabs" role="tablist" aria-label="Tipo de canal">
+      <button type="button" class="chat-lista-tabs__tab" role="tab"
+              :aria-selected="pestanaLista === 'oficiales'" :class="{ active: pestanaLista === 'oficiales' }"
+              @click="pestanaLista = 'oficiales'">Canales oficiales</button>
+      <button type="button" class="chat-lista-tabs__tab" role="tab"
+              :aria-selected="pestanaLista === 'usuarios'" :class="{ active: pestanaLista === 'usuarios' }"
+              @click="pestanaLista = 'usuarios'">Canales de usuarios</button>
+    </div>
+
+    <div v-if="cargandoLista" class="chat-mensajes__estado" role="status">
+      <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+      <span>Cargando canales</span>
+    </div>
+    <template v-else-if="pestanaLista === 'oficiales'">
+      <p v-if="canalesOficiales.length === 0" class="text-muted small text-center py-3 mb-0">
+        No hay canales oficiales disponibles
+      </p>
+      <ul v-else class="chat-canales-lista">
+        <li v-for="c in canalesOficiales" :key="c.id">
+          <button type="button" class="chat-canal-fila" :aria-label="`Unirse al canal ${c.nombre}`" @click="unirseACanal(c.id)">
+            <img :src="canalAvatar(c)" class="rounded-circle flex-shrink-0" width="36" height="36" alt="" />
+            <span class="flex-grow-1 min-w-0">
+              <span class="chat-canal-fila__nombre text-truncate">{{ c.nombre }}</span>
+              <span class="chat-canal-fila__meta">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</span>
+            </span>
+            <span class="chat-canal-fila__accion">Unirse</span>
+          </button>
+        </li>
+      </ul>
+    </template>
+    <template v-else>
+      <p v-if="canalesUsuarios.length === 0" class="text-muted small text-center py-3 mb-0">
+        No hay canales de usuarios disponibles
+      </p>
+      <ul v-else class="chat-canales-lista">
+        <li v-for="c in canalesUsuarios" :key="c.id">
+          <button type="button" class="chat-canal-fila"
+                  :class="{ 'chat-canal-fila--activo': canalActivo?.id === c.id }"
+                  :aria-current="canalActivo?.id === c.id ? 'true' : undefined"
+                  :aria-label="canalActivo?.id === c.id ? `Cerrar la lista, ya estas en ${c.nombre}` : `Unirse al canal ${c.nombre}`"
+                  @click="canalActivo?.id !== c.id ? unirseACanal(c.id) : (mostrarListaCanales = false)">
+            <img :src="canalAvatar(c)" class="rounded-circle flex-shrink-0" width="36" height="36" alt="" />
+            <span class="flex-grow-1 min-w-0">
+              <span class="chat-canal-fila__nombre text-truncate">{{ c.nombre }}</span>
+              <span class="chat-canal-fila__meta">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</span>
+            </span>
+            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ c.miRol }}</span>
+          </button>
+        </li>
+      </ul>
+      <hr class="my-2" />
+      <button type="button" class="btn btn-primary btn-sm w-100" @click="abrirModalCrear">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i> Crear nuevo canal
+      </button>
+    </template>
+  </ModalFormulario>
 
   <!-- Modal: Crear canal -->
-  <div v-if="mostrarModalCrear" class="modal-backdrop-custom" @click.self="cerrarModalCrear">
-    <div class="modal-content-custom shadow rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Crear nuevo canal</h5>
-        <button class="btn-close" @click="cerrarModalCrear"></button>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Nombre del canal</label>
-        <input v-model="nuevoCanalData.nombre" type="text" class="form-control form-control-sm" maxlength="100" />
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Descripción</label>
-        <textarea v-model="nuevoCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Imagen del canal (opcional)</label>
-        <div class="d-flex align-items-center gap-3">
-          <img v-if="imagenPreview" :src="imagenPreview" class="rounded-circle" width="48" height="48" style="object-fit:cover;" />
-          <div v-else class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold" style="width:48px;height:48px;font-size:0.9rem;">
-            {{ nuevoCanalData.nombre ? nuevoCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
-          </div>
-          <div class="flex-grow-1">
-            <input type="file" ref="inputImagenRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenCanalChange" />
-            <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenRef?.click()">
-              <i class="bi bi-image me-1"></i> Seleccionar
-            </button>
-            <button v-if="imagenPreview || imagenCanal" type="button" class="btn btn-outline-danger btn-sm" @click="quitarImagenCanal">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
+  <ModalFormulario v-if="mostrarModalCrear" titulo="Crear nuevo canal" ancho="md" @cerrar="cerrarModalCrear">
+    <div class="mb-3">
+      <label class="form-label" for="chat-canal-nombre">Nombre del canal</label>
+      <input id="chat-canal-nombre" v-model="nuevoCanalData.nombre" type="text" class="form-control form-control-sm" maxlength="100" />
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="chat-canal-descripcion">Descripción</label>
+      <textarea id="chat-canal-descripcion" v-model="nuevoCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Imagen del canal (opcional)</label>
+      <div class="d-flex align-items-center gap-3">
+        <img v-if="imagenPreview" :src="imagenPreview" class="rounded-circle" width="48" height="48" style="object-fit:cover;" alt="" />
+        <div v-else class="chat-canal-avatar-placeholder" aria-hidden="true">
+          {{ nuevoCanalData.nombre ? nuevoCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
+        </div>
+        <div class="flex-grow-1">
+          <input type="file" ref="inputImagenRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenCanalChange" />
+          <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenRef?.click()">
+            <i class="bi bi-image" aria-hidden="true"></i> Seleccionar
+          </button>
+          <button v-if="imagenPreview || imagenCanal" type="button" class="btn btn-outline-danger btn-sm"
+                  aria-label="Quitar la imagen del canal" @click="quitarImagenCanal">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
         </div>
       </div>
-      <div class="mb-3 form-check">
-        <input v-model="nuevoCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivado" />
-        <label class="form-check-label small" for="chkPrivado">Canal privado (solo por invitación)</label>
-      </div>
-      <div v-if="errorCrear" class="alert alert-danger py-1 small">{{ errorCrear }}</div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="cerrarModalCrear">Cancelar</button>
-        <button class="btn btn-primary btn-sm" @click="crearCanal"><i class="bi bi-check-lg me-1"></i> Crear</button>
-      </div>
     </div>
-  </div>
+    <div class="mb-3 form-check">
+      <input v-model="nuevoCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivado" />
+      <label class="form-check-label small" for="chkPrivado">Canal privado (solo por invitación)</label>
+    </div>
+    <div v-if="errorCrear" class="pl-alert pl-alert--danger py-2 small" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      <span>{{ errorCrear }}</span>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" @click="cerrarModalCrear">Cancelar</button>
+      <button type="button" class="btn btn-primary" @click="crearCanal">
+        <i class="bi bi-check-lg" aria-hidden="true"></i> Crear
+      </button>
+    </div>
+  </ModalFormulario>
 
   <!-- Modal editar canal -->
-  <div v-if="mostrarModalEditarCanal" class="modal-backdrop-custom" @click.self="mostrarModalEditarCanal = false">
-    <div class="modal-content-custom shadow rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Editar canal</h5>
-        <button class="btn-close" @click="mostrarModalEditarCanal = false"></button>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Nombre del canal</label>
-        <input v-model="editarCanalData.nombre" type="text" class="form-control form-control-sm" maxlength="100" />
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Descripción</label>
-        <textarea v-model="editarCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Imagen del canal</label>
-        <div class="d-flex align-items-center gap-3">
-          <img v-if="imagenEdicionSrc" :src="imagenEdicionSrc" class="rounded-circle flex-shrink-0" width="48" height="48" style="object-fit:cover;" />
-          <div v-else class="rounded-circle bg-primary d-flex align-items-center justify-content-center text-white fw-bold" style="width:48px;height:48px;font-size:0.9rem;">
-            {{ editarCanalData.nombre ? editarCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
-          </div>
-          <div class="flex-grow-1">
-            <input type="file" ref="inputImagenEdicionRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenEdicionCanalChange" />
-            <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenEdicionRef?.click()">
-              <i class="bi bi-image me-1"></i> Seleccionar
-            </button>
-            <button v-if="imagenEdicionPreview || imagenEdicionCanal" type="button" class="btn btn-outline-danger btn-sm" @click="quitarImagenEdicionActual">
-              <i class="bi bi-x-lg"></i>
-            </button>
-          </div>
+  <ModalFormulario v-if="mostrarModalEditarCanal" titulo="Editar canal" ancho="md" @cerrar="mostrarModalEditarCanal = false">
+    <div class="mb-3">
+      <label class="form-label" for="chat-editar-nombre">Nombre del canal</label>
+      <input id="chat-editar-nombre" v-model="editarCanalData.nombre" type="text" class="form-control form-control-sm" maxlength="100" />
+    </div>
+    <div class="mb-3">
+      <label class="form-label" for="chat-editar-descripcion">Descripción</label>
+      <textarea id="chat-editar-descripcion" v-model="editarCanalData.descripcion" class="form-control form-control-sm" rows="2" maxlength="500"></textarea>
+    </div>
+    <div class="mb-3">
+      <label class="form-label">Imagen del canal</label>
+      <div class="d-flex align-items-center gap-3">
+        <img v-if="imagenEdicionSrc" :src="imagenEdicionSrc" class="rounded-circle flex-shrink-0" width="48" height="48" style="object-fit:cover;" alt="" />
+        <div v-else class="chat-canal-avatar-placeholder" aria-hidden="true">
+          {{ editarCanalData.nombre ? editarCanalData.nombre.split(' ').map((w: string) => w[0]).join('').substring(0, 2).toUpperCase() : '?' }}
         </div>
-      </div>
-      <div class="mb-3 form-check">
-        <input v-model="editarCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivadoEditar" />
-        <label class="form-check-label small" for="chkPrivadoEditar">Canal privado (solo por invitación)</label>
-      </div>
-      <div v-if="errorEditarCanal" class="alert alert-danger py-1 small">{{ errorEditarCanal }}</div>
-
-      <div v-if="miRolEnCanal === 'OWNER'" class="border-top pt-3 mt-3">
-        <div class="d-flex justify-content-between align-items-center">
-          <span class="small text-danger fw-bold"><i class="bi bi-exclamation-triangle me-1"></i>Zona de peligro</span>
-          <button v-if="!mostrarEliminarCanal" class="btn btn-outline-danger btn-sm" @click="mostrarEliminarCanal = true">
-            <i class="bi bi-trash me-1"></i> Eliminar canal
+        <div class="flex-grow-1">
+          <input type="file" ref="inputImagenEdicionRef" class="d-none" accept="image/jpeg,image/png,image/webp" @change="onImagenEdicionCanalChange" />
+          <button type="button" class="btn btn-outline-secondary btn-sm me-2" @click="inputImagenEdicionRef?.click()">
+            <i class="bi bi-image" aria-hidden="true"></i> Seleccionar
           </button>
-          <button v-else class="btn btn-outline-secondary btn-sm" @click="mostrarEliminarCanal = false">
-            <i class="bi bi-x-lg me-1"></i> Cancelar
+          <button v-if="imagenEdicionPreview || imagenEdicionCanal" type="button" class="btn btn-outline-danger btn-sm"
+                  aria-label="Quitar la imagen del canal" @click="quitarImagenEdicionActual">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
           </button>
         </div>
-        <div v-if="mostrarEliminarCanal" class="mt-3">
-          <p class="small text-muted mb-2">
-            Al eliminar el canal, todos los personajes miembros saldrán y se borrarán todos los mensajes. Esta acción no se puede deshacer.
-          </p>
-          <label class="form-label small" for="passwordEliminarCanal">Escribe tu contraseña para confirmar</label>
-          <input v-model="passwordEliminarCanal" id="passwordEliminarCanal" type="password" class="form-control form-control-sm mb-2" placeholder="Contraseña" @keyup.enter="eliminarCanalConfirmado" />
-          <div v-if="errorEliminarCanal" class="alert alert-danger py-1 small">{{ errorEliminarCanal }}</div>
-          <button class="btn btn-danger btn-sm" :disabled="eliminandoCanal" @click="eliminarCanalConfirmado">
-            <i class="bi bi-trash me-1"></i> {{ eliminandoCanal ? 'Eliminando...' : 'Eliminar definitivamente' }}
-          </button>
-        </div>
-      </div>
-
-      <div class="d-flex justify-content-end gap-2 mt-3">
-        <button class="btn btn-outline-secondary btn-sm" @click="mostrarModalEditarCanal = false">Cancelar</button>
-        <button class="btn btn-primary btn-sm" @click="guardarEdicionCanal"><i class="bi bi-check-lg me-1"></i> Guardar</button>
       </div>
     </div>
-  </div>
+    <div class="mb-3 form-check">
+      <input v-model="editarCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivadoEditar" />
+      <label class="form-check-label small" for="chkPrivadoEditar">Canal privado (solo por invitación)</label>
+    </div>
+    <div v-if="errorEditarCanal" class="pl-alert pl-alert--danger py-2 small" role="alert">
+      <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+      <span>{{ errorEditarCanal }}</span>
+    </div>
+
+    <div v-if="miRolEnCanal === 'OWNER'" class="chat-zona-peligro">
+      <div class="d-flex justify-content-between align-items-center gap-2">
+        <span class="chat-zona-peligro__titulo">
+          <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Zona de peligro
+        </span>
+        <button v-if="!mostrarEliminarCanal" ref="botonEliminarCanalRef" type="button" class="btn btn-outline-danger btn-sm" @click="abrirEliminarCanal">
+          <i class="bi bi-trash" aria-hidden="true"></i> Eliminar canal
+        </button>
+        <button v-else type="button" class="btn btn-outline-secondary btn-sm" @click="cancelarEliminarCanal">
+          <i class="bi bi-x-lg" aria-hidden="true"></i> Cancelar
+        </button>
+      </div>
+      <div v-if="mostrarEliminarCanal" class="mt-3">
+        <p class="small text-muted mb-2">
+          Al eliminar el canal, todos los personajes miembros saldrán y se borrarán todos los mensajes. Esta acción no se puede deshacer.
+        </p>
+        <label class="form-label small" for="passwordEliminarCanal">Escribe tu contraseña para confirmar</label>
+        <input v-model="passwordEliminarCanal" ref="passwordEliminarCanalRef" id="passwordEliminarCanal" type="password" class="form-control form-control-sm mb-2" placeholder="Contraseña" @keyup.enter="eliminarCanalConfirmado" />
+        <div v-if="errorEliminarCanal" class="pl-alert pl-alert--danger py-2 small" role="alert">
+          <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+          <span>{{ errorEliminarCanal }}</span>
+        </div>
+        <button type="button" class="btn btn-danger btn-sm" :disabled="eliminandoCanal" @click="eliminarCanalConfirmado">
+          <i class="bi bi-trash" aria-hidden="true"></i> {{ eliminandoCanal ? 'Eliminando...' : 'Eliminar definitivamente' }}
+        </button>
+      </div>
+    </div>
+
+    <div class="d-flex justify-content-end gap-2 mt-3">
+      <button type="button" class="btn btn-outline-secondary" @click="mostrarModalEditarCanal = false">Cancelar</button>
+      <button type="button" class="btn btn-primary" @click="guardarEdicionCanal">
+        <i class="bi bi-check-lg" aria-hidden="true"></i> Guardar
+      </button>
+    </div>
+  </ModalFormulario>
 
   <!-- Modal: Confirmación de eliminar mensaje -->
-  <div v-if="mostrarConfirmacionEliminar" class="modal-backdrop-custom" @click.self="mostrarConfirmacionEliminar = false">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
-      <h5 class="mb-3">Eliminar mensaje</h5>
-      <p class="mb-4">¿Seguro que quieres eliminar este mensaje?</p>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="mostrarConfirmacionEliminar = false">Cancelar</button>
-        <button class="btn btn-danger btn-sm" @click="ejecutarEliminarMensaje">Eliminar</button>
-      </div>
-    </div>
-  </div>
+  <ModalConfirmacion
+    v-if="mostrarConfirmacionEliminar"
+    titulo="Eliminar mensaje"
+    mensaje="¿Seguro que quieres eliminar este mensaje?"
+    boton-confirmar="Eliminar"
+    peligro
+    @confirmar="ejecutarEliminarMensaje"
+    @cancelar="mostrarConfirmacionEliminar = false"
+  />
 
   <!-- Context menu: clic derecho o boton de acciones en conectados -->
   <div v-if="contextMenuTarget" class="context-menu-overlay" @click="cerrarContextMenu()" @contextmenu.prevent="cerrarContextMenu()"></div>
@@ -2038,121 +2050,100 @@ onUnmounted(() => {
   </div>
 
   <!-- Modal: Banear personaje -->
-  <div v-if="banTarget" class="modal-backdrop-custom" @click.self="banTarget = null">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-hammer text-danger me-2"></i>Banear a {{ banTarget.personajeNombre }}</h5>
-        <button class="btn-close" @click="banTarget = null"></button>
-      </div>
-      <p class="text-muted small mb-3">Selecciona la duración del baneo:</p>
-      <div class="d-flex flex-column gap-2 mb-4">
-        <label v-for="op in opcionesBan" :key="op.value"
-               class="d-flex align-items-center gap-2 p-2 border rounded cursor-pointer"
-               :class="banDuracion === op.value ? 'border-primary bg-primary bg-opacity-10' : ''">
-          <input type="radio" :value="op.value" v-model="banDuracion" class="form-check-input m-0" />
-          <span>{{ op.label }}</span>
-        </label>
-      </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="banTarget = null">Cancelar</button>
-        <button class="btn btn-danger btn-sm" @click="confirmarBan">
-          <i class="bi bi-hammer me-1"></i> Banear
-        </button>
-      </div>
+  <ModalFormulario v-if="banTarget" :titulo="`Banear a ${banTarget.personajeNombre}`" @cerrar="banTarget = null">
+    <p class="text-muted small mb-3">Selecciona la duración del baneo:</p>
+    <div class="d-flex flex-column gap-2 mb-4" role="radiogroup" aria-label="Duración del baneo">
+      <label v-for="op in opcionesBan" :key="op.value"
+             class="chat-opcion-radio"
+             :class="{ 'chat-opcion-radio--activa': banDuracion === op.value }">
+        <input type="radio" :value="op.value" v-model="banDuracion" class="form-check-input m-0" />
+        <span>{{ op.label }}</span>
+      </label>
     </div>
-  </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" @click="banTarget = null">Cancelar</button>
+      <button type="button" class="btn btn-danger" @click="confirmarBan">
+        <i class="bi bi-hammer" aria-hidden="true"></i> Banear
+      </button>
+    </div>
+  </ModalFormulario>
 
   <!-- Modal: Silenciar personaje -->
-  <div v-if="silenciarTarget" class="modal-backdrop-custom" @click.self="silenciarTarget = null">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:400px;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-volume-mute text-danger me-2"></i>Silenciar a {{ silenciarTarget.personajeNombre }}</h5>
-        <button class="btn-close" @click="silenciarTarget = null"></button>
-      </div>
-      <p class="text-muted small mb-3">El personaje no podrá enviar mensajes al canal durante la duración seleccionada:</p>
-      <div class="d-flex flex-column gap-2 mb-4">
-        <label v-for="op in opcionesSilenciar" :key="op.value"
-               class="d-flex align-items-center gap-2 p-2 border rounded cursor-pointer"
-               :class="silenciarDuracion === op.value ? 'border-primary bg-primary bg-opacity-10' : ''">
-          <input type="radio" :value="op.value" v-model="silenciarDuracion" class="form-check-input m-0" />
-          <span>{{ op.label }}</span>
-        </label>
-      </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="silenciarTarget = null">Cancelar</button>
-        <button class="btn btn-danger btn-sm" @click="confirmarSilenciar">
-          <i class="bi bi-volume-mute me-1"></i> Silenciar
-        </button>
-      </div>
+  <ModalFormulario v-if="silenciarTarget" :titulo="`Silenciar a ${silenciarTarget.personajeNombre}`" @cerrar="silenciarTarget = null">
+    <p class="text-muted small mb-3">El personaje no podrá enviar mensajes al canal durante la duración seleccionada:</p>
+    <div class="d-flex flex-column gap-2 mb-4" role="radiogroup" aria-label="Duración del silencio">
+      <label v-for="op in opcionesSilenciar" :key="op.value"
+             class="chat-opcion-radio"
+             :class="{ 'chat-opcion-radio--activa': silenciarDuracion === op.value }">
+        <input type="radio" :value="op.value" v-model="silenciarDuracion" class="form-check-input m-0" />
+        <span>{{ op.label }}</span>
+      </label>
     </div>
-  </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" @click="silenciarTarget = null">Cancelar</button>
+      <button type="button" class="btn btn-danger" @click="confirmarSilenciar">
+        <i class="bi bi-volume-mute" aria-hidden="true"></i> Silenciar
+      </button>
+    </div>
+  </ModalFormulario>
 
   <!-- Modal: Denunciar mensaje o canal -->
-  <div v-if="denunciaTarget" class="modal-backdrop-custom" @click.self="denunciaTarget = null">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:440px;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">
-          <i class="bi bi-flag text-warning me-2"></i>
-          {{ denunciaTarget.tipo === 'CANAL' ? 'Denunciar canal' : 'Denunciar mensaje' }}
-        </h5>
-        <button class="btn-close" @click="denunciaTarget = null"></button>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Motivo <span class="text-danger">*</span></label>
-        <input v-model="denunciaMotivo" type="text" class="form-control" maxlength="200" :placeholder="denunciaTarget.tipo === 'CANAL' ? '¿Por qué denuncias este canal?' : '¿Por qué denuncias este mensaje?'" />
-      </div>
-      <div class="mb-4">
-        <label class="form-label">Detalle (opcional)</label>
-        <textarea v-model="denunciaDetalle" class="form-control" rows="4" maxlength="2000" placeholder="Amplía la información si lo necesitas..."></textarea>
-        <div class="text-end text-muted small mt-1">{{ denunciaDetalle.length }}/2000</div>
-      </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="denunciaTarget = null">Cancelar</button>
-        <button
-          class="btn btn-warning btn-sm"
-          :disabled="enviandoDenuncia || !denunciaMotivo.trim()"
-          @click="enviarDenunciaMensaje"
-        >
-          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-flag me-1"></i>
-          Enviar denuncia
-        </button>
-      </div>
+  <ModalFormulario v-if="denunciaTarget" :titulo="denunciaTarget.tipo === 'CANAL' ? 'Denunciar canal' : 'Denunciar mensaje'" @cerrar="denunciaTarget = null">
+    <div class="mb-3">
+      <label class="form-label" for="chat-denuncia-motivo">Motivo <span class="text-danger" aria-hidden="true">*</span></label>
+      <input id="chat-denuncia-motivo" v-model="denunciaMotivo" type="text" class="form-control" maxlength="200"
+             :placeholder="denunciaTarget.tipo === 'CANAL' ? '¿Por qué denuncias este canal?' : '¿Por qué denuncias este mensaje?'" />
     </div>
-  </div>
+    <div class="mb-4">
+      <label class="form-label" for="chat-denuncia-detalle">Detalle (opcional)</label>
+      <textarea id="chat-denuncia-detalle" v-model="denunciaDetalle" class="form-control" rows="4" maxlength="2000"
+                placeholder="Amplía la información si lo necesitas..."></textarea>
+      <div class="text-end text-muted small mt-1">{{ denunciaDetalle.length }}/2000</div>
+    </div>
+    <div class="d-flex justify-content-end gap-2">
+      <button type="button" class="btn btn-outline-secondary" @click="denunciaTarget = null">Cancelar</button>
+      <button
+        type="button"
+        class="btn btn-warning"
+        :disabled="enviandoDenuncia || !denunciaMotivo.trim()"
+        @click="enviarDenunciaMensaje"
+      >
+        <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <i v-else class="bi bi-flag" aria-hidden="true"></i>
+        Enviar denuncia
+      </button>
+    </div>
+  </ModalFormulario>
 
   <!-- Modal: Baneados del canal -->
-  <div v-if="mostrarBaneados" class="modal-backdrop-custom" @click.self="mostrarBaneados = false">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:480px;">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0"><i class="bi bi-hammer text-danger me-2"></i>Baneados del canal</h5>
-        <button class="btn-close" @click="mostrarBaneados = false"></button>
-      </div>
-      <div v-if="cargandoBaneados" class="text-center py-3">
-        <div class="spinner-border spinner-border-sm text-primary"></div>
-      </div>
-      <div v-else-if="baneados.length === 0" class="text-muted small text-center py-3">
-        No hay personajes baneados.
-      </div>
-      <div v-else class="d-flex flex-column gap-2">
-        <div v-for="b in baneados" :key="b.personajeId" class="d-flex align-items-center gap-2 p-2 border rounded">
-          <img :src="avatarUrl(b.avatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" />
-          <div class="flex-grow-1">
-            <div class="small fw-medium">{{ b.personajeNombre }}</div>
-            <div class="text-muted" style="font-size:0.72rem;">
-              <template v-if="b.activo">
-                {{ b.fechaExpiracion ? 'Hasta ' + new Date(b.fechaExpiracion).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'Permanente' }}
-              </template>
-              <template v-else>Expirado</template>
-            </div>
-          </div>
-          <button class="btn btn-sm btn-outline-success" @click="desbanearPersonaje(b)">
-            <i class="bi bi-unlock me-1"></i> Desbanear
-          </button>
-        </div>
-      </div>
+  <!-- Modal: Baneados del canal -->
+  <ModalFormulario v-if="mostrarBaneados" titulo="Baneados del canal" ancho="md" @cerrar="mostrarBaneados = false">
+    <div v-if="cargandoBaneados" class="chat-mensajes__estado" role="status">
+      <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+      <span>Cargando baneados</span>
     </div>
-  </div>
+    <p v-else-if="baneados.length === 0" class="text-muted small text-center py-3 mb-0">
+      No hay personajes baneados.
+    </p>
+    <ul v-else class="chat-baneados">
+      <li v-for="b in baneados" :key="b.personajeId" class="chat-baneados__fila">
+        <img :src="avatarUrl(b.avatar)" class="rounded-circle flex-shrink-0" width="32" height="32" style="object-fit:cover;" alt="" />
+        <div class="flex-grow-1 min-w-0">
+          <div class="small fw-medium text-truncate">{{ b.personajeNombre }}</div>
+          <div class="chat-baneados__meta">
+            <template v-if="b.activo">
+              {{ b.fechaExpiracion ? 'Hasta ' + new Date(b.fechaExpiracion).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' }) : 'Permanente' }}
+            </template>
+            <template v-else>Expirado</template>
+          </div>
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-success flex-shrink-0"
+                :aria-label="`Desbanear a ${b.personajeNombre}`" @click="desbanearPersonaje(b)">
+          <i class="bi bi-unlock" aria-hidden="true"></i> Desbanear
+        </button>
+      </li>
+    </ul>
+  </ModalFormulario>
 
   <!-- Context menu: clic derecho en conversaciones privadas -->
   <div v-if="conversacionCtxTarget" class="context-menu-overlay" @click="cerrarContextMenuConversacion" @contextmenu.prevent="cerrarContextMenuConversacion"></div>
@@ -2271,6 +2262,208 @@ onUnmounted(() => {
 }
 .chat-mensajes__vacio {
   min-height: 200px;
+}
+
+.chat-opcion-radio {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.chat-opcion-radio:hover {
+  border-color: rgba(var(--pl-primary-rgb), 0.4);
+}
+.chat-opcion-radio--activa {
+  border-color: var(--pl-primary);
+  background: rgba(var(--pl-primary-rgb), 0.08);
+  font-weight: 600;
+}
+.chat-opcion-radio:focus-within {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+@media (pointer: coarse) {
+  .chat-opcion-radio {
+    min-height: 44px;
+  }
+}
+
+.chat-baneados {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-baneados__fila {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  padding: 0.5rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+}
+.chat-baneados__meta {
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+}
+
+.chat-miembros-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-miembros-lista__fila {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.4rem 0.35rem;
+  border-radius: var(--pl-radius-md);
+}
+.chat-miembros-lista__fila:hover {
+  background: var(--pl-surface-soft);
+}
+
+.chat-rol-badge {
+  padding: 0.2rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.chat-rol-badge--owner {
+  color: var(--pl-warning-ink);
+  background: rgba(var(--pl-warning-rgb), 0.18);
+}
+.chat-rol-badge--admin {
+  color: var(--pl-info-ink);
+  background: rgba(var(--pl-info-rgb), 0.14);
+}
+.chat-rol-badge--mod {
+  color: var(--pl-success-ink);
+  background: rgba(var(--pl-success-rgb), 0.14);
+}
+.chat-rol-badge--member {
+  color: var(--pl-muted);
+  background: var(--pl-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--pl-border);
+}
+
+.chat-lista-tabs {
+  display: flex;
+  gap: 0.25rem;
+  margin-bottom: 0.9rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+.chat-lista-tabs__tab {
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  transition: color 0.12s, border-color 0.12s;
+}
+.chat-lista-tabs__tab:hover {
+  color: var(--pl-primary-ink);
+}
+.chat-lista-tabs__tab.active {
+  border-bottom-color: var(--pl-primary);
+  color: var(--pl-primary-ink);
+}
+
+.chat-canales-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chat-canal-fila {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid transparent;
+  border-radius: var(--pl-radius-md);
+  background: transparent;
+  text-align: start;
+  transition: background 0.12s, border-color 0.12s;
+}
+.chat-canal-fila:hover {
+  background: var(--pl-surface-soft);
+  border-color: var(--pl-border);
+}
+.chat-canal-fila--activo {
+  background: rgba(var(--pl-primary-rgb), 0.08);
+  border-color: rgba(var(--pl-primary-rgb), 0.35);
+}
+.chat-canal-fila__nombre {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.chat-canal-fila__meta {
+  display: block;
+  overflow: hidden;
+  color: var(--pl-muted);
+  font-size: 0.72rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-canal-fila__accion {
+  flex-shrink: 0;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  color: var(--pl-success-ink);
+  background: rgba(var(--pl-success-rgb), 0.12);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.chat-canal-avatar-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  color: var(--pl-primary-ink);
+  background: rgba(var(--pl-primary-rgb), 0.12);
+  font-size: 0.9rem;
+  font-weight: 800;
+}
+
+.chat-zona-peligro {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(var(--pl-danger-rgb), 0.25);
+}
+.chat-zona-peligro__titulo {
+  color: var(--pl-danger-ink);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+@media (pointer: coarse) {
+  .chat-lista-tabs__tab,
+  .chat-canal-fila {
+    min-height: 44px;
+  }
 }
 
 /* ---- Pestanas de personaje ---- */
