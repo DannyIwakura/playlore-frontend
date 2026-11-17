@@ -7,7 +7,6 @@ import { websocketService } from '../../services/websocket'
 import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
-import logoUrl from '../../assets/img/lOGOpLAYlORE.png'
 import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
@@ -1016,7 +1015,7 @@ onUnmounted(() => {
     <div class="container my-auto" style="max-width: 720px;">
       <div class="text-center mb-4">
         <h1 class="fw-bold d-flex align-items-center justify-content-center gap-2">
-          <img :src="logoUrl" height="100" alt="PlayLore" />
+          <span class="brand-wordmark">Play<span class="brand-wordmark__accent">Lore</span></span>
           <span class="text-muted fw-light">|</span>
           <span>Chat</span>
         </h1>
@@ -1898,6 +1897,16 @@ onUnmounted(() => {
 }
 .bg-gradient-selection {
   background: linear-gradient(180deg, #e3f0ff 0%, #f0f7ff 40%, #ffffff 100%) !important;
+}
+
+.brand-wordmark {
+  font-size: clamp(1.7rem, 4vw, 2.4rem);
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.brand-wordmark__accent {
+  color: var(--pl-cyan);
 }
 
 .personaje-card {

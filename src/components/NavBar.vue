@@ -95,7 +95,6 @@ onUnmounted(() => {
         class="navbar-brand navbar-brand-pl"
         :to="props.logeado ? '/dashboard' : '/'"
       >
-        <img src="../assets/img/lOGOpLAYlORE.png" class="navbar-logo" height="40" alt="PlayLore" />
         <span class="navbar-brand-text">Play<span>Lore</span></span>
       </router-link>
 
@@ -397,12 +396,6 @@ onUnmounted(() => {
 .navbar-brand-pl:hover {
   color: #fff;
   transform: none;
-}
-
-.navbar-logo {
-  width: 40px;
-  height: 40px;
-  object-fit: contain;
 }
 
 .navbar-brand-text span {

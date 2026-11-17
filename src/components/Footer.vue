@@ -11,7 +11,6 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
     <div class="container pl-footer-inner">
       <div>
         <router-link to="/" class="pl-footer-brand">
-          <img src="../assets/img/lOGOpLAYlORE.png" alt="PlayLore" />
           <span>PlayLore</span>
         </router-link>
         <p>
@@ -73,12 +72,6 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
 
 .pl-footer-brand:hover {
   color: #fff;
-}
-
-.pl-footer-brand img {
-  width: 38px;
-  height: 38px;
-  object-fit: contain;
 }
 
 .pl-footer p {
