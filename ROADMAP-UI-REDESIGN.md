@@ -275,15 +275,15 @@ Rediseñar todo el flujo de creación, búsqueda y gestión de personajes.
 
 ### Tareas
 
-- [ ] Rediseñar `PersonajesList.vue`.
-- [ ] Rediseñar `BuscarPersonajes.vue`.
+- [x] Rediseñar `PersonajesList.vue`.
+- [x] Rediseñar `BuscarPersonajes.vue`.
 - [x] Rediseñar `NuevoPersonajeForm.vue`.
 - [x] Rediseñar `EditarPersonajeForm.vue`.
-- [ ] Rediseñar `PerfilPersonajeView.vue`.
+- [x] Rediseñar `PerfilPersonajeView.vue`.
 - [x] Rediseñar `AnadirCategoriaForm.vue`.
-- [ ] Crear filtros y controles de búsqueda más claros.
-- [ ] Añadir estados de carga, vacío y error.
-- [ ] Mejorar la presentación de galerías, atributos y categorías.
+- [x] Crear filtros y controles de búsqueda más claros.
+- [x] Añadir estados de carga, vacío y error.
+- [x] Mejorar la presentación de galerías, atributos y categorías.
 - [x] Adaptar formularios largos a una experiencia móvil usable.
 
 ### Entregables
