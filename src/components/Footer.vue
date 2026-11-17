@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { defineProps } from 'vue'
-
 const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
   logeado: false,
 })
@@ -49,7 +47,7 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
   position: relative;
   margin-top: 4rem;
   color: rgba(255, 255, 255, 0.76);
-  background: #151b2c;
+  background: var(--pl-dark);
 }
 
 .pl-footer-inner {
@@ -119,6 +117,16 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
     grid-template-columns: 1fr;
     gap: 2rem;
     padding-top: 3rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pl-footer-links a {
+    transition: none;
+  }
+
+  .pl-footer-links a:hover {
+    transform: none;
   }
 }
 </style>

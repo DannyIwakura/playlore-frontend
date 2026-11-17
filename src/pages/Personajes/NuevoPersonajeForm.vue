@@ -348,8 +348,13 @@ onUnmounted(liberarPreview)
           </p>
 
           <div class="pl-field mb-0">
-            <label class="form-label" for="trasfondo">Trasfondo</label>
-            <RichTextEditor :model-value="personaje.trasfondo" @update:model-value="onTrasfondo" />
+            <span class="form-label">Trasfondo</span>
+            <RichTextEditor
+              id="trasfondo"
+              etiqueta="Trasfondo"
+              :model-value="personaje.trasfondo"
+              @update:model-value="onTrasfondo"
+            />
             <p v-if="errores.trasfondo" id="trasfondo-error" class="pl-field__error">
               <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.trasfondo }}
             </p>
