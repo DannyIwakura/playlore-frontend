@@ -499,7 +499,7 @@ watch(
 .perfil-dato dt {
   margin-bottom: 0.2rem;
   color: var(--pl-muted);
-  font-size: 0.74rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;

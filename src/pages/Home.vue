@@ -268,6 +268,12 @@ onBeforeUnmount(() => {
   pointer-events: auto;
 }
 
+/* Los indicadores de Bootstrap miden 23 px de alto (3 px + bordes
+   transparentes): se suben a 24 px para cumplir el objetivo tactil minimo. */
+.pl-hero .carousel-indicators [data-bs-target] {
+  min-height: 24px;
+}
+
 .pl-visual-card {
   position: relative;
   min-height: 420px;

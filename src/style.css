@@ -94,8 +94,33 @@
   --bs-form-invalid-color: var(--pl-danger-ink);
 }
 
+/* Utilidades de texto: el color base no llega a 4.5:1 sobre blanco, se usa la
+   tinta derivada (misma familia, mas oscura). */
+.text-primary {
+  color: var(--pl-primary-ink) !important;
+}
+
+.text-success {
+  color: var(--pl-success-ink) !important;
+}
+
+.text-warning {
+  color: var(--pl-warning-ink) !important;
+}
+
+.text-danger {
+  color: var(--pl-danger-ink) !important;
+}
+
+.text-info {
+  color: var(--pl-info-ink) !important;
+}
+
 html {
   scroll-behavior: smooth;
+  /* Reserva el hueco de la barra de scroll: evita que la navbar y el contenido
+     se refluyan cuando la pagina pasa de corta a larga al cargar datos. */
+  scrollbar-gutter: stable;
 }
 
 html,
@@ -1417,7 +1442,7 @@ section[id] {
   padding: 0 0.5rem 0.6rem;
   border-bottom: 1px solid var(--pl-border);
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -1704,7 +1729,7 @@ table.pl-tabla-admin thead th {
   border-bottom: 1px solid var(--pl-border);
   background: var(--pl-surface-soft);
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-align: start;
@@ -1848,7 +1873,7 @@ table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
     display: block;
     margin-bottom: 0.15rem;
     color: var(--pl-muted);
-    font-size: 0.7rem;
+    font-size: 0.75rem;
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
@@ -2137,6 +2162,6 @@ table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
   }
 }
 .pl-kicker--light {
-  color: var(--pl-muted);
+  color: rgba(255, 255, 255, 0.78);
 }
 

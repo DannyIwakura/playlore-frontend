@@ -269,7 +269,7 @@ function confirmarImagen(url: string) {
 .editor-content :deep(.ProseMirror) {
   min-height: 450px;
   padding: 12px;
-  font-size: 16px;
+  font-size: 1rem;
   line-height: 1.6;
 }
 

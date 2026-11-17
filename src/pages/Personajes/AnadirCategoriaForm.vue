@@ -238,7 +238,7 @@ onMounted(cargar)
   border-radius: 999px;
   color: var(--pl-primary-ink);
   background: rgba(var(--pl-primary-rgb), 0.12);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0;
 }

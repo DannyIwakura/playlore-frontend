@@ -445,6 +445,16 @@ onUnmounted(() => {
   transition: color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
+/* La fuente de iconos se carga con font-display: block: hasta que llega, el
+   glifo de respaldo es mas estrecho y al sustituirse ensancha cada enlace
+   (salto de layout en la navbar). Se reserva el ancho final del icono. */
+.nav-link-pl i,
+.btn-nav-dropdown i {
+  width: 1em;
+  flex-shrink: 0;
+  text-align: center;
+}
+
 .nav-link-pl:hover,
 .nav-link-pl.active {
   color: #fff !important;
@@ -455,8 +465,8 @@ onUnmounted(() => {
   min-width: 20px;
   padding-inline: 0.4rem;
   color: #fff;
-  background: var(--pl-danger);
-  font-size: 0.68rem;
+  background: var(--pl-danger-strong);
+  font-size: 0.75rem;
 }
 
 .navbar-actions {

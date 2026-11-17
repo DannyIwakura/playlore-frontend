@@ -425,18 +425,18 @@ Validar que el rediseño es atractivo, usable, accesible y estable antes de cons
 
 ### Tareas
 
-- [ ] Revisar todas las rutas en escritorio y móvil.
-- [ ] Verificar tamaños mínimos de texto y contraste.
-- [ ] Verificar foco visible en enlaces, botones, inputs y menús.
-- [ ] Verificar navegación por teclado.
-- [ ] Verificar etiquetas `aria-label` en botones icon-only.
-- [ ] Revisar modales, dropdowns, paginadores y galerías.
-- [ ] Comprobar que los formularios anuncian errores de forma accesible.
-- [ ] Revisar imágenes con `alt` descriptivo o `alt=""` decorativo.
-- [ ] Optimizar imágenes pesadas y tamaños de carga.
-- [ ] Comprobar tiempos de interacción y consumo de recursos.
-- [ ] Probar con varios tamaños de pantalla.
-- [ ] Documentar hallazgos y correcciones.
+- [x] Revisar todas las rutas en escritorio y móvil.
+- [x] Verificar tamaños mínimos de texto y contraste.
+- [x] Verificar foco visible en enlaces, botones, inputs y menús.
+- [x] Verificar navegación por teclado.
+- [x] Verificar etiquetas `aria-label` en botones icon-only.
+- [x] Revisar modales, dropdowns, paginadores y galerías.
+- [x] Comprobar que los formularios anuncian errores de forma accesible.
+- [x] Revisar imágenes con `alt` descriptivo o `alt=""` decorativo.
+- [x] Optimizar imágenes pesadas y tamaños de carga.
+- [x] Comprobar tiempos de interacción y consumo de recursos.
+- [x] Probar con varios tamaños de pantalla.
+- [x] Documentar hallazgos y correcciones.
 
 ### Entregables
 
@@ -633,11 +633,19 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 | Mensaje "No pudimos identificar tu cuenta" en Tus personajes | `d999b90` | `hidratarDesdeToken()`, guard que redirige a `/login` y filtro del 401 de sesión de personaje en `api.ts`. 218 tests y 4 escenarios Playwright. |
 | Tablas admin con cabeceras incompletas y Denuncias con scroll horizontal | `42a5e8d` | Cabeceras al 100% en las 6 tablas; Denuncias 900/900 en escritorio y 364/364 en móvil. |
 | Movimiento sin tokens ni respeto a `prefers-reduced-motion` | `400f5c1` | Tokens `--pl-duration-*`/`--pl-ease-*` en todo el CSS; el desplazamiento espacial vive en `no-preference`; esqueletos y spinners se detienen con `reduce`; entrada limitada al hero. Playwright: CLS 0 y sin scroll horizontal en 1280 y 375. |
+| Contraste por debajo de AA en badges, logotipo, kickers y utilidades `.text-*` | Fase 10 | `.navbar-badge` a `--pl-danger-strong`, `.brand-wordmark__accent` a `--pl-cyan-ink`, `.pl-kicker--light` a blanco 78% y `.text-primary/success/warning/danger/info` sobrescritas a sus variantes `-ink`. Cálculo WCAG de 33 pares de tokens. |
+| Imágenes sin `alt`, buscador del chat sin etiqueta y botones icon-only solo con `title` | Fase 10 | `alt=""` en avatares decorativos, `aria-label` en el buscador y en los botones de buscar/cerrar/ir al final, `aria-hidden` en sus iconos. 0 hallazgos en el análisis estático. |
+| Textos legibles por debajo de 12 px en chat, chips y biografías | Fase 10 | Subidos a 0.75rem en `ChatEditor`, `ChatMessage`, `ChatWindow`, `AnadirCategoriaForm`, `PerfilPersonajeView`, `PerfilUsuario` y `style.css`; solo quedan el caret y la X del chip (iconos). |
+| Tarjeta de personaje sin anillo de foco y objetivos táctiles por debajo de 24 px | Fase 10 | `outline` en la tarjeta con `:has(...:focus-visible)`; indicadores del carrusel a `min-height: 24px`. 18/18 elementos con foco visible en `/dashboard`. |
+| Imágenes de 3-13 MB en login, registro, home y avatar | Fase 10 | Redimensionadas con Pillow (calidad 82, progresivo): ~30.9 MB → ~1.6 MB. |
+| CLS 0.1238 en `/personaje/3` y salto de la navbar por la fuente de iconos | Fase 10 | Footer oculto durante la carga del perfil; ancho de icono reservado (`width: 1em`) y precarga del `woff2`. CLS 0 en `/personaje/3`; `/chat` móvil queda en 0.0247. |
 
 ### Abiertos
 
-- **Fases 10-11**: calidad visual/accesibilidad final y limpieza/documentación.
+- **Fase 11**: limpieza, consolidación de estilos y documentación de componentes.
 - **Chunk `RichTextEditor`**: ~379 kB (120 kB gzip). No se ha partido; valorar carga diferida del editor o extensiones bajo demanda en la Fase 11.
+- **Prueba con lector de pantalla real**: la auditoría de la Fase 10 es automática (Playwright + cálculo WCAG); falta NVDA/VoiceOver.
+- **Imágenes del hero móvil**: `carrusel1.jpg` (1333 px) se muestra a 360 px de ancho; valorar `srcset` si se añaden densidades.
 - **Cierre retrospectivo de las fases 0-3**: cerradas en este documento con los commits `8cd8313` (sistema de diseño), `542e95d` (navegación), `17862f1` (web pública y autenticación) y `7d3460b` (dashboard/personajes/administración). La Fase 0 se hizo sobre `main` y no conservó matriz de pantallas ni capturas.
 
 

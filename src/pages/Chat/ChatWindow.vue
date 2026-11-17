@@ -1291,7 +1291,8 @@ onUnmounted(() => {
           <div class="card personaje-card h-100 w-100 border-0 shadow-sm text-center p-3">
             <img :src="avatarUrl(p.avatar)"
                  class="rounded-circle mx-auto mb-2"
-                 width="64" height="64" style="object-fit: cover;" />
+                 width="64" height="64" style="object-fit: cover;"
+                 alt="" />
             <h6 class="mb-0 text-truncate">{{ p.nombre }}</h6>
             <small class="text-muted d-block">{{ p.raza || '—' }}</small>
             <small class="text-muted d-block">{{ p.clase || '' }}</small>
@@ -1472,7 +1473,7 @@ onUnmounted(() => {
                             title="Te han mencionado">
                         @<span class="visually-hidden">Te han mencionado</span>
                       </span>
-                      <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ canal.miRol }}</span>
+                      <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.75rem;">{{ canal.miRol }}</span>
                     </span>
                   </span>
                   <span class="channel-item__meta d-block">{{ canal.miembroCount }} miembros</span>
@@ -1599,15 +1600,16 @@ onUnmounted(() => {
                      v-model="terminoBusqueda"
                      type="text"
                      class="form-control form-control-sm"
+                     aria-label="Buscar en el canal"
                      placeholder="Buscar en el canal..."
                      @keydown.enter.prevent="buscar(terminoBusqueda)"
                      @keydown.esc.prevent="cerrarBuscador" />
-              <button class="btn btn-sm btn-outline-secondary" :disabled="buscando || !terminoBusqueda.trim()" @click="buscar(terminoBusqueda)" title="Buscar">
-                <span v-if="buscando" class="spinner-border spinner-border-sm"></span>
-                <i v-else class="bi bi-arrow-return-left"></i>
+              <button class="btn btn-sm btn-outline-secondary" :disabled="buscando || !terminoBusqueda.trim()" @click="buscar(terminoBusqueda)" aria-label="Buscar en el canal" title="Buscar">
+                <span v-if="buscando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <i v-else class="bi bi-arrow-return-left" aria-hidden="true"></i>
               </button>
-              <button class="btn btn-sm btn-outline-danger" @click="cerrarBuscador" title="Cerrar">
-                <i class="bi bi-x-lg"></i>
+              <button class="btn btn-sm btn-outline-danger" @click="cerrarBuscador" aria-label="Cerrar buscador" title="Cerrar">
+                <i class="bi bi-x-lg" aria-hidden="true"></i>
               </button>
             </div>
             <div class="busqueda-resultados overflow-auto" style="max-height: 320px;">
@@ -1622,13 +1624,14 @@ onUnmounted(() => {
               <div v-else>
                 <button v-for="r in resultados" :key="r.id"
                         class="busqueda-resultado w-100 d-flex align-items-start gap-2 text-start border-0 bg-transparent px-3 py-2"
+                        :aria-label="'Saltar al mensaje de ' + (r.personajeNombre || '')"
                         :title="'Saltar al mensaje de ' + (r.personajeNombre || '')"
                         @click="saltarAResultado(r)">
-                  <img :src="avatarUrl(r.personajeAvatar)" class="rounded-circle flex-shrink-0" width="24" height="24" style="object-fit:cover;" />
+                  <img :src="avatarUrl(r.personajeAvatar)" class="rounded-circle flex-shrink-0" width="24" height="24" style="object-fit:cover;" alt="" />
                   <span class="flex-grow-1 min-w-0">
                     <span class="d-flex justify-content-between gap-2">
                       <small class="fw-bold text-truncate">{{ r.personajeNombre }}</small>
-                      <small class="text-muted flex-shrink-0" style="font-size:0.7rem;">{{ formatFecha(r.fechaEnvio) }}</small>
+                      <small class="text-muted flex-shrink-0" style="font-size:0.75rem;">{{ formatFecha(r.fechaEnvio) }}</small>
                     </span>
                     <span class="d-block text-body small text-truncate">{{ truncarTexto(r.contenido || '', 120) }}</span>
                   </span>
@@ -1690,8 +1693,8 @@ onUnmounted(() => {
           <!-- Botón volver al final -->
           <transition name="fade">
             <button v-if="usuarioScrolledUp" class="btn btn-light btn-sm rounded-pill shadow scroll-bottom-btn position-absolute"
-                    @click="scrollAlFinalForzado" title="Ir al último mensaje">
-              <i class="bi bi-arrow-down"></i>
+                    @click="scrollAlFinalForzado" aria-label="Ir al último mensaje" title="Ir al último mensaje">
+              <i class="bi bi-arrow-down" aria-hidden="true"></i>
             </button>
           </transition>
 
@@ -1860,8 +1863,8 @@ onUnmounted(() => {
           <img :src="avatarUrl(p.avatar)" class="rounded-circle mx-auto mb-2"
                width="48" height="48" style="object-fit: cover;" alt="" />
           <h6 class="mb-0 text-truncate small">{{ p.nombre }}</h6>
-          <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.raza || '—' }}</small>
-          <small class="text-muted d-block" style="font-size:0.65rem;">{{ p.clase || '' }}</small>
+          <small class="text-muted d-block" style="font-size:0.75rem;">{{ p.raza || '—' }}</small>
+          <small class="text-muted d-block" style="font-size:0.75rem;">{{ p.clase || '' }}</small>
         </button>
       </div>
     </div>
@@ -2275,7 +2278,7 @@ onUnmounted(() => {
 }
 
 .brand-wordmark__accent {
-  color: var(--pl-cyan);
+  color: var(--pl-cyan-ink);
 }
 
 .personaje-card {
@@ -2379,7 +2382,7 @@ onUnmounted(() => {
 }
 .chat-baneados__meta {
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
 }
 
 .chat-miembros-lista {
@@ -2404,7 +2407,7 @@ onUnmounted(() => {
 .chat-rol-badge {
   padding: 0.2rem 0.45rem;
   border-radius: 999px;
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -2488,7 +2491,7 @@ onUnmounted(() => {
   display: block;
   overflow: hidden;
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2498,7 +2501,7 @@ onUnmounted(() => {
   border-radius: 999px;
   color: var(--pl-success-ink);
   background: rgba(var(--pl-success-rgb), 0.12);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
 }
 
@@ -2632,7 +2635,7 @@ onUnmounted(() => {
 
 .chat-sidebar__titulo {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2718,7 +2721,7 @@ onUnmounted(() => {
 .sidebar-lista__titulo {
   margin: 0;
   padding: 0.6rem 0.9rem 0.2rem;
-  font-size: 0.7rem;
+  font-size: 0.75rem;
   font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2844,7 +2847,7 @@ onUnmounted(() => {
   font-weight: 600;
 }
 .channel-item__meta {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--pl-muted);
 }
 
@@ -2901,7 +2904,7 @@ onUnmounted(() => {
   border-radius: 8px;
   background: var(--pl-danger-strong);
   color: #fff;
-  font-size: 0.6rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1.2;
 }
@@ -2925,7 +2928,7 @@ onUnmounted(() => {
 }
 .chat-header__meta {
   margin: 0;
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   color: var(--pl-muted);
 }
 .chat-header__btn {
@@ -3317,7 +3320,7 @@ onUnmounted(() => {
   border-radius: 50%;
   background: var(--pl-danger-strong);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   font-weight: 700;
   line-height: 1;
 }

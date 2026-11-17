@@ -687,7 +687,10 @@ watch(
     </main>
   </div>
 
-  <Footer v-if="!modoModal" />
+  <!-- Mientras carga no se pinta el footer: con el esqueleto la pagina es corta
+       y el footer quedaria en pantalla para luego saltar fuera al llegar los
+       datos (CLS). Al aparecer debajo del pliegue no desplaza nada. -->
+  <Footer v-if="!modoModal && !cargando" />
 
   <!-- Modal de denuncia -->
   <ModalFormulario
@@ -878,7 +881,7 @@ watch(
   gap: 0.3rem;
   margin-bottom: 0.15rem;
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -906,7 +909,7 @@ watch(
 .perfil-etiqueta {
   margin: 0 0 0.5rem;
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;

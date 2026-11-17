@@ -1022,7 +1022,7 @@ onUnmounted(() => {
   border-radius: 999px;
   background: var(--pl-surface);
   color: var(--pl-muted);
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 600;
   transition: background var(--pl-duration-fast) var(--pl-ease-standard), color var(--pl-duration-fast) var(--pl-ease-standard), border-color var(--pl-duration-fast) var(--pl-ease-standard);
 }
@@ -1248,7 +1248,7 @@ onUnmounted(() => {
   justify-content: flex-end;
   padding-top: 0.15rem;
   color: var(--pl-muted);
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }

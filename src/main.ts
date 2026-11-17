@@ -6,8 +6,20 @@ import router from './router'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap/dist/js/bootstrap.bundle.min.js'
 import 'bootstrap-icons/font/bootstrap-icons.css'
+import iconFontUrl from 'bootstrap-icons/font/fonts/bootstrap-icons.woff2?url'
 import './style.css'
 import { userStore } from './store/userStore'
+
+// La fuente de iconos usa font-display: block: hasta que llega, los iconos
+// ocupan el ancho de la fuente de respaldo y al cambiar ensanchan la navbar
+// (CLS). Precargarla hace que el intercambio ocurra antes del primer pintado.
+const iconFontPreload = document.createElement('link')
+iconFontPreload.rel = 'preload'
+iconFontPreload.as = 'font'
+iconFontPreload.type = 'font/woff2'
+iconFontPreload.crossOrigin = 'anonymous'
+iconFontPreload.href = iconFontUrl
+document.head.appendChild(iconFontPreload)
 
 userStore.cargarDesdeToken()
 

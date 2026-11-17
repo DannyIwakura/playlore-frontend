@@ -243,7 +243,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
 
 .msg-hora {
   flex-shrink: 0;
-  font-size: 0.68rem;
+  font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   color: var(--pl-muted);
   white-space: nowrap;
@@ -325,7 +325,7 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
 }
 
 .msg-reply-autor {
-  font-size: 0.72rem;
+  font-size: 0.75rem;
   font-weight: 750;
   opacity: 0.92;
 }

@@ -139,6 +139,13 @@ function usarAvatarDefecto(event: Event) {
   outline: none;
 }
 
+/* El enlace cubre toda la tarjeta: el anillo se dibuja en la tarjeta para que
+   el foco de teclado siga siendo visible. */
+.personaje-card:has(.personaje-card__link:focus-visible) {
+  outline: 3px solid rgba(var(--pl-primary-rgb), 0.55);
+  outline-offset: 2px;
+}
+
 /* Enlace estirado: toda la tarjeta navega al perfil, sin anidar controles. */
 .personaje-card__link::after {
   content: "";
