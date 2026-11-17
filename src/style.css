@@ -269,6 +269,13 @@ section[id] {
   transform: none;
 }
 
+.pl-btn:disabled,
+.pl-btn[aria-disabled='true'] {
+  pointer-events: none;
+  opacity: 0.6;
+  box-shadow: none;
+}
+
 .pl-btn--primary {
   color: #fff;
   background: var(--pl-primary);
@@ -1013,6 +1020,49 @@ section[id] {
 
 .form-text {
   color: var(--pl-muted);
+}
+
+/* Campos de formulario: contenedor, ayuda y error */
+.pl-field {
+  margin-bottom: 1rem;
+}
+
+.pl-field__hint {
+  margin: 0.35rem 0 0;
+  color: var(--pl-muted);
+  font-size: 0.82rem;
+}
+
+.pl-field__error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
+  margin: 0.45rem 0 0;
+  color: var(--pl-danger-ink);
+  font-size: 0.84rem;
+}
+
+.pl-field__error i {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+/* El campo solo se marca en rojo cuando el usuario ya ha interactuado con el
+   (:user-invalid) o cuando el backend devuelve un error para ese campo. */
+.form-control:user-invalid,
+.form-select:user-invalid,
+.form-control[aria-invalid='true'],
+.form-select[aria-invalid='true'] {
+  border-color: var(--pl-danger);
+  background-color: rgba(var(--pl-danger-rgb), 0.04);
+}
+
+.form-control:user-invalid:focus,
+.form-select:user-invalid:focus,
+.form-control[aria-invalid='true']:focus,
+.form-select[aria-invalid='true']:focus {
+  border-color: var(--pl-danger);
+  box-shadow: 0 0 0 0.2rem rgba(var(--pl-danger-rgb), 0.15);
 }
 
 .form-check-input {
