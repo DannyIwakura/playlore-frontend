@@ -232,6 +232,27 @@ onBeforeUnmount(() => {
   border-radius: 0 0 1.25rem 1.25rem;
 }
 
+/* El hero llena la pantalla: alto del viewport menos la navbar sticky
+   (76px en escritorio, 68px en tablet y 62px en movil). */
+.pl-hero,
+.pl-hero-content {
+  min-height: calc(100svh - 76px);
+}
+
+@media (max-width: 991.98px) {
+  .pl-hero,
+  .pl-hero-content {
+    min-height: calc(100svh - 68px);
+  }
+}
+
+@media (max-width: 575.98px) {
+  .pl-hero,
+  .pl-hero-content {
+    min-height: calc(100svh - 62px);
+  }
+}
+
 /* Bootstrap hace clicable toda la franja lateral del 15% del carrusel, que
    se come los botones del hero. Solo la flecha debe recibir el clic. */
 .pl-hero .carousel-control-prev,
@@ -376,11 +397,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 767.98px) {
-  .pl-hero,
-  .pl-hero-content {
-    min-height: 620px;
-  }
-
   .pl-feature-grid {
     grid-template-columns: 1fr;
   }
@@ -401,11 +417,6 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 575.98px) {
-  .pl-hero,
-  .pl-hero-content {
-    min-height: 660px;
-  }
-
   .pl-hero-content {
     padding: 1.75rem 1.15rem;
   }
