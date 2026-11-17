@@ -1389,7 +1389,7 @@ onUnmounted(() => {
       </main>
 
       <!-- Right sidebar: connected characters -->
-      <aside v-if="canalActivo && mostrarConectados" class="chat-right-sidebar border-start d-flex flex-column">
+      <aside v-if="canalActivo && mostrarConectados" class="chat-right-sidebar border-start d-none d-lg-flex flex-column">
         <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
           <h6 class="mb-0 small fw-bold">Conectados ({{ miembrosOnline.length }})</h6>
           <button class="btn-close btn-close-sm" @click="mostrarConectados = false"></button>
@@ -2129,11 +2129,6 @@ onUnmounted(() => {
   background: #f8f9fa;
   height: 100%;
   overflow: hidden;
-}
-@media (max-width: 991.98px) {
-  .chat-right-sidebar {
-    display: none;
-  }
 }
 
 .online-dot {
