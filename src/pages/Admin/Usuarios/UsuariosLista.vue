@@ -260,7 +260,7 @@ onMounted(() => cargarUsuarios())
       :resumen="resumen"
     >
       <template #barra>
-        <div class="pl-admin-barra">
+        <div class="pl-admin-barra" role="search" aria-label="Filtros de la tabla">
           <div class="pl-admin-barra__campo">
             <label for="usuarios-buscar">Buscar</label>
             <input

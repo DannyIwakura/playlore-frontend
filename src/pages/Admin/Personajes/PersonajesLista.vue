@@ -218,7 +218,7 @@ onMounted(() => cargarPersonajes())
       :resumen="resumen"
     >
       <template #barra>
-        <form class="pl-admin-barra" role="search" @submit.prevent="buscar">
+        <form class="pl-admin-barra" role="search" aria-label="Filtros de la tabla" @submit.prevent="buscar">
           <div class="pl-admin-barra__campo">
             <label for="personajes-buscar">Buscar personaje</label>
             <input

@@ -319,7 +319,7 @@ onMounted(() => cargarDenuncias())
       :resumen="resumen"
     >
       <template #barra>
-        <div class="pl-admin-barra">
+        <div class="pl-admin-barra" role="search" aria-label="Filtros de la tabla">
           <fieldset class="pl-segmentado">
             <legend class="visually-hidden">Estado de las denuncias</legend>
             <label v-for="opcion in ESTADOS" :key="opcion.valor" class="pl-segmentado__opcion">

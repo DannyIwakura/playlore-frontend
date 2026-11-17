@@ -241,7 +241,7 @@ onMounted(() => cargarCategorias())
       :resumen="resumen"
     >
       <template #barra>
-        <div class="pl-admin-barra">
+        <div class="pl-admin-barra" role="search" aria-label="Filtros de la tabla">
           <div class="pl-admin-barra__campo">
             <label for="categorias-buscar">Buscar</label>
             <input
