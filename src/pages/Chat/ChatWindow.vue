@@ -65,6 +65,18 @@ function alternarSidebar() {
   else abrirSidebar()
 }
 
+// ---- Estado de la conexion ----
+// El cliente STOMP reintenta solo cada 5 s. Exponemos su estado para avisar de
+// que los mensajes nuevos pueden no estar llegando mientras se reconecta.
+const wsConectado = websocketService.connected
+const conexionSolicitada = ref(false)
+const reconectando = ref(false)
+
+watch(wsConectado, (conectado) => {
+  if (conectado) reconectando.value = false
+  else if (conexionSolicitada.value) reconectando.value = true
+})
+
 function alCambiarLayout() {
   esMovil.value = consultaMovil.matches
   esCompacto.value = consultaCompacta.matches
@@ -509,6 +521,7 @@ async function cerrarTodasSesiones() {
 async function conectarWebSocket() {
   const token = characterSessionStore.getToken()
   if (!token) return
+  conexionSolicitada.value = true
   try {
     await websocketService.connect(token)
     const subPres = websocketService.subscribeToPresence((data: any) => {
@@ -1257,6 +1270,14 @@ onUnmounted(() => {
       </button>
     </div>
 
+    <!-- Estado de la conexion: solo aparece cuando ya se intento conectar -->
+    <div v-if="conexionSolicitada && !wsConectado" class="chat-conexion-banner"
+         role="status" aria-live="polite">
+      <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+      <span v-if="reconectando">Sin conexión con el chat. Reintentando cada 5 segundos; los mensajes nuevos pueden tardar en aparecer.</span>
+      <span v-else>Conectando con el chat…</span>
+    </div>
+
     <div class="d-flex flex-grow-1 min-h-0">
       <!-- Sidebar -->
       <aside id="chat-sidebar" ref="sidebarRef" class="chat-sidebar d-flex flex-column"
@@ -1553,13 +1574,18 @@ onUnmounted(() => {
           <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto"
                @scroll="handleScroll"
                @click="handleMentionClick">
-            <div v-if="cargando" class="text-center py-5">
-              <div class="spinner-border text-primary spinner-border-sm"></div>
+            <div v-if="cargando" class="chat-mensajes__estado" role="status">
+              <span class="spinner-border text-primary spinner-border-sm" aria-hidden="true"></span>
+              <span>Cargando mensajes</span>
             </div>
-            <div v-else-if="errorMsg" class="alert alert-danger py-2">{{ errorMsg }}</div>
+            <div v-else-if="errorMsg" class="pl-alert pl-alert--danger" role="alert">
+              <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+              <span>{{ errorMsg }}</span>
+            </div>
             <template v-else-if="mensajes.length > 0">
-              <div v-if="cargandoMas" class="text-center py-3">
-                <div class="spinner-border spinner-border-sm text-secondary"></div>
+              <div v-if="cargandoMas" class="chat-mensajes__estado" role="status">
+                <span class="spinner-border spinner-border-sm text-secondary" aria-hidden="true"></span>
+                <span>Cargando mensajes anteriores</span>
               </div>
               <div v-else-if="!hayMasMensajes" class="text-center py-2">
                 <small class="text-muted">No hay más mensajes</small>
@@ -1582,9 +1608,9 @@ onUnmounted(() => {
                 @scroll-a-mensaje="scrollAMensaje"
               />
             </template>
-            <div v-else class="text-center text-muted py-5">
-              <i class="bi bi-chat-dots fs-1 d-block mb-2 opacity-50"></i>
-              <p class="small">No hay mensajes aún. ¡Sé el primero!</p>
+            <div v-else class="pl-empty-state pl-empty-state--compact chat-mensajes__vacio">
+              <span class="pl-empty-state__icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
+              <p class="mb-0">No hay mensajes aún. ¡Sé el primero!</p>
             </div>
           </div>
 
@@ -1637,8 +1663,9 @@ onUnmounted(() => {
           <!-- PM Messages -->
           <div ref="mensajesContainer" class="chat-mensajes flex-grow-1 p-3 overflow-auto"
                @click="handleMentionClick">
-            <div v-if="cargandoPriv" class="text-center py-5">
-              <div class="spinner-border text-primary spinner-border-sm"></div>
+            <div v-if="cargandoPriv" class="chat-mensajes__estado" role="status">
+              <span class="spinner-border text-primary spinner-border-sm" aria-hidden="true"></span>
+              <span>Cargando conversación</span>
             </div>
             <template v-else-if="mensajesPrivados.length > 0">
               <ChatMessage v-for="msg in mensajesPrivados" :key="msg.id"
@@ -1648,9 +1675,9 @@ onUnmounted(() => {
                 @ver-perfil="verPerfil"
               />
             </template>
-            <div v-else class="text-center text-muted py-5">
-              <i class="bi bi-chat-dots fs-1 d-block mb-2 opacity-50"></i>
-              <p class="small">No hay mensajes aún. Envía un mensaje para iniciar la conversación.</p>
+            <div v-else class="pl-empty-state pl-empty-state--compact chat-mensajes__vacio">
+              <span class="pl-empty-state__icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
+              <p class="mb-0">No hay mensajes aún. Envía un mensaje para iniciar la conversación.</p>
             </div>
           </div>
 
@@ -2215,6 +2242,35 @@ onUnmounted(() => {
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
+}
+
+.chat-conexion-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex-shrink: 0;
+  padding: 0.5rem 0.9rem;
+  border-bottom: 1px solid rgba(var(--pl-warning-rgb), 0.35);
+  background: rgba(var(--pl-warning-rgb), 0.12);
+  color: var(--pl-warning-ink);
+  font-size: 0.8rem;
+}
+.chat-conexion-banner .spinner-border {
+  flex-shrink: 0;
+  color: currentColor;
+}
+
+.chat-mensajes__estado {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--pl-muted);
+  font-size: 0.85rem;
+}
+.chat-mensajes__vacio {
+  min-height: 200px;
 }
 
 /* ---- Pestanas de personaje ---- */
