@@ -660,7 +660,7 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 | Tarjeta de personaje sin anillo de foco y objetivos táctiles por debajo de 24 px | `e09fc25` | `outline` en la tarjeta con `:has(...:focus-visible)`; indicadores del carrusel a `min-height: 24px`. 18/18 elementos con foco visible en `/dashboard`. |
 | Imágenes de 3-13 MB en login, registro, home y avatar | `e09fc25` | Redimensionadas con Pillow (calidad 82, progresivo): ~30.9 MB → ~1.6 MB. |
 | CLS 0.1238 en `/personaje/3` y salto de la navbar por la fuente de iconos | `e09fc25` | Footer oculto durante la carga del perfil; ancho de icono reservado (`width: 1em`) y precarga del `woff2`. CLS 0 en `/personaje/3`; `/chat` móvil queda en 0.0247. |
-| CSS muerto y estilos inline dispersos | Fase 11 | Eliminados los bloques sin uso (`.alert*`, `.pagination`, `.card-*`, `.form-text`, `.btn-success`, `.btn-secondary`, `.spinner-grow`, `.pl-divider`, `hover-bg`, `mensaje-burbuja`, `navbar-logo`). Inline estático 30 → 0; los 8 `:style` restantes son dinámicos. |
+| CSS muerto y estilos inline dispersos | `be0e26b` | Eliminados los bloques sin uso (`.alert*`, `.pagination`, `.card-*`, `.form-text`, `.btn-success`, `.btn-secondary`, `.spinner-grow`, `.pl-divider`, `hover-bg`, `mensaje-burbuja`, `navbar-logo`). Inline estático 30 → 0; los 8 `:style` restantes son dinámicos. |
 
 ### Abiertos
 
