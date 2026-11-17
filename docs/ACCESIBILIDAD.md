@@ -25,35 +25,36 @@ documentado el resto como deuda priorizada.
 Implementación: composable compartido `src/composables/useModalFocus.ts` (trap + Esc + restore) usado
 por los tres modales.
 
+## Resuelto en el rediseño de UI (fases 2 y 6-8)
+
+| Hallazgo | Resolución |
+|---|---|
+| `RichTextEditor.vue`: 7 botones icon-only sin `aria-label` ni `title` | Barra `role="toolbar"` con `aria-label` y 4 `role="group"`; cada botón con `aria-label`/`title`, `aria-pressed` en los toggles y `aria-controls` al área editable. El área expone `role="textbox"`, `aria-multiline` y `aria-label` (commit `0e755fb`). |
+| `PaginadorComponent.vue`: `«`/`»` sin `aria-label` | `nav[aria-label="Paginación"]`, `aria-label="Página anterior"`/`"Página siguiente"`, `aria-current="page"` y `aria-disabled` en los extremos (commit `0e755fb`). |
+| `GaleriaImagenes.vue`: cierre del carousel solo con `title` | `aria-label` en cierre, anterior, siguiente, ampliar y eliminar imagen. |
+| `ChatWindow.vue`: modales inline sin foco, `Esc`, trap ni restauración | Migrados a `ModalFormulario`/`ModalConfirmacion`/`ModalAviso`, que usan `useModalFocus` (fase 7). |
+| Dropdown del NavBar y menús contextuales del chat sin teclado | `aria-expanded`/`aria-controls` y cierre con `Esc` (fases 2 y 7). |
+
 ## Hallazgos pendientes (deuda priorizada)
 
 ### Prioridad 1
 
-- [ ] **`RichTextEditor.vue`**: 7 botones icon-only (negrita, cursiva, lista, alinear L/C/R, imagen)
-  sin `aria-label` ni `title`. Solo lectura por lector de pantalla como "botón" sin nombre.
-- [ ] **`PaginadorComponent.vue`**: botones anterior/siguiente (`«`/`»`) sin `aria-label`
-  (ej. `aria-label="Página anterior"`). Los numéricos sí tienen texto.
-- [ ] **`GaleriaImagenes.vue`**: botón de cierre del carousel usa `title="Cerrar"` (no fiable para
-  AT); usar `aria-label="Cerrar"`.
-- [ ] **`ChatWindow.vue`**: ~12 modales inline (lista miembros, lista canales, crear/editar canal,
-  eliminar canal, perfil, confirmar desconexión, confirmación de borrado, baneo/denuncia/silencio…)
-  sin foco inicial, sin Esc, sin focus trap ni restauración. Opciones: aplicar `useModalFocus` a cada
-  uno o migrarlos a los componentes compartidos (recomendado a medio plazo).
+- Sin pendientes de esta lista: los cuatro hallazgos originales están resueltos.
 
 ### Prioridad 2
 
-- [ ] **Dropdown del NavBar** y **menús contextuales de `ChatWindow`**: abren sin mover el foco,
-  no cierran con `Esc` ni soportan navegación con flechas. Patrón WAI-ARIA `menu`/`menubutton`.
-- [ ] **Errores de validación**: los mensajes de error (formularios, editor) no se anuncian con
-  `aria-live`; un lector de pantalla no los notifica al aparecer.
+- [ ] **Errores de validación**: los campos asocian su error con `aria-describedby` mientras existe y
+  usan `aria-invalid`, pero falta comprobar el anuncio con lector de pantalla y valorar `aria-live` en
+  los errores generales.
 
 ### Prioridad 3
 
-- [ ] **Contraste (WCAG AA)**: sin auditoría con herramienta automática (axe/Lighthouse). Revisar
-  textos sobre fondos claros y estados `disabled`.
-- [ ] **Focus visible**: confirmar que ningún estilo global oculta el `outline`/focus ring.
-- [ ] **Etiquetas de formularios**: verificar que todos los `input`/`select`/`textarea` tienen
-  `<label>` o `aria-label` asociado (p. ej. `select` de tamaño de fuente en `RichTextEditor`).
+- [ ] **Contraste (WCAG AA)**: sin auditoría con herramienta automática (axe/Lighthouse). Los tokens
+  `-ink`/`-strong` corrigen los casos detectados a mano, pero falta la pasada completa.
+- [ ] **Focus visible**: confirmar que ningún estilo global oculta el `outline`/focus ring fuera de los
+  componentes ya revisados.
+- [ ] **Etiquetas de formularios**: verificar el resto de `input`/`select`/`textarea`; el `select` de
+  tamaño de fuente del editor ya tiene `aria-label`.
 
 ## Metodología
 

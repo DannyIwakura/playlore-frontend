@@ -146,7 +146,7 @@ Modernizar el entorno común de todas las vistas sin tocar todavía el contenido
 - [ ] Unificar espaciados entre cabecera, contenido y footer.
 - [ ] Crear encabezados de página reutilizables para secciones protegidas.
 - [ ] Crear estados globales de carga, error y contenido vacío.
-- [ ] Unificar el diseño de `Footer.vue`.
+- [x] Unificar el diseño de `Footer.vue`.
 - [ ] Mantener las rutas y permisos actuales del router.
 
 ### Entregables
@@ -603,4 +603,28 @@ DISABLE_TELEMETRY=1 npx -y modern-web-guidance@latest retrieve "<id>"
 - Texto sobre fondo tintado (badges, etiquetas, pills): usar los tokens `--pl-*-ink`.
 - Relleno sólido con texto blanco: usar los tokens `--pl-*-strong`.
 - El amarillo (`--pl-warning`) nunca lleva texto blanco: se usa `--pl-ink` sobre el relleno.
+
+---
+
+## 21. Registro de pendientes conocidos
+
+### Cerrados
+
+| Pendiente | Commit | Cómo se cerró |
+|---|---|---|
+| `RichTextEditor.vue` con grises propios (`#ccc`, `#f8f9fa`, `#3b82f6`) | `0e755fb` | Tokens `--pl-*`; barra `role="toolbar"` con 4 `role="group"`, `aria-controls` y `aria-label`/`title` por botón; `aria-pressed` en toggles; área `role="textbox"` + `aria-multiline` + `aria-label` con el `id` y la etiqueta del formulario. |
+| `Link` duplicado en tiptap | `0e755fb` | StarterKit v3 ya incluye `Link`; se elimina el import y desaparece el aviso "Duplicate extension names". |
+| Etiqueta "Trasfondo" apuntando a un `id` inexistente | `0e755fb` | `span.form-label` + prop `etiqueta`; `aria-controls="trasfondo"` y el área editable llevan el mismo `id`. |
+| `PaginadorComponent.vue` con clases Bootstrap y extremos sin nombre accesible | `0e755fb` | `nav[aria-label="Paginación"]`, `aria-current="page"`, `aria-disabled` en los extremos y guardas de rango para no emitir fuera de la lista. 7 tests. |
+| `Footer.vue` con import de `defineProps` y fondo en hex | `0e755fb` | Import fuera, `var(--pl-dark)` y `prefers-reduced-motion` en los enlaces. |
+| Uso de `toSorted()`/ES2023 en `src` | comprobado | Sin coincidencias de `toSorted`, `findLast`, `toReversed`, `toSpliced`, `with(` ni `groupBy`; `lib` sigue en ES2020. |
+| Mensaje "No pudimos identificar tu cuenta" en Tus personajes | `d999b90` | `hidratarDesdeToken()`, guard que redirige a `/login` y filtro del 401 de sesión de personaje en `api.ts`. 218 tests y 4 escenarios Playwright. |
+| Tablas admin con cabeceras incompletas y Denuncias con scroll horizontal | `42a5e8d` | Cabeceras al 100% en las 6 tablas; Denuncias 900/900 en escritorio y 364/364 en móvil. |
+
+### Abiertos
+
+- **Fases 9-11**: movimiento e interacciones, calidad visual/accesibilidad final y limpieza/documentación.
+- **Chunk `RichTextEditor`**: ~379 kB (120 kB gzip). No se ha partido; valorar carga diferida del editor o extensiones bajo demanda en la Fase 11.
+- **Cierre retrospectivo de las fases 0-3**: el trabajo está en commits anteriores a este documento (`8cd8313` sistema de diseño, `542e95d` navegación, `17862f1` web pública y autenticación, `7d3460b` dashboard/personajes/administración), pero sus casillas siguen sin marcar porque el plan se escribió después. Fase 0 no dejó artefactos (matriz de pantallas ni capturas) en el repo.
+
 
