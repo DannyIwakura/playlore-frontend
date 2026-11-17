@@ -12,6 +12,7 @@ import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
+import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
 import { useChatPresencia } from './composables/useChatPresencia'
 import { useChatMensajes } from './composables/useChatMensajes'
 import { useChatBusqueda } from './composables/useChatBusqueda'
@@ -28,9 +29,110 @@ const cargandoCanales = ref(true)
 const canalActivo = ref<any>(null)
 const conversacionActiva = ref<any>(null)
 const miembros = ref<any[]>([])
-const sidebarVisible = ref(window.innerWidth >= 768)
-const mostrarConectados = ref(true)
-const esMobile = () => window.innerWidth < 768
+
+// ---- Layout responsive ----
+// Se escucha matchMedia en lugar de leer window.innerWidth en cada render: asi
+// la vista reacciona al girar el movil o al redimensionar la ventana, y el
+// sidebar y el panel de conectados arrancan cerrados donde no caben.
+const consultaMovil = window.matchMedia('(max-width: 767.98px)')
+const consultaCompacta = window.matchMedia('(max-width: 991.98px)')
+
+const esMovil = ref(consultaMovil.matches)
+const esCompacto = ref(consultaCompacta.matches)
+const sidebarVisible = ref(!consultaMovil.matches)
+const mostrarConectados = ref(!consultaCompacta.matches)
+const sidebarRef = ref<HTMLElement | null>(null)
+const botonCanalesRef = ref<HTMLButtonElement | null>(null)
+const botonConectadosRef = ref<HTMLButtonElement | null>(null)
+const mostrarAccionesCanal = ref(false)
+
+function abrirSidebar() {
+  sidebarVisible.value = true
+  nextTick(() => {
+    const destino = sidebarRef.value?.querySelector<HTMLElement>('.channel-item, .sidebar-profile button')
+    destino?.focus()
+  })
+}
+
+function cerrarSidebar(devolverFoco = false) {
+  if (!sidebarVisible.value) return
+  sidebarVisible.value = false
+  if (devolverFoco) nextTick(() => botonCanalesRef.value?.focus())
+}
+
+function alternarSidebar() {
+  if (sidebarVisible.value) cerrarSidebar()
+  else abrirSidebar()
+}
+
+function alCambiarLayout() {
+  esMovil.value = consultaMovil.matches
+  esCompacto.value = consultaCompacta.matches
+  if (!consultaMovil.matches) sidebarVisible.value = true
+  if (!consultaCompacta.matches) mostrarConectados.value = true
+}
+
+function alPulsarEscape(evento: KeyboardEvent) {
+  if (evento.key !== 'Escape' || cualquierModalAbierto.value) return
+  if (esMovil.value && sidebarVisible.value) {
+    evento.stopPropagation()
+    cerrarSidebar(true)
+  }
+}
+
+function etiquetaEstado(personajeId: number): string {
+  const estado = statusMap.value.get(personajeId)
+  if (estado) return statusOptions.find(s => s.value === estado)?.label ?? 'Conectado'
+  return onlineMap.value.get(personajeId) ? 'Conectado' : 'Desconectado'
+}
+
+function moverFocoEnMenu(evento: KeyboardEvent, selector: string, cerrar: () => void) {
+  const menu = evento.currentTarget as HTMLElement
+  const items = Array.from(menu.querySelectorAll<HTMLElement>(selector))
+  if (evento.key === 'Escape') {
+    evento.stopPropagation()
+    cerrar()
+    return
+  }
+  if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(evento.key) || items.length === 0) return
+  evento.preventDefault()
+  const indice = items.indexOf(document.activeElement as HTMLElement)
+  const siguiente = evento.key === 'Home' ? 0
+    : evento.key === 'End' ? items.length - 1
+    : (indice + (evento.key === 'ArrowUp' ? -1 : 1) + items.length) % items.length
+  items[siguiente]?.focus()
+}
+
+function alNavegarMenuEstado(evento: KeyboardEvent) {
+  moverFocoEnMenu(evento, '[role="menuitemradio"]', () => {
+    mostrarSelectorEstado.value = false
+    nextTick(() => document.querySelector<HTMLElement>('.dropdown-estado')?.focus())
+  })
+}
+
+function alNavegarMenuAcciones(evento: KeyboardEvent) {
+  moverFocoEnMenu(evento, '[role="menuitem"]', () => {
+    mostrarAccionesCanal.value = false
+    nextTick(() => document.querySelector<HTMLElement>('[aria-controls="chat-acciones-canal"]')?.focus())
+  })
+}
+
+function cerrarAccionesFuera(evento: MouseEvent) {
+  if (!mostrarAccionesCanal.value) return
+  const objetivo = evento.target as HTMLElement | null
+  if (!objetivo?.closest('.chat-header__acciones')) mostrarAccionesCanal.value = false
+}
+
+function cerrarConectados() {
+  mostrarConectados.value = false
+  nextTick(() => botonConectadosRef.value?.focus())
+}
+
+function cerrarEstadoFuera(evento: MouseEvent) {
+  if (!mostrarSelectorEstado.value) return
+  const objetivo = evento.target as HTMLElement | null
+  if (!objetivo?.closest('.sidebar-profile')) mostrarSelectorEstado.value = false
+}
 
 const PAGE_SIZE = 15
 
@@ -95,6 +197,21 @@ const {
   estadoActual, statusColor, getTabStatusColor, cambiarEstado, cargarMiembrosOnline,
 } = useChatPresencia({ canalActivo })
 
+watch(mostrarSelectorEstado, (abierto) => {
+  if (!abierto) return
+  nextTick(() => {
+    const activo = document.querySelector<HTMLElement>('#chat-estado-menu [aria-checked="true"]')
+    ;(activo ?? document.querySelector<HTMLElement>('#chat-estado-menu [role="menuitemradio"]'))?.focus()
+  })
+})
+
+watch(mostrarAccionesCanal, (abierto) => {
+  if (!abierto) return
+  nextTick(() => {
+    document.querySelector<HTMLElement>('#chat-acciones-canal [role="menuitem"]')?.focus()
+  })
+})
+
 const {
   mensajes, cargando, enviando, cargandoMas, hayMasMensajes, usuarioScrolledUp, errorMsg, pagina,
   mensajeEnRespuesta, modoEdicion, mensajeDestacado, mensajesContainer, mostrarConfirmacionEliminar,
@@ -127,6 +244,11 @@ const {
   busquedaAbierta, terminoBusqueda, buscando, cargandoMas: cargandoMasResultados, resultados, hayMasResultados, errorBusqueda,
   buscar, cargarMasResultados, cerrarBusqueda, irAResultado: cerrarPanelBusqueda,
 } = useChatBusqueda({ canalActivo })
+
+function abrirConversacion(conv: any) {
+  seleccionarConversacion(conv)
+  if (esMovil.value) cerrarSidebar()
+}
 
 async function saltarAResultado(resultado: any) {
   cerrarPanelBusqueda(resultado)
@@ -661,7 +783,7 @@ async function seleccionarCanal(canal: any) {
   pagina.value = 0
   hayMasMensajes.value = true
   usuarioScrolledUp.value = false
-  if (window.innerWidth < 768) sidebarVisible.value = false
+  if (esMovil.value) cerrarSidebar()
 
   // Cancelar suscripción anterior de presencia por canal
   if (channelPresenceSubscription) {
@@ -964,6 +1086,11 @@ function handleBeforeUnload() {
 }
 
 onMounted(async () => {
+  consultaMovil.addEventListener('change', alCambiarLayout)
+  consultaCompacta.addEventListener('change', alCambiarLayout)
+  document.addEventListener('keydown', alPulsarEscape)
+  document.addEventListener('click', cerrarEstadoFuera)
+  document.addEventListener('click', cerrarAccionesFuera)
   solicitarPermisoNotificacion()
   await userStore.cargarDesdeToken()
   if (!userStore.usuario.value?.id) { router.push('/login'); return }
@@ -995,6 +1122,11 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  consultaMovil.removeEventListener('change', alCambiarLayout)
+  consultaCompacta.removeEventListener('change', alCambiarLayout)
+  document.removeEventListener('keydown', alPulsarEscape)
+  document.removeEventListener('click', cerrarEstadoFuera)
+  document.removeEventListener('click', cerrarAccionesFuera)
   persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
   wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
   if (channelPresenceSubscription) {
@@ -1054,54 +1186,84 @@ onUnmounted(() => {
   <!-- Con sesiones activas: chat completo -->
   <div v-else class="chat-fullpage d-flex flex-column" @contextmenu.prevent>
     <!-- Barra de pestañas de personajes -->
-    <div class="chat-tabs-bar d-flex align-items-center px-2 border-bottom bg-white flex-shrink-0">
-      <button v-for="(sesion, idx) in characterSessionStore.sesiones.value"
-              :key="sesion.tokenJwt"
-              class="chat-tab d-flex align-items-center gap-2 px-3 py-2 border-0 bg-transparent"
-              :class="{ active: idx === characterSessionStore.sesionActualIdx.value, 'chat-tab-unread': (noLeidosCharacter.get(sesion.personajeId) ?? 0) > 0 }"
-              @click="cambiarSesion(idx)">
-        <div class="position-relative">
-          <img :src="avatarUrl(sesion.personajeAvatar)"
-               class="rounded-circle" width="28" height="28" style="object-fit:cover; cursor:pointer;" />
-          <span class="tab-status-dot" :style="{ background: getTabStatusColor(sesion.personajeId) }"></span>
-        </div>
-        <span class="small fw-medium text-truncate">{{ sesion.personajeNombre }}</span>
-        <button class="btn btn-sm p-0 ms-1 text-muted" @click.stop="confirmarDesconectar(idx)"
-                title="Desconectar personaje">
-          <i class="bi bi-x" style="font-size:0.8rem;"></i>
+    <div class="chat-tabs-bar d-flex align-items-center px-2 flex-shrink-0">
+      <div v-for="(sesion, idx) in characterSessionStore.sesiones.value"
+           :key="sesion.tokenJwt"
+           class="chat-tab d-flex align-items-center gap-1 ps-1 pe-2 py-1"
+           :class="{ active: idx === characterSessionStore.sesionActualIdx.value, 'chat-tab-unread': (noLeidosCharacter.get(sesion.personajeId) ?? 0) > 0 }">
+        <button type="button"
+                class="chat-tab__principal d-flex align-items-center gap-2 border-0 bg-transparent px-2 py-1"
+                :aria-current="idx === characterSessionStore.sesionActualIdx.value ? 'true' : undefined"
+                :aria-label="`Cambiar al personaje ${sesion.personajeNombre}`"
+                @click="cambiarSesion(idx)">
+          <span class="position-relative">
+            <img :src="avatarUrl(sesion.personajeAvatar)"
+                 class="rounded-circle" width="28" height="28" style="object-fit:cover;" alt="" />
+            <span class="tab-status-dot" :style="{ background: getTabStatusColor(sesion.personajeId) }"></span>
+            <span class="visually-hidden">{{ etiquetaEstado(sesion.personajeId) }}</span>
+          </span>
+          <span class="small fw-medium text-truncate">{{ sesion.personajeNombre }}</span>
+          <span v-if="(noLeidosCharacter.get(sesion.personajeId) ?? 0) > 0" class="unread-count">
+            {{ noLeidosCharacter.get(sesion.personajeId) }}<span class="visually-hidden"> mensajes sin leer</span>
+          </span>
         </button>
-      </button>
+        <button type="button" class="chat-tab__cerrar btn btn-sm p-0 text-muted"
+                :aria-label="`Desconectar al personaje ${sesion.personajeNombre}`"
+                @click.stop="confirmarDesconectar(idx)">
+          <i class="bi bi-x" aria-hidden="true"></i>
+        </button>
+      </div>
       <button v-if="characterSessionStore.sesiones.value.length < characterSessionStore.MAX_SESIONES"
               class="chat-tab-add d-flex align-items-center justify-content-center border-0 bg-transparent px-3 py-2"
               @click="mostrarSelectorPersonajes = true"
-              title="Añadir otro personaje">
-        <i class="bi bi-plus-lg"></i>
+              aria-label="Añadir otro personaje">
+        <i class="bi bi-plus-lg" aria-hidden="true"></i>
       </button>
     </div>
 
     <div class="d-flex flex-grow-1 min-h-0">
       <!-- Sidebar -->
-      <aside class="chat-sidebar d-flex flex-column" :class="{ 'd-none d-md-flex': !sidebarVisible }">
+      <aside id="chat-sidebar" ref="sidebarRef" class="chat-sidebar d-flex flex-column"
+             :class="{ 'd-none d-md-flex': !sidebarVisible }"
+             aria-label="Canales y conversaciones">
+        <div class="chat-sidebar__cabecera d-md-none">
+          <span class="chat-sidebar__titulo">Canales y conversaciones</span>
+          <button type="button" class="chat-sidebar__cerrar" aria-label="Cerrar canales" @click="cerrarSidebar(true)">
+            <i class="bi bi-x-lg" aria-hidden="true"></i>
+          </button>
+        </div>
+
         <!-- Perfil del personaje activo -->
-        <div class="sidebar-profile p-3 border-bottom">
+        <div class="sidebar-profile">
           <div class="d-flex align-items-center gap-3">
-            <div class="position-relative" style="cursor:pointer;" @click="verPerfil(characterSessionStore.sesionActual.value?.personajeId)">
+            <button type="button" class="sidebar-profile__avatar position-relative border-0 bg-transparent p-0"
+                    :aria-label="`Ver el perfil de ${characterSessionStore.sesionActual.value?.personajeNombre ?? 'tu personaje'}`"
+                    @click="verPerfil(characterSessionStore.sesionActual.value?.personajeId)">
               <img :src="avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar)"
-                   class="rounded-circle" width="44" height="44" style="object-fit: cover;" />
-              <span class="status-indicator" :style="{ background: statusColor }"></span>
-            </div>
+                   class="rounded-circle" width="44" height="44" style="object-fit: cover;" alt="" />
+              <span class="status-indicator" :style="{ background: statusColor }" aria-hidden="true"></span>
+            </button>
             <div class="flex-grow-1 min-w-0 position-relative">
-              <div style="cursor:pointer;" @click="verPerfil(characterSessionStore.sesionActual.value?.personajeId)">
-                <h6 class="mb-0 text-truncate">{{ characterSessionStore.sesionActual.value?.personajeNombre }}</h6>
-              </div>
-              <div class="dropdown-estado" @click="mostrarSelectorEstado = !mostrarSelectorEstado" style="cursor:pointer;">
-                <small><i class="bi" :class="statusOptions.find(s=>s.value===estadoActual)?.icon" :style="{ color: statusColor }"></i>
-                  {{ statusOptions.find(s=>s.value===estadoActual)?.label }}</small>
-              </div>
-              <div v-if="mostrarSelectorEstado" class="estado-dropdown-menu">
-                <button v-for="opt in statusOptions" :key="opt.value" class="dropdown-item-estado"
+              <button type="button" class="sidebar-profile__nombre border-0 bg-transparent p-0 w-100 text-start"
+                      @click="verPerfil(characterSessionStore.sesionActual.value?.personajeId)">
+                <span class="sidebar-profile__nombre-texto text-truncate d-block">
+                  {{ characterSessionStore.sesionActual.value?.personajeNombre }}
+                </span>
+              </button>
+              <button type="button" class="dropdown-estado" :aria-expanded="mostrarSelectorEstado"
+                      aria-haspopup="menu" aria-controls="chat-estado-menu"
+                      @click="mostrarSelectorEstado = !mostrarSelectorEstado">
+                <i class="bi" :class="statusOptions.find(s=>s.value===estadoActual)?.icon"
+                   :style="{ color: statusColor }" aria-hidden="true"></i>
+                <span>{{ statusOptions.find(s=>s.value===estadoActual)?.label }}</span>
+              </button>
+              <div v-if="mostrarSelectorEstado" id="chat-estado-menu" class="estado-dropdown-menu"
+                   role="menu" aria-label="Estado de presencia" @keydown="alNavegarMenuEstado">
+                <button v-for="opt in statusOptions" :key="opt.value" type="button"
+                        class="dropdown-item-estado" role="menuitemradio"
+                        :aria-checked="estadoActual === opt.value"
                         @click="cambiarEstado(opt.value)">
-                  <i class="bi" :class="opt.icon" :style="{ color: opt.color }"></i> {{ opt.label }}
+                  <i class="bi" :class="opt.icon" :style="{ color: opt.color }" aria-hidden="true"></i> {{ opt.label }}
                 </button>
               </div>
             </div>
@@ -1109,123 +1271,194 @@ onUnmounted(() => {
         </div>
 
         <!-- Mensajes Privados -->
-        <div v-if="conversacionesPrivadas.length > 0" class="sidebar-pm border-bottom">
-          <div class="px-3 py-2">
-            <small class="fw-bold text-muted text-uppercase" style="font-size:0.65rem;">Mensajes Privados</small>
-          </div>
-          <div v-for="conv in conversacionesPrivadas" :key="conv.personajeId"
-               class="channel-item position-relative d-flex align-items-center gap-3 px-3 py-2"
-               :class="{ active: conversacionActiva?.personajeId === conv.personajeId, 'channel-unread': (noLeidosPriv.get(conv.personajeId) ?? 0) > 0 }"
-               @click="seleccionarConversacion(conv)"
-               @contextmenu.prevent="abrirContextMenuConversacion($event, conv)">
-            <button class="conversation-close-btn btn border-0 p-0 position-absolute d-flex align-items-center justify-content-center"
-                    @click.stop="eliminarConversacionDirecta(conv)" title="Eliminar conversación">
-              <i class="bi bi-x" style="font-size:1.1rem;line-height:1;"></i>
-            </button>
-            <div class="position-relative flex-shrink-0">
-              <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" />
-              <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot"></span>
-            </div>
-            <div class="flex-grow-1 min-w-0">
-              <div class="d-flex align-items-center gap-2">
-                <small class="fw-medium text-truncate d-block">{{ conv.personajeNombre }}</small>
-                <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-count">{{ noLeidosPriv.get(conv.personajeId) }}</span>
-              </div>
-              <small class="text-muted text-truncate d-block" style="font-size:0.7rem;">{{ conv.ultimoMensaje }}</small>
-            </div>
-          </div>
-        </div>
+        <section v-if="conversacionesPrivadas.length > 0" class="sidebar-pm border-bottom" aria-labelledby="chat-pm-titulo">
+          <h2 id="chat-pm-titulo" class="sidebar-lista__titulo">Mensajes privados</h2>
+          <ul class="sidebar-lista">
+            <li v-for="conv in conversacionesPrivadas" :key="conv.personajeId"
+                class="channel-item-wrap position-relative">
+              <button type="button"
+                      class="channel-item w-100 d-flex align-items-center gap-3"
+                      :class="{ active: conversacionActiva?.personajeId === conv.personajeId, 'channel-unread': (noLeidosPriv.get(conv.personajeId) ?? 0) > 0 }"
+                      :aria-current="conversacionActiva?.personajeId === conv.personajeId ? 'true' : undefined"
+                      @click="abrirConversacion(conv)"
+                      @contextmenu.prevent="abrirContextMenuConversacion($event, conv)">
+                <span class="position-relative flex-shrink-0">
+                  <img :src="avatarUrl(conv.personajeAvatar)" class="rounded-circle" width="32" height="32" style="object-fit:cover;" alt="" />
+                  <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-dot" aria-hidden="true"></span>
+                </span>
+                <span class="flex-grow-1 min-w-0">
+                  <span class="d-flex align-items-center gap-2">
+                    <span class="channel-item__nombre text-truncate">{{ conv.personajeNombre }}</span>
+                    <span v-if="(noLeidosPriv.get(conv.personajeId) ?? 0) > 0" class="unread-count">
+                      {{ noLeidosPriv.get(conv.personajeId) }}<span class="visually-hidden"> mensajes sin leer</span>
+                    </span>
+                  </span>
+                  <span class="channel-item__meta text-truncate d-block">{{ conv.ultimoMensaje }}</span>
+                </span>
+              </button>
+              <button type="button"
+                      class="conversation-close-btn btn border-0 p-0 position-absolute d-flex align-items-center justify-content-center"
+                      :aria-label="`Eliminar la conversación con ${conv.personajeNombre}`"
+                      @click.stop="eliminarConversacionDirecta(conv)">
+                <i class="bi bi-x" aria-hidden="true"></i>
+              </button>
+            </li>
+          </ul>
+        </section>
 
         <!-- Botón Lista de canales -->
-        <div class="p-3 border-bottom">
-          <button class="btn btn-primary w-100 btn-sm d-flex align-items-center justify-content-center gap-2"
+        <div class="sidebar-acciones">
+          <button type="button" class="pl-btn pl-btn--primary pl-btn--sm w-100"
                   @click="abrirListaCanales">
-            <i class="bi bi-list-ul"></i> Lista de canales
+            <i class="bi bi-list-ul" aria-hidden="true"></i> Lista de canales
           </button>
         </div>
 
         <!-- Lista de canales -->
-        <div class="sidebar-channels flex-grow-1 overflow-auto">
-          <div v-if="cargandoCanales" class="text-center py-4">
-            <div class="spinner-border spinner-border-sm text-primary"></div>
+        <nav class="sidebar-channels flex-grow-1 overflow-auto" aria-label="Canales unidos">
+          <div v-if="cargandoCanales" class="text-center py-4" role="status">
+            <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+            <span class="visually-hidden">Cargando canales</span>
           </div>
-          <div v-else-if="canalesUnidos.length === 0" class="text-center text-muted p-3 small">
-            No estás en ningún canal
-          </div>
-           <div v-for="canal in canalesUnidos" :key="canal.id"
-                 class="channel-item d-flex align-items-center gap-3 px-3 py-2"
-                 :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
-                 @click="seleccionarCanal(canal)">
-             <div class="position-relative flex-shrink-0">
-                <img :src="canalAvatar(canal)" class="rounded-circle" width="32" height="32" />
-               <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot"></span>
-             </div>
-              <div class="flex-grow-1 min-w-0">
-                <div class="d-flex justify-content-between align-items-center">
-                  <div class="d-flex align-items-center gap-2">
-                    <small class="fw-medium text-truncate d-block">{{ canal.nombre }}</small>
-                  </div>
-                  <div class="d-flex align-items-center gap-1">
-                    <span v-if="channelMentionedMap.get(canal.id) ?? false" class="mention-badge">@</span>
-                    <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ canal.miRol }}</span>
-                  </div>
-                </div>
-                <small class="text-muted" style="font-size:0.7rem;">{{ canal.miembroCount }} miembros</small>
-              </div>
-          </div>
-        </div>
+          <p v-else-if="canalesUnidos.length === 0" class="pl-empty-state pl-empty-state--compact mb-0">
+            No estás en ningún canal todavía.
+          </p>
+          <ul v-else class="sidebar-lista">
+            <li v-for="canal in canalesUnidos" :key="canal.id">
+              <button type="button"
+                      class="channel-item w-100 d-flex align-items-center gap-3"
+                      :class="{ active: canalActivo?.id === canal.id, 'channel-unread': (unreadCountMap.get(canal.id) ?? 0) > 0, 'channel-mentioned': channelMentionedMap.get(canal.id) ?? false }"
+                      :aria-current="canalActivo?.id === canal.id ? 'true' : undefined"
+                      @click="seleccionarCanal(canal)">
+                <span class="position-relative flex-shrink-0">
+                  <img :src="canalAvatar(canal)" class="rounded-circle" width="32" height="32" alt="" />
+                  <span v-if="(unreadCountMap.get(canal.id) ?? 0) > 0" class="unread-dot" aria-hidden="true"></span>
+                </span>
+                <span class="flex-grow-1 min-w-0">
+                  <span class="d-flex justify-content-between align-items-center gap-2">
+                    <span class="channel-item__nombre text-truncate">{{ canal.nombre }}</span>
+                    <span class="d-flex align-items-center gap-1 flex-shrink-0">
+                      <span v-if="channelMentionedMap.get(canal.id) ?? false" class="mention-badge"
+                            title="Te han mencionado">
+                        @<span class="visually-hidden">Te han mencionado</span>
+                      </span>
+                      <span v-if="canal.miRol" class="badge bg-secondary" style="font-size:0.6rem;">{{ canal.miRol }}</span>
+                    </span>
+                  </span>
+                  <span class="channel-item__meta d-block">{{ canal.miembroCount }} miembros</span>
+                </span>
+              </button>
+            </li>
+          </ul>
+        </nav>
       </aside>
 
       <!-- Overlay móvil para sidebar -->
-      <div v-if="sidebarVisible && esMobile()" class="sidebar-overlay"
-           @click="sidebarVisible = false"></div>
+      <div v-if="sidebarVisible && esMovil" class="sidebar-overlay"
+           @click="cerrarSidebar(true)"></div>
 
       <!-- Área principal -->
       <main class="chat-main flex-grow-1 d-flex flex-column overflow-hidden position-relative">
         <!-- Sin canal ni conversación seleccionada -->
-        <div v-if="!canalActivo && !conversacionActiva" class="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
-          <i class="bi bi-chat-dots display-1 mb-3 opacity-25"></i>
-          <h5>Selecciona un canal o conversación</h5>
-          <p class="small">Elige un canal o una conversación privada de la barra lateral</p>
-          <button class="btn btn-outline-primary btn-sm d-md-none" @click="sidebarVisible = true">
-            <i class="bi bi-list me-1"></i> Mostrar canales
+        <div v-if="!canalActivo && !conversacionActiva" class="chat-vacio">
+          <span class="pl-empty-state__icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
+          <h1 class="chat-vacio__titulo">Selecciona un canal o conversación</h1>
+          <p class="chat-vacio__texto">Elige un canal o una conversación privada de la barra lateral.</p>
+          <button ref="botonCanalesRef" type="button" class="pl-btn pl-btn--secondary pl-btn--sm d-md-none"
+                  :aria-expanded="sidebarVisible" aria-controls="chat-sidebar"
+                  @click="abrirSidebar">
+            <i class="bi bi-list" aria-hidden="true"></i> Mostrar canales
           </button>
         </div>
 
         <!-- Canal seleccionado -->
         <template v-else-if="canalActivo">
-          <div class="chat-header d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-light">
-            <button class="btn btn-sm btn-outline-secondary d-md-none" @click="sidebarVisible = !sidebarVisible">
-              <i class="bi bi-list"></i>
+          <div class="chat-header d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+            <button ref="botonCanalesRef" type="button" class="chat-header__btn d-md-none"
+                    :aria-expanded="sidebarVisible" aria-controls="chat-sidebar"
+                    :aria-label="sidebarVisible ? 'Ocultar canales' : 'Mostrar canales'"
+                    @click="alternarSidebar">
+              <i class="bi bi-list" aria-hidden="true"></i>
             </button>
-            <img :src="canalAvatar(canalActivo)" class="rounded-circle flex-shrink-0" width="28" height="28" />
+            <img :src="canalAvatar(canalActivo)" class="rounded-circle flex-shrink-0" width="32" height="32" alt="" />
             <div class="flex-grow-1 min-w-0">
-              <h6 class="mb-0 text-truncate">{{ canalActivo.nombre }}</h6>
-              <div class="d-flex align-items-center gap-2" style="font-size:0.7rem;">
+              <h1 class="chat-header__titulo text-truncate">{{ canalActivo.nombre }}</h1>
+              <div class="chat-header__meta d-flex align-items-center gap-2">
                 <ExpandableText :text="canalActivo.descripcion" :max-lines="1" class="flex-grow-1" />
-                <span v-if="canalActivo.miembroCount != null" class="flex-shrink-0 miembros-link" @click="abrirListaMiembros" style="cursor:pointer;text-decoration:underline dotted;">
-                  <i class="bi bi-people-fill me-1"></i>{{ canalActivo.miembroCount }} miembros
-                </span>
+                <button v-if="canalActivo.miembroCount != null" type="button"
+                        class="miembros-link flex-shrink-0"
+                        :aria-label="`Ver los ${canalActivo.miembroCount} miembros del canal`"
+                        @click="abrirListaMiembros">
+                  <i class="bi bi-people-fill" aria-hidden="true"></i> {{ canalActivo.miembroCount }} miembros
+                </button>
               </div>
             </div>
-            <button class="btn btn-sm btn-outline-secondary" @click="mostrarConectados = !mostrarConectados" title="Conectados">
-              <i class="bi bi-person-check"></i>
-            </button>
-            <button class="btn btn-sm btn-outline-secondary" @click="abrirBuscador" title="Buscar mensajes">
-              <i class="bi bi-search"></i>
-            </button>
-            <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-warning" @click="denunciarCanalActivo" title="Denunciar canal">
-              <i class="bi bi-flag"></i>
-            </button>
-            <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" class="btn btn-sm btn-outline-secondary" @click="abrirModalBaneados" title="Baneados del canal">
-              <i class="bi bi-hammer"></i>
-            </button>
-            <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" class="btn btn-sm btn-outline-primary" @click="abrirModalEditarCanal" title="Editar canal">
-              <i class="bi bi-pencil"></i>
-            </button>
-            <button v-if="miRolEnCanal !== 'OWNER'" class="btn btn-sm btn-outline-danger" @click="salirDelCanal" title="Salir del canal">
-              <i class="bi bi-box-arrow-left"></i>
-            </button>
+
+            <div class="chat-header__acciones d-flex align-items-center gap-1">
+              <button ref="botonConectadosRef" type="button" class="chat-header__btn"
+                      :aria-expanded="mostrarConectados" aria-controls="chat-conectados"
+                      :aria-label="mostrarConectados ? 'Ocultar conectados' : 'Mostrar conectados'"
+                      @click="mostrarConectados = !mostrarConectados">
+                <i class="bi bi-person-check" aria-hidden="true"></i>
+              </button>
+              <button type="button" class="chat-header__btn" aria-label="Buscar mensajes" @click="abrirBuscador">
+                <i class="bi bi-search" aria-hidden="true"></i>
+              </button>
+
+              <!-- Acciones secundarias: visibles en escritorio, en un menú en móvil -->
+              <button v-if="miRolEnCanal !== 'OWNER'" type="button"
+                      class="chat-header__btn d-none d-md-inline-flex" aria-label="Denunciar canal"
+                      @click="denunciarCanalActivo">
+                <i class="bi bi-flag" aria-hidden="true"></i>
+              </button>
+              <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" type="button"
+                      class="chat-header__btn d-none d-md-inline-flex" aria-label="Ver personajes baneados del canal"
+                      @click="abrirModalBaneados">
+                <i class="bi bi-hammer" aria-hidden="true"></i>
+              </button>
+              <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" type="button"
+                      class="chat-header__btn d-none d-md-inline-flex" aria-label="Editar canal"
+                      @click="abrirModalEditarCanal">
+                <i class="bi bi-pencil" aria-hidden="true"></i>
+              </button>
+              <button v-if="miRolEnCanal !== 'OWNER'" type="button"
+                      class="chat-header__btn chat-header__btn--peligro d-none d-md-inline-flex"
+                      aria-label="Salir del canal" @click="salirDelCanal">
+                <i class="bi bi-box-arrow-left" aria-hidden="true"></i>
+              </button>
+
+              <div class="position-relative d-md-none">
+                <button type="button" class="chat-header__btn"
+                        :aria-expanded="mostrarAccionesCanal" aria-haspopup="menu"
+                        aria-controls="chat-acciones-canal" aria-label="Más acciones del canal"
+                        @click="mostrarAccionesCanal = !mostrarAccionesCanal">
+                  <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+                </button>
+                <div v-if="mostrarAccionesCanal" id="chat-acciones-canal" class="chat-acciones-menu"
+                     role="menu" aria-label="Acciones del canal" @keydown="alNavegarMenuAcciones">
+                  <button v-if="miRolEnCanal !== 'OWNER'" type="button" role="menuitem"
+                          class="chat-acciones-menu__item"
+                          @click="mostrarAccionesCanal = false; denunciarCanalActivo()">
+                    <i class="bi bi-flag" aria-hidden="true"></i> Denunciar canal
+                  </button>
+                  <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" type="button"
+                          role="menuitem" class="chat-acciones-menu__item"
+                          @click="mostrarAccionesCanal = false; abrirModalBaneados()">
+                    <i class="bi bi-hammer" aria-hidden="true"></i> Baneados del canal
+                  </button>
+                  <button v-if="miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN'" type="button"
+                          role="menuitem" class="chat-acciones-menu__item"
+                          @click="mostrarAccionesCanal = false; abrirModalEditarCanal()">
+                    <i class="bi bi-pencil" aria-hidden="true"></i> Editar canal
+                  </button>
+                  <button v-if="miRolEnCanal !== 'OWNER'" type="button" role="menuitem"
+                          class="chat-acciones-menu__item chat-acciones-menu__item--peligro"
+                          @click="mostrarAccionesCanal = false; salirDelCanal()">
+                    <i class="bi bi-box-arrow-left" aria-hidden="true"></i> Salir del canal
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- Buscador de mensajes -->
@@ -1342,20 +1575,26 @@ onUnmounted(() => {
 
         <!-- Conversación privada seleccionada -->
         <template v-if="conversacionActiva">
-          <div class="chat-header d-flex align-items-center gap-3 px-3 py-2 border-bottom bg-light">
-            <button class="btn btn-sm btn-outline-secondary" @click="cerrarConversacion" title="Cerrar">
-              <i class="bi bi-arrow-left"></i>
+          <div class="chat-header d-flex align-items-center gap-2 px-3 py-2 border-bottom">
+            <button type="button" class="chat-header__btn" aria-label="Volver a los canales" @click="cerrarConversacion">
+              <i class="bi bi-arrow-left" aria-hidden="true"></i>
             </button>
-            <img :src="avatarUrl(conversacionActiva.personajeAvatar)" class="rounded-circle flex-shrink-0"
-                 width="28" height="28" style="object-fit:cover;cursor:pointer;" @click="verPerfil(conversacionActiva.personajeId)" />
-            <h6 class="mb-0 flex-grow-1 text-truncate" style="cursor:pointer;" @click="verPerfil(conversacionActiva.personajeId)">
-              {{ conversacionActiva.personajeNombre }}
-            </h6>
-            <button class="btn btn-sm btn-outline-secondary" @click="verPerfil(conversacionActiva.personajeId)" title="Perfil">
-              <i class="bi bi-person-vcard"></i>
+            <button type="button" class="sidebar-profile__avatar flex-shrink-0 border-0 bg-transparent p-0"
+                    :aria-label="`Ver el perfil de ${conversacionActiva.personajeNombre}`"
+                    @click="verPerfil(conversacionActiva.personajeId)">
+              <img :src="avatarUrl(conversacionActiva.personajeAvatar)" class="rounded-circle"
+                   width="32" height="32" style="object-fit:cover;" alt="" />
             </button>
-            <button class="btn btn-sm btn-outline-danger ms-1" @click="cerrarConversacion" title="Cerrar conversación">
-              <i class="bi bi-x-lg"></i>
+            <div class="flex-grow-1 min-w-0">
+              <h1 class="chat-header__titulo text-truncate">{{ conversacionActiva.personajeNombre }}</h1>
+              <p class="chat-header__meta mb-0">Conversación privada</p>
+            </div>
+            <button type="button" class="chat-header__btn" aria-label="Ver perfil" @click="verPerfil(conversacionActiva.personajeId)">
+              <i class="bi bi-person-vcard" aria-hidden="true"></i>
+            </button>
+            <button type="button" class="chat-header__btn chat-header__btn--peligro"
+                    aria-label="Cerrar conversación" @click="cerrarConversacion">
+              <i class="bi bi-x-lg" aria-hidden="true"></i>
             </button>
           </div>
 
@@ -1389,10 +1628,12 @@ onUnmounted(() => {
       </main>
 
       <!-- Right sidebar: connected characters -->
-      <aside v-if="canalActivo && mostrarConectados" class="chat-right-sidebar border-start d-none d-lg-flex flex-column">
+      <aside v-if="canalActivo && mostrarConectados" id="chat-conectados"
+             class="chat-right-sidebar border-start d-none d-lg-flex flex-column"
+             aria-label="Personajes conectados">
         <div class="p-3 border-bottom d-flex justify-content-between align-items-center">
-          <h6 class="mb-0 small fw-bold">Conectados ({{ miembrosOnline.length }})</h6>
-          <button class="btn-close btn-close-sm" @click="mostrarConectados = false"></button>
+          <h2 class="chat-sidebar__titulo mb-0">Conectados ({{ miembrosOnline.length }})</h2>
+          <button type="button" class="btn-close btn-close-sm" aria-label="Ocultar conectados" @click="cerrarConectados"></button>
         </div>
         <div class="list-group list-group-flush overflow-auto flex-grow-1">
           <div v-if="cargandoMiembrosOnline" class="list-group-item text-center py-4">
@@ -1850,39 +2091,28 @@ onUnmounted(() => {
   </div>
 
   <!-- Modal: Confirmación de desconexión -->
-  <div v-if="mostrarConfirmacionDesconectar" class="modal-backdrop-custom" @click.self="mostrarConfirmacionDesconectar = false">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
-      <h5 class="mb-3">Desconectar personaje</h5>
-      <p class="mb-4">¿Seguro que quieres desconectar a <strong>{{ personajeDesconectar?.personajeNombre }}</strong> del chat?</p>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="mostrarConfirmacionDesconectar = false">Cancelar</button>
-        <button class="btn btn-danger btn-sm" @click="ejecutarDesconectar">Desconectar</button>
-      </div>
-    </div>
-  </div>
+  <ModalConfirmacion
+    v-if="mostrarConfirmacionDesconectar"
+    titulo="Desconectar personaje"
+    :mensaje="`¿Seguro que quieres desconectar a ${personajeDesconectar?.personajeNombre ?? ''} del chat?`"
+    boton-confirmar="Desconectar"
+    peligro
+    @confirmar="ejecutarDesconectar"
+    @cancelar="mostrarConfirmacionDesconectar = false"
+  />
 
   <!-- Modal: Mensaje de error/info -->
-  <div v-if="mensajeModal" class="modal-backdrop-custom" @click.self="mensajeModal = null">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
-      <h5 class="mb-3">{{ mensajeModal.titulo }}</h5>
-      <p class="mb-4">{{ mensajeModal.texto }}</p>
-      <div class="d-flex justify-content-end">
-        <button class="btn btn-primary btn-sm" @click="mensajeModal = null">Aceptar</button>
-      </div>
-    </div>
-  </div>
+  <ModalAviso v-if="mensajeModal" :titulo="mensajeModal.titulo" :mensaje="mensajeModal.texto"
+              @cerrar="mensajeModal = null" />
 
   <!-- Modal: Confirmación genérica -->
-  <div v-if="confirmModal" class="modal-backdrop-custom" @click.self="confirmModal = null">
-    <div class="modal-content-custom shadow rounded-3 p-4" style="max-width:420px;">
-      <h5 class="mb-3">{{ confirmModal.titulo }}</h5>
-      <p class="mb-4">{{ confirmModal.texto }}</p>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary btn-sm" @click="confirmModal = null">Cancelar</button>
-        <button class="btn btn-primary btn-sm" @click="confirmModal.onConfirm(); confirmModal = null">Aceptar</button>
-      </div>
-    </div>
-  </div>
+  <ModalConfirmacion
+    v-if="confirmModal"
+    :titulo="confirmModal.titulo"
+    :mensaje="confirmModal.texto"
+    @confirmar="confirmModal.onConfirm(); confirmModal = null"
+    @cancelar="confirmModal = null"
+  />
 
   <!-- Modal: Aviso -->
   <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
@@ -1893,10 +2123,15 @@ onUnmounted(() => {
   width: 100vw;
   height: 100vh;
   overflow: hidden;
-  background: #fff;
+  background: var(--pl-bg-soft);
 }
 .bg-gradient-selection {
-  background: linear-gradient(180deg, #e3f0ff 0%, #f0f7ff 40%, #ffffff 100%) !important;
+  background: linear-gradient(
+    180deg,
+    rgba(var(--pl-primary-rgb), 0.14) 0%,
+    var(--pl-bg) 45%,
+    var(--pl-surface) 100%
+  ) !important;
 }
 
 .brand-wordmark {
@@ -1910,13 +2145,13 @@ onUnmounted(() => {
 }
 
 .personaje-card {
-  border-radius: 12px;
+  border-radius: var(--pl-radius-lg);
   transition: box-shadow 0.18s, transform 0.18s;
   cursor: pointer;
-  background: #fff;
+  background: var(--pl-surface);
 }
 .personaje-card:hover {
-  box-shadow: 0 6px 20px rgba(13, 110, 253, 0.12);
+  box-shadow: var(--pl-shadow-md);
   transform: translateY(-3px);
 }
 .personaje-card:disabled {
@@ -1926,37 +2161,72 @@ onUnmounted(() => {
   box-shadow: none;
 }
 
+/* ---- Pestanas de personaje ---- */
+
 .chat-tabs-bar {
   min-height: 48px;
   overflow-x: auto;
   gap: 2px;
+  background: var(--pl-surface);
+  border-bottom: 1px solid var(--pl-border);
+  scrollbar-width: thin;
 }
 .chat-tab {
+  display: flex;
+  align-items: center;
   white-space: nowrap;
-  border-bottom: 2px solid transparent !important;
+  border-bottom: 2px solid transparent;
   transition: border-color 0.15s, background 0.15s;
 }
 .chat-tab:hover {
-  background: #f0f2f5;
+  background: rgba(var(--pl-primary-rgb), 0.06);
 }
 .chat-tab.active {
-  border-bottom-color: #0d6efd !important;
-  background: #e8f0fe;
+  border-bottom-color: var(--pl-primary);
+  background: rgba(var(--pl-primary-rgb), 0.1);
 }
 .chat-tab.chat-tab-unread {
-  background: #fff9c4 !important;
+  background: rgba(var(--pl-warning-rgb), 0.16);
 }
 .chat-tab.chat-tab-unread:hover {
-  background: #fff59d !important;
+  background: rgba(var(--pl-warning-rgb), 0.24);
+}
+.chat-tab__principal {
+  min-width: 0;
+  color: var(--pl-ink);
+  border-radius: var(--pl-radius-sm) var(--pl-radius-sm) 0 0;
+  cursor: pointer;
+}
+.chat-tab__principal:focus-visible,
+.chat-tab__cerrar:focus-visible,
+.chat-tab-add:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
+.chat-tab__cerrar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: var(--pl-muted);
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.chat-tab__cerrar:hover {
+  background: rgba(var(--pl-dark-rgb), 0.1);
+  color: var(--pl-ink);
 }
 .chat-tab-add {
   font-size: 1.1rem;
-  color: #0d6efd;
+  color: var(--pl-primary);
   cursor: pointer;
-  border-bottom: 2px solid transparent !important;
+  border-bottom: 2px solid transparent;
 }
 .chat-tab-add:hover {
-  background: #f0f2f5;
+  background: rgba(var(--pl-primary-rgb), 0.06);
 }
 .tab-status-dot {
   position: absolute;
@@ -1965,31 +2235,129 @@ onUnmounted(() => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  border: 1.5px solid white;
+  border: 1.5px solid var(--pl-surface);
 }
+
+/* ---- Barra lateral de canales ---- */
 
 .chat-sidebar {
   width: 300px;
   min-width: 300px;
-  background: #f8f9fa;
-  border-right: 1px solid #dee2e6;
   height: 100%;
+  background: var(--pl-surface-soft);
+  border-right: 1px solid var(--pl-border);
 }
+
+.chat-sidebar__cabecera {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.65rem 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.chat-sidebar__titulo {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pl-muted);
+}
+
+.chat-sidebar__cerrar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--pl-muted);
+}
+.chat-sidebar__cerrar:hover {
+  background: rgba(var(--pl-dark-rgb), 0.08);
+  color: var(--pl-ink);
+}
+.chat-sidebar__cerrar:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+
 @media (max-width: 767.98px) {
   .chat-sidebar {
     position: fixed;
-    left: 0;
-    top: 0;
-    z-index: 1040;
-    width: 280px;
-    height: 100vh;
+    inset-block: 0;
+    inset-inline-start: 0;
+    z-index: 1045;
+    width: min(320px, 86vw);
+    min-width: 0;
+    box-shadow: var(--pl-shadow-lg);
   }
 }
+
 .sidebar-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.4);
-  z-index: 1039;
+  z-index: 1044;
+  background: rgba(8, 12, 28, 0.45);
+}
+
+.sidebar-profile {
+  padding: 0.85rem 0.9rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.sidebar-profile__avatar {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: 50%;
+  cursor: pointer;
+}
+.sidebar-profile__avatar:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 2px;
+}
+
+.sidebar-profile__nombre {
+  color: var(--pl-ink);
+  cursor: pointer;
+}
+.sidebar-profile__nombre-texto {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+.sidebar-profile__nombre:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 2px;
+  border-radius: var(--pl-radius-sm);
+}
+
+.sidebar-lista {
+  margin: 0;
+  padding: 0.25rem 0;
+  list-style: none;
+}
+.sidebar-lista__titulo {
+  margin: 0;
+  padding: 0.6rem 0.9rem 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--pl-muted);
+}
+.sidebar-acciones {
+  padding: 0.6rem 0.9rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.sidebar-channels {
+  min-height: 0;
 }
 
 .status-indicator {
@@ -1999,58 +2367,152 @@ onUnmounted(() => {
   width: 12px;
   height: 12px;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid var(--pl-surface-soft);
 }
 
-.dropdown-estado { position: relative; }
+.dropdown-estado {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.1rem;
+  padding: 0.1rem 0.35rem 0.1rem 0;
+  border: 0;
+  background: transparent;
+  color: var(--pl-muted);
+  font-size: 0.75rem;
+  cursor: pointer;
+  border-radius: var(--pl-radius-sm);
+}
+.dropdown-estado:hover {
+  color: var(--pl-ink);
+}
+.dropdown-estado:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+
 .estado-dropdown-menu {
   position: absolute;
-  top: 100%;
+  top: calc(100% + 4px);
   left: 0;
-  background: white;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
   z-index: 1050;
-  min-width: 150px;
+  min-width: 168px;
+  padding: 0.3rem;
   overflow: hidden;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-lg);
 }
 .dropdown-item-estado {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   width: 100%;
-  border: none;
+  padding: 0.4rem 0.55rem;
+  border: 0;
+  border-radius: var(--pl-radius-sm);
   background: none;
-  padding: 6px 12px;
+  color: var(--pl-ink);
+  font-size: 0.82rem;
   text-align: left;
-  font-size: 0.8rem;
   cursor: pointer;
 }
-.dropdown-item-estado:hover { background: #f0f0f0; }
+.dropdown-item-estado:hover {
+  background: rgba(var(--pl-primary-rgb), 0.08);
+}
+.dropdown-item-estado[aria-checked='true'] {
+  background: rgba(var(--pl-primary-rgb), 0.12);
+  font-weight: 600;
+}
+.dropdown-item-estado:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
 
-.channel-item { cursor: pointer; transition: background 0.12s; }
-.channel-item:hover { background: #e9ecef; }
-.channel-item.active { background: #d0e2ff; border-left: 3px solid #0d6efd; }
-.channel-item.channel-unread { background: #fffbe6; }
-.channel-item.channel-unread:hover { background: #fff3b0; }
+.channel-item {
+  padding: 0.5rem 0.9rem;
+  border: 0;
+  background: transparent;
+  color: var(--pl-ink);
+  text-align: left;
+  cursor: pointer;
+  box-shadow: inset 3px 0 0 transparent;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+.channel-item:hover {
+  background: rgba(var(--pl-primary-rgb), 0.06);
+}
+.channel-item:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
+.channel-item.active {
+  background: rgba(var(--pl-primary-rgb), 0.12);
+  box-shadow: inset 3px 0 0 var(--pl-primary);
+}
+.channel-item.channel-unread {
+  background: rgba(var(--pl-warning-rgb), 0.14);
+}
+.channel-item.channel-unread:hover {
+  background: rgba(var(--pl-warning-rgb), 0.22);
+}
+.channel-item.channel-mentioned {
+  box-shadow: inset 3px 0 0 var(--pl-danger-strong);
+}
+.channel-item-wrap {
+  position: relative;
+}
+.sidebar-pm .channel-item {
+  padding-inline-end: 2.1rem;
+}
+.channel-item__nombre {
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.channel-item__meta {
+  font-size: 0.72rem;
+  color: var(--pl-muted);
+}
 
 .conversation-close-btn {
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
   border-radius: 50%;
-  color: #6c757d;
+  color: var(--pl-muted);
   opacity: 0;
   z-index: 2;
-  transition: opacity 0.1s;
+  transition: opacity 0.1s, background 0.1s;
 }
-.channel-item:hover .conversation-close-btn { opacity: 1; }
-.channel-item:hover .conversation-close-btn:hover {
-  background: #dee2e6;
-  color: #212529;
+.channel-item-wrap:hover .conversation-close-btn,
+.conversation-close-btn:focus-visible {
+  opacity: 1;
 }
-.sidebar-pm .channel-item:hover .unread-dot { display: none; }
+.conversation-close-btn:hover {
+  background: rgba(var(--pl-dark-rgb), 0.1);
+  color: var(--pl-ink);
+}
+.conversation-close-btn:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+@media (hover: none) {
+  .conversation-close-btn {
+    opacity: 1;
+  }
+}
+@media (pointer: coarse) {
+  .conversation-close-btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+.sidebar-pm .channel-item-wrap:hover .unread-dot {
+  display: none;
+}
 .unread-dot {
   position: absolute;
   top: -2px;
@@ -2058,26 +2520,145 @@ onUnmounted(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: #ef4444;
-  border: 2px solid #f8f9fa;
+  background: var(--pl-danger-strong);
+  border: 2px solid var(--pl-surface-soft);
 }
 .unread-count {
-  background: #ef4444;
+  padding: 1px 5px;
+  border-radius: 8px;
+  background: var(--pl-danger-strong);
   color: #fff;
   font-size: 0.6rem;
   font-weight: 700;
-  padding: 1px 5px;
-  border-radius: 8px;
   line-height: 1.2;
 }
 
-.chat-header { min-height: 52px; }
+/* ---- Cabecera del canal ---- */
 
-.busqueda-panel { top: 52px; }
-.busqueda-resultado:hover { background: #f0f6ff; }
-.busqueda-resultado + .busqueda-resultado { border-top: 1px solid #eee; }
+.chat-main {
+  min-width: 0;
+}
 
-.chat-mensajes { background: #fff; }
+.chat-header {
+  min-height: 56px;
+  background: var(--pl-surface);
+}
+.chat-header__titulo {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--pl-ink);
+}
+.chat-header__meta {
+  margin: 0;
+  font-size: 0.72rem;
+  color: var(--pl-muted);
+}
+.chat-header__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--pl-radius-md);
+  background: transparent;
+  color: var(--pl-muted);
+  transition: background 0.12s, color 0.12s;
+}
+.chat-header__btn:hover {
+  background: rgba(var(--pl-primary-rgb), 0.1);
+  color: var(--pl-primary-ink);
+}
+.chat-header__btn:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 1px;
+}
+.chat-header__btn[aria-expanded='true'] {
+  background: rgba(var(--pl-primary-rgb), 0.14);
+  color: var(--pl-primary-ink);
+}
+.chat-header__btn--peligro:hover {
+  background: rgba(var(--pl-danger-rgb), 0.12);
+  color: var(--pl-danger-ink);
+}
+@media (pointer: coarse) {
+  .chat-header__btn {
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.chat-acciones-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  z-index: 1050;
+  min-width: 210px;
+  padding: 0.3rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-lg);
+}
+.chat-acciones-menu__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.5rem 0.6rem;
+  border: 0;
+  border-radius: var(--pl-radius-sm);
+  background: transparent;
+  color: var(--pl-ink);
+  font-size: 0.85rem;
+  text-align: left;
+}
+.chat-acciones-menu__item:hover {
+  background: rgba(var(--pl-primary-rgb), 0.08);
+}
+.chat-acciones-menu__item:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
+.chat-acciones-menu__item--peligro {
+  color: var(--pl-danger-ink);
+}
+.chat-acciones-menu__item--peligro:hover {
+  background: rgba(var(--pl-danger-rgb), 0.1);
+}
+
+.chat-vacio {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  height: 100%;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  color: var(--pl-muted);
+}
+.chat-vacio__titulo {
+  margin: 0.85rem 0 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--pl-ink);
+}
+.chat-vacio__texto {
+  max-width: 36ch;
+  margin: 0 0 1rem;
+  font-size: 0.9rem;
+}
+
+.busqueda-panel { top: 56px; }
+.busqueda-resultado:hover { background: rgba(var(--pl-primary-rgb), 0.07); }
+.busqueda-resultado + .busqueda-resultado { border-top: 1px solid var(--pl-border); }
+
+.chat-mensajes { background: var(--pl-surface); }
 .chat-mensajes .msg-row { scroll-margin-block: 80px; }
 .scroll-bottom-btn {
   bottom: 70px;
@@ -2092,8 +2673,23 @@ onUnmounted(() => {
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 .mensaje-burbuja { border-radius: 16px; max-width: 100%; }
 
+.miembros-link {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--pl-primary-ink);
+  font-size: inherit;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
 .miembros-link:hover {
-  text-decoration: underline !important;
+  text-decoration: underline;
+}
+.miembros-link:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
 }
 
 .modal-backdrop-custom {
@@ -2108,27 +2704,27 @@ onUnmounted(() => {
   padding: 1rem;
 }
 .perfil-modal-container {
-  background: #fff;
-  border-radius: 12px;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 1100px;
-  margin: 0 auto;
   max-height: calc(100vh - 2rem);
-  box-shadow: 0 8px 40px rgba(0,0,0,0.18);
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: var(--pl-radius-lg);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-lg);
 }
-.hover-bg:hover { background: #f0f2f5; }
+.hover-bg:hover { background: rgba(var(--pl-primary-rgb), 0.06); }
 .min-w-0 { min-width: 0; }
 .min-h-0 { min-height: 0; }
 
 .chat-right-sidebar {
   width: 240px;
   min-width: 240px;
-  background: #f8f9fa;
   height: 100%;
   overflow: hidden;
+  background: var(--pl-surface-soft);
 }
 
 .online-dot {
@@ -2137,7 +2733,7 @@ onUnmounted(() => {
   right: 0;
   width: 10px;
   height: 10px;
-  border: 2px solid #fff;
+  border: 2px solid var(--pl-surface);
   border-radius: 50%;
 }
 
@@ -2149,44 +2745,91 @@ onUnmounted(() => {
 .context-menu {
   position: fixed;
   z-index: 1071;
-  background: #fff;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
   min-width: 180px;
-  padding: 4px 0;
+  padding: 0.3rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-lg);
 }
 .context-menu-item {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
   width: 100%;
-  border: none;
+  padding: 0.5rem 0.7rem;
+  border: 0;
+  border-radius: var(--pl-radius-sm);
   background: none;
-  padding: 8px 16px;
-  text-align: left;
+  color: var(--pl-ink);
   font-size: 0.85rem;
+  text-align: left;
   cursor: pointer;
 }
-.context-menu-item:hover { background: #f0f2f5; }
+.context-menu-item:hover { background: rgba(var(--pl-primary-rgb), 0.08); }
+.context-menu-item:focus-visible {
+  outline: 2px solid var(--pl-primary);
+  outline-offset: -2px;
+}
 .context-menu-divider {
   height: 1px;
-  background: #e9ecef;
-  margin: 4px 0;
+  margin: 0.25rem 0;
+  background: var(--pl-border);
 }
 
 .channel-mentioned {
-  background: #fffbe6 !important;
+  background: rgba(var(--pl-warning-rgb), 0.14) !important;
 }
 .mention-badge {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #dc3545;
-  color: #fff;
-  font-weight: 700;
-  font-size: 0.65rem;
   width: 18px;
   height: 18px;
   border-radius: 50%;
+  background: var(--pl-danger-strong);
+  color: #fff;
+  font-size: 0.65rem;
+  font-weight: 700;
   line-height: 1;
+}
+
+@media (pointer: coarse) {
+  .chat-tab__principal {
+    min-height: 44px;
+  }
+  .chat-tab__cerrar {
+    width: 32px;
+    height: 32px;
+  }
+  .chat-tab-add {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .dropdown-estado {
+    min-height: 32px;
+    padding-inline: 0.4rem;
+  }
+  .dropdown-item-estado {
+    min-height: 44px;
+  }
+  .context-menu-item {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .personaje-card,
+  .chat-tab,
+  .channel-item,
+  .conversation-close-btn,
+  .chat-header__btn,
+  .fade-enter-active,
+  .fade-leave-active {
+    transition: none;
+  }
+  .personaje-card:hover {
+    transform: none;
+  }
 }
 </style>
