@@ -1598,7 +1598,10 @@ section[id] {
 
 /* ---- Tablas de administracion ---- */
 
-.pl-tabla-admin {
+/* El contenedor de la tabla es una seccion; la tabla comparte el nombre de
+   clase, asi que el layout del contenedor se acota a `section` para no
+   convertir la tabla en un flex container (rompia el reparto de columnas). */
+section.pl-tabla-admin {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
@@ -1703,6 +1706,12 @@ table.pl-tabla-admin tbody th {
   white-space: nowrap;
 }
 
+/* En la primera celda el texto secundario tambien debe poder partirse: acompana
+   al mensaje reportado y, con nowrap, alargaba la columna. */
+table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
+  white-space: normal;
+}
+
 .pl-tabla-admin__principal {
   display: flex;
   align-items: center;
@@ -1738,13 +1747,17 @@ table.pl-tabla-admin tbody th {
   font-variant-numeric: tabular-nums;
 }
 
-/* Recorta textos largos a dos lineas; el detalle completo vive en el modal. */
+/* Recorta textos largos a dos lineas; el detalle completo vive en el modal.
+   `white-space: normal` revierte el nowrap de la primera celda de la fila:
+   sin el, el mensaje reportado se maquetaba en una sola linea y ensanchaba
+   la tabla hasta forzar scroll horizontal. */
 .pl-tabla-admin__clamp {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .pl-tabla-admin__acciones {
