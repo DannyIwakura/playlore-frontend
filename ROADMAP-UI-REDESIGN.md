@@ -345,17 +345,17 @@ Crear un panel administrativo más rápido de usar, especialmente en listas gran
 
 ### Tareas
 
-- [ ] Rediseñar `AdminPanel.vue`.
-- [ ] Crear navegación lateral o pestañas claras para secciones administrativas.
-- [ ] Rediseñar `UsuariosLista.vue`.
-- [ ] Rediseñar `PersonajesLista.vue`.
-- [ ] Rediseñar `DenunciasLista.vue`.
-- [ ] Rediseñar `BaneosLista.vue`.
-- [ ] Rediseñar `AuditoriaLista.vue`.
-- [ ] Rediseñar `CategoriasLista.vue` y `CategoriaNueva.vue`.
-- [ ] Añadir filtros, búsqueda y acciones visibles.
-- [ ] Diferenciar claramente roles, estados y acciones destructivas.
-- [ ] Mejorar la experiencia en pantallas pequeñas.
+- [x] Rediseñar `AdminPanel.vue`.
+- [x] Crear navegación lateral o pestañas claras para secciones administrativas.
+- [x] Rediseñar `UsuariosLista.vue`.
+- [x] Rediseñar `PersonajesLista.vue`.
+- [x] Rediseñar `DenunciasLista.vue`.
+- [x] Rediseñar `BaneosLista.vue`.
+- [x] Rediseñar `AuditoriaLista.vue`.
+- [x] Rediseñar `CategoriasLista.vue` y `CategoriaNueva.vue`.
+- [x] Añadir filtros, búsqueda y acciones visibles.
+- [x] Diferenciar claramente roles, estados y acciones destructivas.
+- [x] Mejorar la experiencia en pantallas pequeñas.
 
 ### Entregables
 
