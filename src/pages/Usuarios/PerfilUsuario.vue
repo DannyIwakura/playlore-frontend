@@ -1,11 +1,13 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
-import { userStore } from '../../store/userStore'
-import axios from '../../services/api'
 import ModalAviso from '../../components/ModalAviso.vue'
+import ModalFormulario from '../../components/ModalFormulario.vue'
+import { userStore } from '../../store/userStore'
+import api from '../../services/api'
+import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
 
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 
@@ -33,6 +35,12 @@ const enviandoSolicitud = ref(false)
 
 const userId = () => userStore.usuario.value?.id
 
+const esPropioUsuario = computed(() => userId() === perfil.value?.userId)
+const esModerador = computed(() => {
+  const rol = userStore.usuario.value?.role
+  return rol === 'ADMIN' || rol === 'MOD'
+})
+
 function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png') || avatar.includes('default.png')) {
     return AVATAR_DEFECTO
@@ -43,7 +51,7 @@ function avatarUrl(avatar: string | null | undefined): string {
   return `${import.meta.env.VITE_API_URL}${avatar}`
 }
 
-function formatFecha(fecha: string): string {
+function formatFecha(fecha: string | null | undefined): string {
   if (!fecha) return '—'
   return new Date(fecha).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
 }
@@ -52,27 +60,28 @@ async function cargarPerfil() {
   const id = route.params.id
   cargando.value = true
   error.value = null
+  solicitudEnviada.value = false
+  esAmigo.value = false
   try {
-    const { data } = await axios.get<UsuarioDTO>(`/usuarios/${id}`)
+    const { data } = await api.get<UsuarioDTO>(`/usuarios/${id}`)
     perfil.value = data
 
-    // Comprobar si ya existe solicitud pendiente
+    // El estado de amistad es informativo: si falla, el perfil sigue visible.
     const miId = userId()
     if (miId && data.userId !== miId) {
-      const receptorId = data.userId
-
-      const [resSolicitud, resAmigos] = await Promise.all([
-        axios.get<boolean>(`/amistades/comprobar-existencia/${miId}/${receptorId}`),
-        axios.get<any[]>(`/usuarios/${miId}/amigos`)
-      ])
-
-      solicitudEnviada.value = resSolicitud.data
-
-      esAmigo.value = resAmigos.data.some(
-        (a: any) => a.id === receptorId
-      )
+      try {
+        const [resSolicitud, resAmigos] = await Promise.all([
+          api.get<boolean>(`/amistades/comprobar-existencia/${miId}/${data.userId}`),
+          api.get<any[]>(`/usuarios/${miId}/amigos`),
+        ])
+        solicitudEnviada.value = resSolicitud.data
+        esAmigo.value = resAmigos.data.some((a: any) => a.id === data.userId)
+      } catch {
+        // Se mantiene el estado por defecto de los botones de amistad.
+      }
     }
   } catch {
+    perfil.value = null
     error.value = 'No se pudo cargar el perfil.'
   } finally {
     cargando.value = false
@@ -84,9 +93,9 @@ async function enviarSolicitudAmistad() {
   if (!miId || !perfil.value) return
   enviandoSolicitud.value = true
   try {
-    await axios.post('/amistades', {
+    await api.post('/amistades', {
       emisorId: miId,
-      receptorId: perfil.value.userId
+      receptorId: perfil.value.userId,
     })
     solicitudEnviada.value = true
   } catch {
@@ -99,28 +108,53 @@ async function enviarSolicitudAmistad() {
 // --- Denunciar perfil ---
 const modalDenuncia = ref(false)
 const denuncia = ref({ motivo: '', detalle: '' })
+const erroresDenuncia = reactive<Record<string, string>>({})
 const enviandoDenuncia = ref(false)
+const formDenuncia = ref<HTMLFormElement | null>(null)
+
+function limpiarErroresDenuncia() {
+  Object.keys(erroresDenuncia).forEach((clave) => delete erroresDenuncia[clave])
+}
+
+function abrirDenuncia() {
+  denuncia.value = { motivo: '', detalle: '' }
+  limpiarErroresDenuncia()
+  modalDenuncia.value = true
+}
+
+function onMotivoEditado() {
+  delete erroresDenuncia.motivo
+  delete erroresDenuncia.general
+}
+
+function cerrarDenuncia() {
+  modalDenuncia.value = false
+  limpiarErroresDenuncia()
+}
 
 async function enviarDenuncia() {
   if (!perfil.value) return
+  limpiarErroresDenuncia()
+
   if (!denuncia.value.motivo.trim()) {
-    aviso.value = 'El motivo es obligatorio para enviar la denuncia.'
+    erroresDenuncia.motivo = 'El motivo es obligatorio para enviar la denuncia.'
+    await enfocarPrimerError(formDenuncia.value)
     return
   }
+
   enviandoDenuncia.value = true
   try {
-    await axios.post('/denuncias', {
+    await api.post('/denuncias', {
       tipo: 'USUARIO',
       tipoId: perfil.value.userId,
       motivo: denuncia.value.motivo.trim(),
       detalle: denuncia.value.detalle.trim() || null,
     })
-    modalDenuncia.value = false
-    denuncia.value = { motivo: '', detalle: '' }
+    cerrarDenuncia()
     aviso.value = 'Denuncia enviada. Gracias por ayudar a mantener la comunidad segura.'
   } catch (e: any) {
     const data = e?.response?.data
-    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
+    erroresDenuncia.general = data?.error || data?.message || data?.mensaje || 'Error al enviar la denuncia.'
   } finally {
     enviandoDenuncia.value = false
   }
@@ -129,6 +163,7 @@ async function enviarDenuncia() {
 // --- Banear usuario (solo ADMIN/MOD) ---
 const modalBaneo = ref(false)
 const baneo = ref({ duracion: 'PERMANENTE', motivo: '' })
+const errorBaneo = ref('')
 const baneando = ref(false)
 
 const opcionesDuracion = [
@@ -138,187 +173,252 @@ const opcionesDuracion = [
   { value: 'PERMANENTE', label: 'Permanente' },
 ]
 
-const esModerador = () => {
-  const rol = userStore.usuario.value?.role
-  return rol === 'ADMIN' || rol === 'MOD'
+function abrirBaneo() {
+  baneo.value = { duracion: 'PERMANENTE', motivo: '' }
+  errorBaneo.value = ''
+  modalBaneo.value = true
+}
+
+function cerrarBaneo() {
+  modalBaneo.value = false
+  errorBaneo.value = ''
 }
 
 async function banearUsuario() {
   if (!perfil.value) return
   const dur = baneo.value.duracion
+  errorBaneo.value = ''
   baneando.value = true
   try {
-    await axios.post('/moderacion/baneos', {
+    await api.post('/moderacion/baneos', {
       tipo: 'USUARIO',
       id: perfil.value.userId,
       duracion: baneo.value.duracion,
       motivo: baneo.value.motivo.trim() || null,
     })
-    modalBaneo.value = false
-    baneo.value = { duracion: 'PERMANENTE', motivo: '' }
+    cerrarBaneo()
     aviso.value = `Usuario baneado${dur !== 'PERMANENTE' ? ' temporalmente' : ''}.`
   } catch (e: any) {
     const data = e?.response?.data
-    aviso.value = data?.error || data?.message || data?.mensaje || 'Error al banear al usuario.'
+    errorBaneo.value = data?.error || data?.message || data?.mensaje || 'Error al banear al usuario.'
   } finally {
     baneando.value = false
   }
 }
 
-// No mostrar botones si es el propio usuario
-const esPropioUsuario = () => userId() === perfil.value?.userId
-
 onMounted(async () => {
   await userStore.cargarDesdeToken()
-  cargarPerfil()
+  await cargarPerfil()
 })
+
+watch(
+  () => route.params.id,
+  (nuevo, anterior) => {
+    if (nuevo && nuevo !== anterior) cargarPerfil()
+  }
+)
 </script>
 
 <template>
   <NavBar :logeado="true" />
 
-  <section class="container mt-5 mb-5" style="max-width: 860px;">
+  <main class="pl-page">
+    <div class="container perfil">
+      <div v-if="cargando" class="pl-empty-state pl-empty-state--compact" role="status">
+        <div class="spinner-border text-primary" aria-hidden="true"></div>
+        <span>Cargando perfil...</span>
+      </div>
 
-    <div v-if="cargando" class="text-center py-5">
-      <div class="spinner-border text-primary"></div>
-    </div>
+      <div v-else-if="error" class="pl-alert pl-alert--danger" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ error }}
+      </div>
 
-    <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
+      <template v-else-if="perfil">
+        <header class="pl-page-header">
+          <span class="pl-kicker">Perfil de la comunidad</span>
+          <h1 class="pl-page-title">{{ perfil.nombre }}</h1>
+          <p class="pl-lead">Consulta sus datos y conecta con esta persona.</p>
+        </header>
 
-    <div v-else-if="perfil" class="card border rounded-3 overflow-hidden shadow-sm">
+        <article class="pl-card perfil-card">
+          <div class="perfil-cabecera">
+            <img
+              :src="avatarUrl(perfil.avatar)"
+              class="pl-avatar perfil-avatar"
+              width="112"
+              height="112"
+              :alt="`Avatar de ${perfil.nombre}`"
+            />
+            <div class="perfil-identidad">
+              <h2 class="perfil-nombre">{{ perfil.nombre }}</h2>
+              <div class="perfil-pildoras">
+                <span class="pl-status-pill pl-status-pill--neutral">
+                  <i class="bi bi-shield-check" aria-hidden="true"></i>{{ perfil.rol }}
+                </span>
+                <span v-if="esAmigo" class="pl-status-pill">
+                  <i class="bi bi-person-check" aria-hidden="true"></i>Amigo
+                </span>
+                <span v-if="esPropioUsuario" class="pl-status-pill pl-status-pill--neutral">
+                  <i class="bi bi-person" aria-hidden="true"></i>Tu perfil
+                </span>
+              </div>
+            </div>
+          </div>
 
-      <!-- Cabecera con avatar y acciones -->
-      <div class="card-header bg-light p-4 d-flex align-items-center gap-4 border-bottom">
-        <img
-          :src="avatarUrl(perfil.avatar, perfil.userId)"
-          class="rounded-circle flex-shrink-0"
-          width="96" height="96"
-          style="object-fit: cover; border: 2px solid #dee2e6;"
-          alt="Avatar"
-        />
-        <div>
-          <h2 class="mb-1 fs-4">{{ perfil.nombre }}</h2>
-          <span class="badge bg-primary bg-opacity-10 text-primary fw-normal">{{ perfil.rol }}</span>
-
-          <!-- Botones solo si no es el propio usuario -->
-          <div v-if="!esPropioUsuario()" class="d-flex gap-2 mt-3 flex-wrap">
-            <router-link to="/chat" target="_blank" class="btn btn-primary btn-sm">
-              <i class="bi bi-chat-dots me-1"></i> Chatear
+          <div v-if="!esPropioUsuario" class="perfil-acciones">
+            <router-link to="/chat" target="_blank" rel="noopener" class="pl-btn pl-btn--primary">
+              <i class="bi bi-chat-dots" aria-hidden="true"></i>Chatear
             </router-link>
+
             <button
               v-if="!esAmigo"
-              class="btn btn-outline-secondary btn-sm"
+              type="button"
+              class="pl-btn pl-btn--secondary"
               :disabled="solicitudEnviada || enviandoSolicitud"
               @click="enviarSolicitudAmistad"
             >
-              <span v-if="enviandoSolicitud" class="spinner-border spinner-border-sm me-1"></span>
-              <i v-else-if="solicitudEnviada" class="bi bi-check2 me-1"></i>
-              <i v-else class="bi bi-person-plus me-1"></i>
+              <span v-if="enviandoSolicitud" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+              <i v-else-if="solicitudEnviada" class="bi bi-check2" aria-hidden="true"></i>
+              <i v-else class="bi bi-person-plus" aria-hidden="true"></i>
               {{ solicitudEnviada ? 'Solicitud enviada' : 'Solicitud de amistad' }}
             </button>
 
-            <span v-else class="badge bg-success px-3 py-2">
-              <i class="bi bi-shield-check me-1"></i>Amigo
-            </span>
-
-            <button class="btn btn-outline-danger btn-sm" @click="modalDenuncia = true">
-              <i class="bi bi-flag me-1"></i> Denunciar
+            <button type="button" class="pl-btn pl-btn--danger-ghost" @click="abrirDenuncia">
+              <i class="bi bi-flag" aria-hidden="true"></i>Denunciar
             </button>
-            <button v-if="esModerador()" class="btn btn-danger btn-sm" @click="modalBaneo = true">
-              <i class="bi bi-hammer me-1"></i> Banear
+
+            <button v-if="esModerador" type="button" class="pl-btn pl-btn--danger" @click="abrirBaneo">
+              <i class="bi bi-hammer" aria-hidden="true"></i>Banear
             </button>
           </div>
-        </div>
-      </div>
 
-      <!-- Datos del perfil -->
-      <div class="card-body p-0">
-        <div class="row g-0">
-          <div class="col-6 p-4 border-bottom border-end">
-            <p class="text-muted small mb-1" style="font-size: 11px; text-transform: uppercase; letter-spacing: .05em;">Nombre</p>
-            <p class="mb-0">{{ perfil.nombre }}</p>
-          </div>
-          <div class="col-6 p-4 border-bottom">
-            <p class="text-muted small mb-1" style="font-size: 11px; text-transform: uppercase; letter-spacing: .05em;">Email</p>
-            <p class="mb-0">{{ perfil.email }}</p>
-          </div>
-          <div class="col-6 p-4 border-end">
-            <p class="text-muted small mb-1" style="font-size: 11px; text-transform: uppercase; letter-spacing: .05em;">Miembro desde</p>
-            <p class="mb-0">{{ formatFecha(perfil.fechaRegistro) }}</p>
-          </div>
-          <div class="col-6 p-4">
-            <p class="text-muted small mb-1" style="font-size: 11px; text-transform: uppercase; letter-spacing: .05em;">Última conexión</p>
-            <p class="mb-0">{{ formatFecha(perfil.ultimaConexion) }}</p>
-          </div>
-        </div>
+          <dl class="perfil-datos">
+            <div class="perfil-dato">
+              <dt>Nombre</dt>
+              <dd>{{ perfil.nombre }}</dd>
+            </div>
+            <div class="perfil-dato">
+              <dt>Email</dt>
+              <dd>{{ perfil.email }}</dd>
+            </div>
+            <div class="perfil-dato">
+              <dt>Miembro desde</dt>
+              <dd>{{ formatFecha(perfil.fechaRegistro) }}</dd>
+            </div>
+            <div class="perfil-dato">
+              <dt>Última conexión</dt>
+              <dd>{{ formatFecha(perfil.ultimaConexion) }}</dd>
+            </div>
+          </dl>
+        </article>
+      </template>
+
+      <div v-else class="pl-empty-state">
+        <span class="pl-empty-state__icon"><i class="bi bi-person-x" aria-hidden="true"></i></span>
+        <p class="mb-0">No se encontró este perfil.</p>
       </div>
     </div>
-  </section>
+  </main>
 
-  <!-- Modal: Denunciar usuario -->
-  <div v-if="modalDenuncia" class="modal-backdrop-custom" @click.self="modalDenuncia = false">
-    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Denunciar a {{ perfil?.nombre }}</h5>
-        <button class="btn-close" @click="modalDenuncia = false"></button>
+  <ModalFormulario
+    v-if="modalDenuncia"
+    :titulo="`Denunciar a ${perfil?.nombre ?? ''}`"
+    @cerrar="cerrarDenuncia"
+  >
+    <form ref="formDenuncia" novalidate @submit.prevent="enviarDenuncia">
+      <div class="pl-field">
+        <label class="form-label" for="denuncia-motivo">
+          Motivo <span class="text-danger" aria-hidden="true">*</span>
+        </label>
+        <input
+          id="denuncia-motivo"
+          v-model="denuncia.motivo"
+          type="text"
+          class="form-control"
+          maxlength="200"
+          required
+          placeholder="¿Por qué lo denuncias?"
+          :aria-invalid="erroresDenuncia.motivo ? 'true' : undefined"
+          :aria-describedby="erroresDenuncia.motivo ? 'denuncia-motivo-error' : undefined"
+          @input="onMotivoEditado"
+        />
+        <p v-if="erroresDenuncia.motivo" id="denuncia-motivo-error" class="pl-field__error">
+          <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresDenuncia.motivo }}
+        </p>
       </div>
-      <div class="mb-3">
-        <label class="form-label">Motivo <span class="text-danger">*</span></label>
-        <input v-model="denuncia.motivo" type="text" class="form-control" maxlength="200" placeholder="¿Por qué lo denuncias?" />
+
+      <div class="pl-field">
+        <label class="form-label" for="denuncia-detalle">Detalle (opcional)</label>
+        <textarea
+          id="denuncia-detalle"
+          v-model="denuncia.detalle"
+          class="form-control"
+          rows="4"
+          maxlength="2000"
+          placeholder="Amplía la información si lo necesitas..."
+          aria-describedby="denuncia-detalle-contador"
+        ></textarea>
+        <p id="denuncia-detalle-contador" class="pl-field__hint text-end">
+          {{ denuncia.detalle.length }}/2000
+        </p>
       </div>
-      <div class="mb-4">
-        <label class="form-label">Detalle (opcional)</label>
-        <textarea v-model="denuncia.detalle" class="form-control" rows="4" maxlength="2000" placeholder="Amplía la información si lo necesitas..."></textarea>
-        <div class="text-end text-muted small mt-1">{{ denuncia.detalle.length }}/2000</div>
-      </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary" @click="modalDenuncia = false">Cancelar</button>
-        <button
-          class="btn btn-outline-danger"
-          :disabled="enviandoDenuncia || !denuncia.motivo.trim()"
-          @click="enviarDenuncia"
-        >
-          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-flag me-1"></i>
-          Enviar denuncia
+
+      <p v-if="erroresDenuncia.general" class="pl-alert pl-alert--danger mb-0" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresDenuncia.general }}
+      </p>
+
+      <div class="perfil-form__acciones">
+        <button type="button" class="pl-btn pl-btn--secondary" @click="cerrarDenuncia">Cancelar</button>
+        <button type="submit" class="pl-btn pl-btn--danger-ghost" :disabled="enviandoDenuncia">
+          <span v-if="enviandoDenuncia" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <i v-else class="bi bi-flag" aria-hidden="true"></i>
+          {{ enviandoDenuncia ? 'Enviando…' : 'Enviar denuncia' }}
         </button>
       </div>
-    </div>
-  </div>
+    </form>
+  </ModalFormulario>
 
-  <!-- Modal: Banear usuario -->
-  <div v-if="modalBaneo" class="modal-backdrop-custom" @click.self="modalBaneo = false">
-    <div class="modal-dialog-custom shadow-lg rounded-3 p-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="mb-0">Banear a {{ perfil?.nombre }}</h5>
-        <button class="btn-close" @click="modalBaneo = false"></button>
-      </div>
-      <div class="mb-3">
-        <label class="form-label">Duración</label>
-        <select v-model="baneo.duracion" class="form-select">
+  <ModalFormulario
+    v-if="modalBaneo"
+    :titulo="`Banear a ${perfil?.nombre ?? ''}`"
+    @cerrar="cerrarBaneo"
+  >
+    <form @submit.prevent="banearUsuario">
+      <div class="pl-field">
+        <label class="form-label" for="baneo-duracion">Duración</label>
+        <select id="baneo-duracion" v-model="baneo.duracion" class="form-select">
           <option v-for="op in opcionesDuracion" :key="op.value" :value="op.value">
             {{ op.label }}
           </option>
         </select>
       </div>
-      <div class="mb-4">
-        <label class="form-label">Motivo (opcional)</label>
-        <input v-model="baneo.motivo" type="text" class="form-control" maxlength="300" placeholder="Motivo del baneo" />
+
+      <div class="pl-field">
+        <label class="form-label" for="baneo-motivo">Motivo (opcional)</label>
+        <input
+          id="baneo-motivo"
+          v-model="baneo.motivo"
+          type="text"
+          class="form-control"
+          maxlength="300"
+          placeholder="Motivo del baneo"
+        />
       </div>
-      <div class="d-flex justify-content-end gap-2">
-        <button class="btn btn-outline-secondary" @click="modalBaneo = false">Cancelar</button>
-        <button
-          class="btn btn-danger"
-          :disabled="baneando"
-          @click="banearUsuario"
-        >
-          <span v-if="baneando" class="spinner-border spinner-border-sm me-1"></span>
-          <i v-else class="bi bi-hammer me-1"></i>
-          Banear
+
+      <p v-if="errorBaneo" class="pl-alert pl-alert--danger mb-0" role="alert">
+        <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errorBaneo }}
+      </p>
+
+      <div class="perfil-form__acciones">
+        <button type="button" class="pl-btn pl-btn--secondary" @click="cerrarBaneo">Cancelar</button>
+        <button type="submit" class="pl-btn pl-btn--danger" :disabled="baneando">
+          <span v-if="baneando" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+          <i v-else class="bi bi-hammer" aria-hidden="true"></i>
+          {{ baneando ? 'Baneando…' : 'Banear' }}
         </button>
       </div>
-    </div>
-  </div>
+    </form>
+  </ModalFormulario>
 
   <Footer />
 
@@ -326,10 +426,140 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.modal-dialog-custom {
-  background: #fff;
-  width: 100%;
-  max-width: 520px;
-  margin: 1rem;
+.perfil {
+  max-width: 860px;
+}
+
+.perfil-card {
+  overflow: hidden;
+}
+
+.perfil-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid var(--pl-border);
+  background: linear-gradient(180deg, rgba(var(--pl-primary-rgb), 0.05), transparent);
+}
+
+.perfil-avatar {
+  width: 112px;
+  height: 112px;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 4px #fff, 0 0 0 5px var(--pl-border);
+}
+
+.perfil-identidad {
+  min-width: 0;
+}
+
+.perfil-nombre {
+  margin-bottom: 0.5rem;
+  color: var(--pl-ink);
+  font-size: clamp(1.4rem, 3vw, 1.9rem);
+  font-weight: 850;
+  letter-spacing: -0.03em;
+  overflow-wrap: anywhere;
+}
+
+.perfil-pildoras {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.perfil-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.perfil-datos {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.perfil-dato {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--pl-border);
+}
+
+.perfil-dato:nth-child(odd) {
+  border-right: 1px solid var(--pl-border);
+}
+
+.perfil-dato:nth-last-child(-n + 2) {
+  border-bottom: 0;
+}
+
+.perfil-dato dt {
+  margin-bottom: 0.2rem;
+  color: var(--pl-muted);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.perfil-dato dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.perfil-form__acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 575.98px) {
+  .perfil-cabecera {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+    padding: 1.25rem;
+  }
+
+  .perfil-avatar {
+    width: 88px;
+    height: 88px;
+  }
+
+  .perfil-acciones {
+    padding: 1rem 1.25rem;
+  }
+
+  .perfil-acciones .pl-btn {
+    width: 100%;
+  }
+
+  .perfil-datos {
+    grid-template-columns: 1fr;
+  }
+
+  .perfil-dato,
+  .perfil-dato:nth-child(odd),
+  .perfil-dato:nth-last-child(-n + 2) {
+    padding: 1rem 1.25rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--pl-border);
+  }
+
+  .perfil-dato:last-child {
+    border-bottom: 0;
+  }
+
+  .perfil-form__acciones {
+    flex-direction: column-reverse;
+  }
+
+  .perfil-form__acciones .pl-btn {
+    width: 100%;
+  }
 }
 </style>
