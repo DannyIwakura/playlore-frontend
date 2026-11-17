@@ -40,6 +40,7 @@ const aviso = ref<string | null>(null)
 
 const mostrarModalCategorias = ref(false)
 const personajeSeleccionadoId = ref<number | null>(null)
+const personajeSeleccionadoNombre = ref('')
 
 const resumenPersonajes = computed(() => {
   if (cargando.value) return 'Cargando personajes…'
@@ -110,8 +111,9 @@ const eliminarPersonaje = (personaje: PersonajeResumen) => {
   }
 }
 
-const abrirModalCategorias = (idPersonaje: number) => {
+const abrirModalCategorias = (idPersonaje: number, nombre: string) => {
   personajeSeleccionadoId.value = idPersonaje
+  personajeSeleccionadoNombre.value = nombre
   mostrarModalCategorias.value = true
 }
 
@@ -195,7 +197,7 @@ const recargarDatos = async () => {
             <button
               type="button"
               class="pl-btn pl-btn--ghost pl-btn--sm"
-              @click="abrirModalCategorias(personaje.idPersonaje)"
+              @click="abrirModalCategorias(personaje.idPersonaje, personaje.nombre)"
             >
               <i class="bi bi-tags" aria-hidden="true"></i>
               Categorías<span class="visually-hidden"> de {{ personaje.nombre }}</span>
@@ -215,6 +217,7 @@ const recargarDatos = async () => {
       <AnadirCategoriaForm
         v-if="mostrarModalCategorias && personajeSeleccionadoId !== null"
         :idPersonaje="personajeSeleccionadoId"
+        :nombre-personaje="personajeSeleccionadoNombre"
         @close="mostrarModalCategorias = false"
         @success="recargarDatos"
       />
