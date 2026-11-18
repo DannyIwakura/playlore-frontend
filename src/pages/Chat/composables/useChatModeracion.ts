@@ -24,6 +24,7 @@ export function useChatModeracion({
   const puedeSilenciarContextMenu = computed(() => {
     const t = contextMenuTarget.value
     if (!t) return false
+    if (t.esStaff) return false
     if (miRolEnCanal.value !== 'OWNER' && miRolEnCanal.value !== 'ADMIN' && miRolEnCanal.value !== 'MOD') return false
     if (t.rol !== 'MEMBER') return false
     return t.personajeId !== characterSessionStore.sesionActual.value?.personajeId

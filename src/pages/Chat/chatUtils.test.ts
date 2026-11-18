@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   avatarUrl,
   canalAvatar,
+  combinarCanales,
   formatFecha,
   getStatusColor,
   notificarPush,
@@ -99,6 +100,26 @@ describe('chatUtils', () => {
       ]
       expect(sortByRole(members).map(m => m.personajeId)).toEqual([2, 1])
       expect(roleOrder.OWNER).toBe(0)
+    })
+  })
+
+  describe('combinarCanales', () => {
+    it('prioriza los canales unidos y añade los disponibles sin duplicar', () => {
+      const unidos = [{ id: 1, nombre: 'Unido', miRol: 'OWNER' }]
+      const disponibles = [
+        { id: 1, nombre: 'Unido', miRol: undefined },
+        { id: 2, nombre: 'Disponible' },
+      ]
+
+      const resultado = combinarCanales(unidos, disponibles)
+
+      expect(resultado).toHaveLength(2)
+      expect(resultado[0]).toMatchObject({ id: 1, miRol: 'OWNER' })
+      expect(resultado[1]).toMatchObject({ id: 2, nombre: 'Disponible' })
+    })
+
+    it('devuelve lista vacía cuando no hay canales', () => {
+      expect(combinarCanales([], [])).toEqual([])
     })
   })
 

@@ -7,7 +7,7 @@ import { websocketService } from '../../services/websocket'
 import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha, combinarCanales } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
@@ -966,16 +966,9 @@ async function cargarListaCanales() {
       chatApi.obtenerCanalesUnidos(),
       chatApi.obtenerCanalesDisponibles(),
     ])
-    const todosUnidos = unidos.data
-    canalesOficiales.value = disponibles.data.filter((c: any) => c.tipo === 'OFFICIAL')
-    canalesUsuarios.value = todosUnidos.filter((c: any) => c.tipo === 'USER_CREATED')
-      .concat(disponibles.data.filter((c: any) => c.tipo === 'USER_CREATED'))
-    const seen = new Set<number>()
-    canalesUsuarios.value = canalesUsuarios.value.filter((c: any) => {
-      if (seen.has(c.id)) return false
-      seen.add(c.id)
-      return true
-    })
+    const todos = combinarCanales(unidos.data, disponibles.data)
+    canalesOficiales.value = todos.filter((c: any) => c.tipo === 'OFFICIAL')
+    canalesUsuarios.value = todos.filter((c: any) => c.tipo !== 'OFFICIAL')
   } catch {} finally { cargandoLista.value = false }
 }
 
@@ -994,6 +987,19 @@ async function unirseACanal(canalId: number) {
   } catch (e: any) {
     mostrarMensajeModal('Error', e.response?.data?.error || 'Error al unirse')
   }
+}
+
+/**
+ * Desde la lista: si ya eres miembro abre el canal (aunque sea oficial o
+ * privado), y si no lo eres pide la union. El staff puede unirse a privados.
+ */
+async function abrirCanalDesdeLista(canal: any) {
+  if (canal.miRol) {
+    mostrarListaCanales.value = false
+    await seleccionarCanal(canal)
+    return
+  }
+  await unirseACanal(canal.id)
 }
 
 function abrirModalCrear() {
@@ -1546,7 +1552,11 @@ onUnmounted(() => {
             </button>
             <img :src="canalAvatar(canalActivo)" class="rounded-circle flex-shrink-0" width="32" height="32" alt="" />
             <div class="flex-grow-1 min-w-0">
-              <h1 class="chat-header__titulo text-truncate">{{ canalActivo.nombre }}</h1>
+              <h1 class="chat-header__titulo text-truncate">
+                {{ canalActivo.nombre }}
+                <span v-if="canalActivo.tipo === 'OFFICIAL'" class="chat-canal-badge chat-canal-badge--oficial">Oficial</span>
+                <span v-if="canalActivo.privado" class="chat-canal-badge chat-canal-badge--privado">Privado</span>
+              </h1>
               <div class="chat-header__meta d-flex align-items-center gap-2">
                 <ExpandableText :text="canalActivo.descripcion" :max-lines="1" class="flex-grow-1" />
                 <button v-if="canalActivo.miembroCount != null" type="button"
@@ -1833,6 +1843,7 @@ onUnmounted(() => {
                class="bi bi-key-fill miembro-fila__rol miembro-fila__rol--owner"></i>
             <i v-else-if="m.rol === 'MOD'" role="img" aria-label="Moderador"
                class="bi bi-shield-fill-check miembro-fila__rol miembro-fila__rol--mod"></i>
+            <span v-if="m.esStaff" class="badge chat-canal-badge chat-canal-badge--staff" title="Cuenta de moderación">Staff</span>
             <i v-if="estaSilenciado(m)" role="img"
                :aria-label="'Silenciado hasta ' + new Date(m.silenciadoHasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })"
                class="bi bi-volume-mute-fill miembro-fila__silencio"></i>
@@ -1865,6 +1876,7 @@ onUnmounted(() => {
             <span class="badge chat-rol-badge" :class="`chat-rol-badge--${(m.rol || 'MEMBER').toLowerCase()}`">
               {{ m.rol }}
             </span>
+            <span v-if="m.esStaff" class="badge chat-canal-badge chat-canal-badge--staff">Staff</span>
           </div>
         </li>
       </ul>
@@ -1924,13 +1936,21 @@ onUnmounted(() => {
       </p>
       <ul v-else class="chat-canales-lista">
         <li v-for="c in canalesOficiales" :key="c.id">
-          <button type="button" class="chat-canal-fila" :aria-label="`Unirse al canal ${c.nombre}`" @click="unirseACanal(c.id)">
+          <button type="button" class="chat-canal-fila"
+                  :class="{ 'chat-canal-fila--activo': canalActivo?.id === c.id }"
+                  :aria-current="canalActivo?.id === c.id ? 'true' : undefined"
+                  :aria-label="c.miRol ? `Abrir el canal ${c.nombre}` : `Unirse al canal ${c.nombre}`"
+                  @click="abrirCanalDesdeLista(c)">
             <img :src="canalAvatar(c)" class="rounded-circle flex-shrink-0" width="36" height="36" alt="" />
             <span class="flex-grow-1 min-w-0">
               <span class="chat-canal-fila__nombre text-truncate">{{ c.nombre }}</span>
-              <span class="chat-canal-fila__meta">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</span>
+              <span class="chat-canal-fila__meta">
+                <span class="badge chat-canal-badge chat-canal-badge--oficial">Oficial</span>
+                {{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros
+              </span>
             </span>
-            <span class="chat-canal-fila__accion">Unirse</span>
+            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ c.miRol }}</span>
+            <span v-else class="chat-canal-fila__accion">Unirse</span>
           </button>
         </li>
       </ul>
@@ -1944,14 +1964,18 @@ onUnmounted(() => {
           <button type="button" class="chat-canal-fila"
                   :class="{ 'chat-canal-fila--activo': canalActivo?.id === c.id }"
                   :aria-current="canalActivo?.id === c.id ? 'true' : undefined"
-                  :aria-label="canalActivo?.id === c.id ? `Cerrar la lista, ya estas en ${c.nombre}` : `Unirse al canal ${c.nombre}`"
-                  @click="canalActivo?.id !== c.id ? unirseACanal(c.id) : (mostrarListaCanales = false)">
+                  :aria-label="c.miRol ? `Abrir el canal ${c.nombre}` : `Unirse al canal ${c.nombre}`"
+                  @click="abrirCanalDesdeLista(c)">
             <img :src="canalAvatar(c)" class="rounded-circle flex-shrink-0" width="36" height="36" alt="" />
             <span class="flex-grow-1 min-w-0">
               <span class="chat-canal-fila__nombre text-truncate">{{ c.nombre }}</span>
-              <span class="chat-canal-fila__meta">{{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros</span>
+              <span class="chat-canal-fila__meta">
+                <span v-if="c.privado" class="badge chat-canal-badge chat-canal-badge--privado">Privado</span>
+                {{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros
+              </span>
             </span>
             <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ c.miRol }}</span>
+            <span v-else class="chat-canal-fila__accion">Unirse</span>
           </button>
         </li>
       </ul>
@@ -2036,7 +2060,13 @@ onUnmounted(() => {
         </div>
       </div>
     </div>
-    <div class="mb-3 form-check">
+    <div v-if="canalActivo?.tipo === 'OFFICIAL'" class="mb-3">
+      <p class="small text-muted mb-0">
+        <i class="bi bi-patch-check-fill" aria-hidden="true"></i>
+        Un canal oficial es siempre público. Solo un administrador puede quitar la marca de oficial.
+      </p>
+    </div>
+    <div v-else class="mb-3 form-check">
       <input v-model="editarCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivadoEditar" />
       <label class="form-check-label small" for="chkPrivadoEditar">Canal privado (solo por invitación)</label>
     </div>
@@ -2045,7 +2075,7 @@ onUnmounted(() => {
       <span>{{ errorEditarCanal }}</span>
     </div>
 
-    <div v-if="miRolEnCanal === 'OWNER'" class="chat-zona-peligro">
+    <div v-if="miRolEnCanal === 'OWNER' && canalActivo?.tipo !== 'OFFICIAL'" class="chat-zona-peligro">
       <div class="d-flex justify-content-between align-items-center gap-2">
         <span class="chat-zona-peligro__titulo">
           <i class="bi bi-exclamation-triangle" aria-hidden="true"></i> Zona de peligro
@@ -2121,9 +2151,11 @@ onUnmounted(() => {
       <i class="bi bi-door-open" aria-hidden="true"></i> Expulsar del canal
     </button>
     <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
+              && !contextMenuTarget.esStaff
               && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
               && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'" class="context-menu-divider"></div>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN')
+                  && !contextMenuTarget.esStaff
                   && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId
                   && contextMenuTarget.rol !== 'OWNER' && contextMenuTarget.rol !== 'ADMIN'"
             type="button" role="menuitem" class="context-menu-item context-menu-item--peligro" @click="abrirBanModal(contextMenuTarget)">
@@ -2469,6 +2501,30 @@ onUnmounted(() => {
   color: var(--pl-muted);
   background: var(--pl-surface-soft);
   box-shadow: inset 0 0 0 1px var(--pl-border);
+}
+
+.chat-canal-badge {
+  display: inline-block;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+}
+.chat-canal-badge--oficial {
+  color: var(--pl-warning-ink);
+  background: rgba(var(--pl-warning-rgb), 0.18);
+}
+.chat-canal-badge--privado {
+  color: var(--pl-muted);
+  background: var(--pl-surface-soft);
+  box-shadow: inset 0 0 0 1px var(--pl-border);
+}
+.chat-canal-badge--staff {
+  color: var(--pl-info-ink);
+  background: rgba(var(--pl-info-rgb), 0.14);
 }
 
 .chat-lista-tabs {

@@ -13,6 +13,10 @@ interface RegistroAuditoria {
     | 'CANAL_SUSPENDIDO'
     | 'CANAL_RESTAURADO'
     | 'CANAL_ELIMINADO'
+    | 'CANAL_ACCESO_MODERADOR'
+    | 'CANAL_OFICIAL_CREADO'
+    | 'CANAL_MARCADO_OFICIAL'
+    | 'CANAL_DESMARCADO_OFICIAL'
   moderadorId: number | null
   moderadorNombre: string | null
   objetivoUsuarioId: number | null
@@ -40,6 +44,22 @@ const etiquetasAccion: Record<
   },
   CANAL_RESTAURADO: { label: 'Canal restaurado', clase: 'pl-status-pill pl-status-pill--info' },
   CANAL_ELIMINADO: { label: 'Canal eliminado', clase: 'pl-status-pill pl-status-pill--danger' },
+  CANAL_ACCESO_MODERADOR: {
+    label: 'Acceso de moderación a privado',
+    clase: 'pl-status-pill pl-status-pill--info',
+  },
+  CANAL_OFICIAL_CREADO: {
+    label: 'Canal oficial creado',
+    clase: 'pl-status-pill pl-status-pill--info',
+  },
+  CANAL_MARCADO_OFICIAL: {
+    label: 'Canal marcado como oficial',
+    clase: 'pl-status-pill pl-status-pill--warning',
+  },
+  CANAL_DESMARCADO_OFICIAL: {
+    label: 'Canal desmarcado como oficial',
+    clase: 'pl-status-pill',
+  },
 }
 
 const columnas = [

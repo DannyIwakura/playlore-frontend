@@ -46,6 +46,20 @@ export function sortByRole(members: any[]): any[] {
   return [...members].sort((a, b) => (roleOrder[a.rol] ?? 99) - (roleOrder[b.rol] ?? 99))
 }
 
+/**
+ * Une los canales a los que ya perteneces con los disponibles sin duplicar.
+ * La entrada de "unidos" gana porque trae miRol; los disponibles solo aportan
+ * canales nuevos (incluidos los privados que ve el staff).
+ */
+export function combinarCanales(unidos: any[], disponibles: any[]): any[] {
+  const porId = new Map<number, any>()
+  for (const canal of unidos) porId.set(canal.id, canal)
+  for (const canal of disponibles) {
+    if (!porId.has(canal.id)) porId.set(canal.id, canal)
+  }
+  return [...porId.values()]
+}
+
 export function solicitarPermisoNotificacion(): void {
   if (!('Notification' in window)) return
   if (Notification.permission === 'default') {
