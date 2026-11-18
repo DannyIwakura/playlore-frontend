@@ -24,6 +24,13 @@ export const SECCIONES_ADMIN: ReadonlyArray<SeccionAdmin> = [
     roles: ['ADMIN', 'MOD'],
   },
   {
+    id: 'canales',
+    etiqueta: 'Canales',
+    descripcion: 'Suspende temporalmente o elimina canales que incumplan las normas.',
+    icono: 'bi-hash',
+    roles: ['ADMIN', 'MOD'],
+  },
+  {
     id: 'personajes',
     etiqueta: 'Personajes',
     descripcion: 'Suspende, revisa o elimina personajes de cualquier cuenta.',

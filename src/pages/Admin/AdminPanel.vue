@@ -9,6 +9,7 @@ import { userStore } from '../../store/userStore'
 import UsuariosLista from '../Admin/Usuarios/UsuariosLista.vue'
 import PersonajesLista from '../Admin/Personajes/PersonajesLista.vue'
 import DenunciasLista from '../Admin/Denuncias/DenunciasLista.vue'
+import CanalesLista from '../Admin/Canales/CanalesLista.vue'
 import BaneosLista from '../Admin/Baneos/BaneosLista.vue'
 import AuditoriaLista from '../Admin/Auditoria/AuditoriaLista.vue'
 import { seccionInicial, seccionesVisibles } from './adminSecciones'
@@ -50,6 +51,15 @@ async function cambiarSeccion(id: string) {
   await nextTick()
   // preventScroll evita competir con el desplazamiento suave del router.
   tituloRef.value?.focus({ preventScroll: true })
+}
+
+// Una denuncia de canal puede abrir directamente la sección de canales con el
+// canal reportado resaltado, sin obligar al moderador a buscarlo a mano.
+const canalDestacadoId = ref<number | null>(null)
+
+function irAModerarCanal(canalId: number) {
+  canalDestacadoId.value = canalId
+  void cambiarSeccion('canales')
 }
 
 onMounted(() => {
@@ -117,7 +127,14 @@ onMounted(() => {
           </header>
 
           <div class="pl-admin-panel__cuerpo">
-            <DenunciasLista v-if="seccionActiva === 'denuncias'" />
+            <DenunciasLista
+              v-if="seccionActiva === 'denuncias'"
+              @moderar-canal="irAModerarCanal"
+            />
+            <CanalesLista
+              v-else-if="seccionActiva === 'canales'"
+              :resaltar-id="canalDestacadoId"
+            />
             <PersonajesLista v-else-if="seccionActiva === 'personajes'" />
             <BaneosLista v-else-if="seccionActiva === 'baneos'" />
             <AuditoriaLista v-else-if="seccionActiva === 'auditoria'" />

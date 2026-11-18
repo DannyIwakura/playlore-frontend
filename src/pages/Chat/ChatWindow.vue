@@ -577,6 +577,30 @@ async function cerrarTodasSesiones() {
   }
 }
 
+/**
+ * Quita un canal de las listas visibles y, si estaba abierto, lo cierra y
+ * cancela sus suscripciones. Lo usan la expulsion, el baneo, la eliminacion y
+ * la suspension global del canal.
+ */
+function quitarCanalDeListas(canalId: number) {
+  canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalId)
+  canalesOficiales.value = canalesOficiales.value.filter((c: any) => c.id !== canalId)
+  canalesUsuarios.value = canalesUsuarios.value.filter((c: any) => c.id !== canalId)
+  if (canalActivo.value?.id === canalId) {
+    canalActivo.value = null
+    mensajes.value = []
+    miembros.value = []
+    if (channelPresenceSubscription) {
+      websocketService.unsubscribe(channelPresenceSubscription)
+      channelPresenceSubscription = null
+    }
+  }
+  unreadCountMap.value.delete(canalId)
+  unreadCountMap.value = new Map(unreadCountMap.value)
+  websocketService.unsubscribe(`channel-${canalId}`)
+  websocketService.unsubscribe(`channel-presence-${canalId}`)
+}
+
 async function conectarWebSocket() {
   const token = characterSessionStore.getToken()
   if (!token) return
@@ -608,20 +632,25 @@ async function conectarWebSocket() {
         }
         return
       }
+      if (data.tipo === 'CANAL_SUSPENDIDO') {
+        quitarCanalDeListas(data.canalId)
+        const hasta = data.hasta
+          ? ` hasta ${new Date(data.hasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`
+          : ' de forma indefinida'
+        mostrarMensajeModal(
+          'Canal suspendido',
+          `El canal ${data.canalNombre || `#${data.canalId}`} ha sido suspendido por moderación${hasta}.` +
+            (data.motivo ? ` Motivo: ${data.motivo}` : '')
+        )
+        return
+      }
+      if (data.tipo === 'CANAL_RESTAURADO') {
+        void cargarCanalesUnidos()
+        if (mostrarListaCanales.value) void cargarListaCanales()
+        return
+      }
       if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO' || data.tipo === 'CANAL_ELIMINADO') {
-        const canalIdExp = data.canalId
-        canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalIdExp)
-        canalesOficiales.value = canalesOficiales.value.filter((c: any) => c.id !== canalIdExp)
-        canalesUsuarios.value = canalesUsuarios.value.filter((c: any) => c.id !== canalIdExp)
-        if (canalActivo.value?.id === canalIdExp) {
-          canalActivo.value = null
-          mensajes.value = []
-          miembros.value = []
-        }
-        unreadCountMap.value.delete(canalIdExp)
-        unreadCountMap.value = new Map(unreadCountMap.value)
-        websocketService.unsubscribe(`channel-${canalIdExp}`)
-        websocketService.unsubscribe(`channel-presence-${canalIdExp}`)
+        quitarCanalDeListas(data.canalId)
         return
       }
       const pid = characterSessionStore.sesionActual.value?.personajeId
@@ -930,10 +959,8 @@ async function seleccionarCanal(canal: any) {
   }
 }
 
-async function abrirListaCanales() {
-  mostrarListaCanales.value = true
+async function cargarListaCanales() {
   cargandoLista.value = true
-  pestanaLista.value = 'oficiales'
   try {
     const [unidos, disponibles] = await Promise.all([
       chatApi.obtenerCanalesUnidos(),
@@ -950,6 +977,12 @@ async function abrirListaCanales() {
       return true
     })
   } catch {} finally { cargandoLista.value = false }
+}
+
+async function abrirListaCanales() {
+  mostrarListaCanales.value = true
+  pestanaLista.value = 'oficiales'
+  await cargarListaCanales()
 }
 
 async function unirseACanal(canalId: number) {

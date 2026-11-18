@@ -11,6 +11,7 @@ describe('seccionesVisibles', () => {
     expect(ids).not.toContain('usuarios')
     expect(ids).not.toContain('categorias')
     expect(ids).toContain('denuncias')
+    expect(ids).toContain('canales')
   })
 
   it('un rol desconocido o sin sesión no ve ninguna sección', () => {

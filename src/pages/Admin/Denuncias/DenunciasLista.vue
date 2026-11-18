@@ -48,6 +48,10 @@ const ETIQUETA_TIPO: Record<string, string> = {
 
 const TAMANIO_PAGINA = 10
 
+const emit = defineEmits<{
+  (e: 'moderar-canal', canalId: number): void
+}>()
+
 const denuncias = ref<Denuncia[]>([])
 const cargando = ref(false)
 const error = ref('')
@@ -128,6 +132,16 @@ const objetivoBaneo = computed(() => {
   return null
 })
 
+// Canal al que se puede saltar desde el detalle: las denuncias de mensaje
+// traen canalId y las denuncias de canal usan tipoId.
+const canalDenunciadoId = computed<number | null>(() => {
+  const denuncia = denunciaDetalle.value
+  if (!denuncia) return null
+  if (denuncia.canalId != null) return denuncia.canalId
+  if (denuncia.tipo === 'CANAL') return denuncia.tipoId
+  return null
+})
+
 function fechaLegible(fecha: string | null): string {
   if (!fecha) return '—'
   return new Date(fecha).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })
@@ -203,6 +217,13 @@ function abrirDetalle(denuncia: Denuncia) {
 function cerrarDetalle() {
   denunciaDetalle.value = null
   notaDecision.value = ''
+}
+
+function moderarCanal() {
+  const canalId = canalDenunciadoId.value
+  if (canalId == null) return
+  cerrarDetalle()
+  emit('moderar-canal', canalId)
 }
 
 async function resolver() {
@@ -543,6 +564,16 @@ onMounted(() => cargarDenuncias())
             </router-link>
           </p>
         </div>
+
+        <button
+          v-if="canalDenunciadoId !== null"
+          type="button"
+          class="pl-btn pl-btn--secondary pl-btn--sm mt-2"
+          @click="moderarCanal"
+        >
+          <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+          Moderar canal
+        </button>
       </section>
 
       <section class="pl-denuncia__bloque" aria-labelledby="denuncia-motivo">

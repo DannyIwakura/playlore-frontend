@@ -5,13 +5,22 @@ import TablaAdmin from '../components/TablaAdmin.vue'
 
 interface RegistroAuditoria {
   idRegistro: number
-  accion: 'BANEO_CUENTA' | 'BANEO_PERSONAJE' | 'DESBANEO' | 'DENUNCIA_RESUELTA'
+  accion:
+    | 'BANEO_CUENTA'
+    | 'BANEO_PERSONAJE'
+    | 'DESBANEO'
+    | 'DENUNCIA_RESUELTA'
+    | 'CANAL_SUSPENDIDO'
+    | 'CANAL_RESTAURADO'
+    | 'CANAL_ELIMINADO'
   moderadorId: number | null
   moderadorNombre: string | null
   objetivoUsuarioId: number | null
   objetivoUsuarioNombre: string | null
   objetivoPersonajeId: number | null
   objetivoPersonajeNombre: string | null
+  objetivoCanalId: number | null
+  objetivoCanalNombre: string | null
   motivo: string | null
   detalle: string | null
   fecha: string
@@ -25,6 +34,12 @@ const etiquetasAccion: Record<
   BANEO_PERSONAJE: { label: 'Baneo de personaje', clase: 'pl-status-pill pl-status-pill--warning' },
   DESBANEO: { label: 'Desbaneo', clase: 'pl-status-pill' },
   DENUNCIA_RESUELTA: { label: 'Denuncia resuelta', clase: 'pl-status-pill pl-status-pill--info' },
+  CANAL_SUSPENDIDO: {
+    label: 'Canal suspendido',
+    clase: 'pl-status-pill pl-status-pill--warning',
+  },
+  CANAL_RESTAURADO: { label: 'Canal restaurado', clase: 'pl-status-pill pl-status-pill--info' },
+  CANAL_ELIMINADO: { label: 'Canal eliminado', clase: 'pl-status-pill pl-status-pill--danger' },
 }
 
 const columnas = [
@@ -78,16 +93,22 @@ function normalizar(texto: string): string {
 }
 
 function nombreObjetivo(registro: RegistroAuditoria): string {
-  return registro.objetivoUsuarioNombre ?? registro.objetivoPersonajeNombre ?? '—'
+  return (
+    registro.objetivoUsuarioNombre ??
+    registro.objetivoPersonajeNombre ??
+    registro.objetivoCanalNombre ??
+    '—'
+  )
 }
 
 function idObjetivo(registro: RegistroAuditoria): number | null {
-  return registro.objetivoUsuarioId ?? registro.objetivoPersonajeId
+  return registro.objetivoUsuarioId ?? registro.objetivoPersonajeId ?? registro.objetivoCanalId
 }
 
 function tipoObjetivo(registro: RegistroAuditoria): string | null {
   if (registro.objetivoUsuarioId !== null) return 'Cuenta'
   if (registro.objetivoPersonajeId !== null) return 'Personaje'
+  if (registro.objetivoCanalId !== null) return 'Canal'
   return null
 }
 
