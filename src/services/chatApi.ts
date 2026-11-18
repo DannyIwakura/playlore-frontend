@@ -67,6 +67,34 @@ export const chatApi = {
     })
   },
 
+  // Invitaciones a canales privados
+  listarCanalesInvitables() {
+    return api.get('/canales/invitables', { headers: getAuthHeaders() })
+  },
+
+  listarInvitacionesPendientes() {
+    return api.get('/canales/invitaciones', { headers: getAuthHeaders() })
+  },
+
+  invitarACanal(canalId: number, personajeId: number) {
+    return api.post(`/canales/${canalId}/invitar`, { personajeId }, { headers: getAuthHeaders() })
+  },
+
+  aceptarInvitacion(invitacionId: number) {
+    return api.post(`/canales/invitaciones/${invitacionId}/aceptar`, {}, { headers: getAuthHeaders() })
+  },
+
+  rechazarInvitacion(invitacionId: number) {
+    return api.post(`/canales/invitaciones/${invitacionId}/rechazar`, {}, { headers: getAuthHeaders() })
+  },
+
+  buscarPersonajes(nombre: string, page = 0, size = 8) {
+    return api.get('/personajes/buscar', {
+      params: { nombre, page, size },
+      headers: getAuthHeaders(),
+    })
+  },
+
   eliminarCanal(canalId: number, password: string) {
     return api.delete(`/canales/${canalId}`, { data: { password }, headers: getAuthHeaders() })
   },

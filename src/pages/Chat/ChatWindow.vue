@@ -10,6 +10,7 @@ import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
 import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha, combinarCanales } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
+import MensajeInvitacion from './MensajeInvitacion.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
@@ -394,7 +395,14 @@ async function abrirListaMiembros() {
   miembrosLista.value = []
   paginaMiembros.value = 0
   hayMasMiembros.value = true
+  limpiarBuscadorInvitados()
+  void cargarCanalesInvitables()
   await cargarMasMiembros()
+}
+
+function cerrarListaMiembros() {
+  mostrarListaMiembros.value = false
+  limpiarBuscadorInvitados()
 }
 
 async function cargarMasMiembros() {
@@ -407,6 +415,130 @@ async function cargarMasMiembros() {
     hayMasMiembros.value = !data.last
     paginaMiembros.value++
   } catch {} finally { cargandoMiembros.value = false }
+}
+
+// ---- Invitaciones a canales privados ----
+// `canalesInvitables` son los privados donde el personaje puede gestionar
+// miembros; se usa para gatear el menu contextual y para elegir destino.
+const canalesInvitables = ref<any[]>([])
+const cargandoInvitables = ref(false)
+const invitacionTarget = ref<{ personajeId: number; personajeNombre: string; personajeAvatar?: string } | null>(null)
+const enviandoInvitacion = ref(false)
+
+async function cargarCanalesInvitables() {
+  cargandoInvitables.value = true
+  try {
+    const { data } = await chatApi.listarCanalesInvitables()
+    canalesInvitables.value = data || []
+  } catch {
+    canalesInvitables.value = []
+  } finally {
+    cargandoInvitables.value = false
+  }
+}
+
+function abrirInvitacionA(personaje: any) {
+  const personajeId = personaje?.personajeId ?? personaje?.idPersonaje
+  if (personajeId == null) return
+  cerrarContextMenu()
+  invitacionTarget.value = {
+    personajeId,
+    personajeNombre: personaje?.personajeNombre ?? personaje?.nombre ?? 'este personaje',
+    personajeAvatar: personaje?.personajeAvatar ?? personaje?.avatar ?? null,
+  }
+  void cargarCanalesInvitables()
+}
+
+function cerrarInvitacion() {
+  if (enviandoInvitacion.value) return
+  invitacionTarget.value = null
+}
+
+async function invitarACanalPrivado(canal: any) {
+  if (!invitacionTarget.value || enviandoInvitacion.value) return
+  enviandoInvitacion.value = true
+  try {
+    await chatApi.invitarACanal(canal.id, invitacionTarget.value.personajeId)
+    const nombre = invitacionTarget.value.personajeNombre
+    invitacionTarget.value = null
+    mostrarMensajeModal(
+      'Invitación enviada',
+      `${nombre} recibirá la invitación a ${canal.nombre} en un mensaje privado.`
+    )
+  } catch (e: any) {
+    mostrarMensajeModal(
+      'No se pudo invitar',
+      e?.response?.data?.error || 'No se pudo enviar la invitación. Inténtalo de nuevo.'
+    )
+  } finally {
+    enviandoInvitacion.value = false
+  }
+}
+
+// Buscador de personajes dentro del modal de miembros: permite invitar a
+// alguien que aun no pertenece al canal.
+const buscadorInvitados = ref('')
+const resultadosBusquedaInvitados = ref<any[]>([])
+const buscandoInvitados = ref(false)
+const errorBusquedaInvitados = ref('')
+let temporizadorBusquedaInvitados: number | null = null
+
+function limpiarBuscadorInvitados() {
+  if (temporizadorBusquedaInvitados != null) {
+    clearTimeout(temporizadorBusquedaInvitados)
+    temporizadorBusquedaInvitados = null
+  }
+  buscadorInvitados.value = ''
+  resultadosBusquedaInvitados.value = []
+  buscandoInvitados.value = false
+  errorBusquedaInvitados.value = ''
+}
+
+function programarBusquedaInvitados() {
+  if (temporizadorBusquedaInvitados != null) clearTimeout(temporizadorBusquedaInvitados)
+  const termino = buscadorInvitados.value.trim()
+  if (termino.length < 2) {
+    resultadosBusquedaInvitados.value = []
+    errorBusquedaInvitados.value = ''
+    buscandoInvitados.value = false
+    return
+  }
+  temporizadorBusquedaInvitados = window.setTimeout(() => void buscarPersonajesParaInvitar(termino), 300)
+}
+
+async function buscarPersonajesParaInvitar(termino: string) {
+  buscandoInvitados.value = true
+  errorBusquedaInvitados.value = ''
+  try {
+    const { data } = await chatApi.buscarPersonajes(termino, 0, 8)
+    const propioId = characterSessionStore.sesionActual.value?.personajeId
+    resultadosBusquedaInvitados.value = (data?.content || []).filter(
+      (p: any) => p.idPersonaje !== propioId
+    )
+  } catch {
+    resultadosBusquedaInvitados.value = []
+    errorBusquedaInvitados.value = 'No se pudo buscar personajes.'
+  } finally {
+    buscandoInvitados.value = false
+  }
+}
+
+/**
+ * Tras aceptar una invitacion el backend ya creo la membresia: refrescamos
+ * canales y abrimos el nuevo canal si aparece en la lista.
+ */
+async function abrirCanalTrasInvitacion(canalId: number) {
+  await cargarCanalesUnidos()
+  suscribirCanales()
+  const canal = canalesUnidos.value.find((c: any) => c.id === canalId)
+  if (!canal) {
+    mostrarMensajeModal(
+      'Invitación aceptada',
+      'Ya formas parte del canal. Aparecerá en tu lista de canales.'
+    )
+    return
+  }
+  await seleccionarCanal(canal)
 }
 
 // Lista de canales (modal)
@@ -451,7 +583,7 @@ const cualquierModalAbierto = computed(() =>
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
   mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value ||
-  mostrarBaneados.value || !!conversacionAEliminar.value
+  mostrarBaneados.value || !!conversacionAEliminar.value || !!invitacionTarget.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -651,6 +783,20 @@ async function conectarWebSocket() {
       }
       if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO' || data.tipo === 'CANAL_ELIMINADO') {
         quitarCanalDeListas(data.canalId)
+        return
+      }
+      if (data.tipo === 'INVITACION_ACEPTADA' || data.tipo === 'INVITACION_RECHAZADA') {
+        const estado = data.tipo === 'INVITACION_ACEPTADA' ? 'ACEPTADA' : 'RECHAZADA'
+        for (const m of mensajesPrivados.value) {
+          if (m.invitacion?.id === data.invitacionId) m.invitacion.estado = estado
+        }
+        if (data.tipo === 'INVITACION_ACEPTADA') {
+          mostrarMensajeModal(
+            'Invitación aceptada',
+            `${data.personajeNombre || 'El personaje'} se ha unido a ${data.canalNombre || 'tu canal'}.`
+          )
+          if (canalActivo.value?.id === data.canalId) void cargarMiembrosOnline()
+        }
         return
       }
       const pid = characterSessionStore.sesionActual.value?.personajeId
@@ -902,6 +1048,7 @@ async function cargarCanalesUnidos() {
     }
   } finally {
     cargandoCanales.value = false
+    void cargarCanalesInvitables()
   }
 }
 
@@ -1787,12 +1934,20 @@ onUnmounted(() => {
               <span>Cargando conversación</span>
             </div>
             <template v-else-if="mensajesPrivados.length > 0">
-              <ChatMessage v-for="msg in mensajesPrivados" :key="msg.id"
-                :msg="msg"
-                :es-mio="msg.esMio"
-                :avatar-src="msg.esMio ? avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar) : avatarUrl(conversacionActiva.personajeAvatar)"
-                @ver-perfil="verPerfil"
-              />
+              <template v-for="msg in mensajesPrivados" :key="msg.id">
+                <MensajeInvitacion
+                  v-if="msg.invitacion"
+                  :msg="msg"
+                  @unirse="abrirCanalTrasInvitacion"
+                  @error="mostrarMensajeModal('No se pudo responder', $event)"
+                />
+                <ChatMessage v-else
+                  :msg="msg"
+                  :es-mio="msg.esMio"
+                  :avatar-src="msg.esMio ? avatarUrl(characterSessionStore.sesionActual.value?.personajeAvatar) : avatarUrl(conversacionActiva.personajeAvatar)"
+                  @ver-perfil="verPerfil"
+                />
+              </template>
             </template>
             <div v-else class="pl-empty-state pl-empty-state--compact chat-mensajes__vacio">
               <span class="pl-empty-state__icon"><i class="bi bi-chat-dots" aria-hidden="true"></i></span>
@@ -1861,7 +2016,38 @@ onUnmounted(() => {
   </div>
 
   <!-- Modal: Lista de miembros -->
-  <ModalFormulario v-if="mostrarListaMiembros" titulo="Miembros" @cerrar="mostrarListaMiembros = false">
+  <ModalFormulario v-if="mostrarListaMiembros" titulo="Miembros" @cerrar="cerrarListaMiembros">
+    <div class="chat-invitar-buscador">
+      <label for="chat-buscar-invitado" class="form-label small fw-semibold mb-1">Invitar a alguien</label>
+      <div class="input-group input-group-sm">
+        <span class="input-group-text" aria-hidden="true"><i class="bi bi-search"></i></span>
+        <input id="chat-buscar-invitado" v-model="buscadorInvitados" type="search" class="form-control"
+               placeholder="Buscar personaje por nombre" autocomplete="off"
+               aria-describedby="chat-buscar-invitado-ayuda" @input="programarBusquedaInvitados" />
+      </div>
+      <p id="chat-buscar-invitado-ayuda" class="form-text mb-0">Escribe al menos 2 letras.</p>
+      <p v-if="errorBusquedaInvitados" class="text-danger small mt-2 mb-0" role="alert">{{ errorBusquedaInvitados }}</p>
+      <div v-if="buscandoInvitados" class="chat-mensajes__estado" role="status">
+        <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+        <span>Buscando personajes</span>
+      </div>
+      <ul v-else-if="resultadosBusquedaInvitados.length > 0" class="chat-miembros-lista chat-invitar-resultados">
+        <li v-for="p in resultadosBusquedaInvitados" :key="p.idPersonaje" class="chat-miembros-lista__fila">
+          <img :src="avatarUrl(p.avatar)" class="pl-avatar flex-shrink-0" width="36" height="36" alt="" />
+          <div class="flex-grow-1 min-w-0">
+            <div class="fw-medium small text-truncate">{{ p.nombre }}</div>
+            <div class="text-muted pl-text-xs text-truncate">{{ p.raza || '—' }} · {{ p.clase || '—' }}</div>
+          </div>
+          <button type="button" class="btn btn-outline-primary btn-sm" @click="abrirInvitacionA(p)">
+            <i class="bi bi-person-plus" aria-hidden="true"></i> Invitar
+          </button>
+        </li>
+      </ul>
+      <p v-else-if="buscadorInvitados.trim().length >= 2" class="text-muted small mt-2 mb-0">
+        No se encontraron personajes con ese nombre.
+      </p>
+    </div>
+    <hr class="my-3" />
     <div v-if="cargandoMiembros && miembrosLista.length === 0" class="chat-mensajes__estado" role="status">
       <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
       <span>Cargando miembros</span>
@@ -1891,6 +2077,44 @@ onUnmounted(() => {
       <p v-if="!hayMasMiembros && miembrosLista.length > 0" class="text-center text-muted small py-2 mb-0">
         Todos los miembros cargados
       </p>
+    </div>
+  </ModalFormulario>
+
+  <!-- Modal: elegir canal privado para invitar -->
+  <ModalFormulario v-if="invitacionTarget" :titulo="`Invitar a ${invitacionTarget.personajeNombre}`" @cerrar="cerrarInvitacion">
+    <p class="text-muted small mb-3">
+      Elige el canal privado al que quieres invitar. Le llegará un mensaje privado con un botón para unirse.
+    </p>
+    <div v-if="cargandoInvitables" class="chat-mensajes__estado" role="status">
+      <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
+      <span>Cargando canales</span>
+    </div>
+    <p v-else-if="canalesInvitables.length === 0" class="text-muted small text-center py-3 mb-0">
+      No gestionas ningún canal privado. Solo el dueño, un admin o un moderador del canal pueden invitar.
+    </p>
+    <ul v-else class="chat-canales-lista">
+      <li v-for="c in canalesInvitables" :key="c.id">
+        <button type="button" class="chat-canal-fila" :disabled="enviandoInvitacion"
+                :aria-label="`Invitar a ${invitacionTarget.personajeNombre} al canal ${c.nombre}`"
+                @click="invitarACanalPrivado(c)">
+          <img :src="canalAvatar(c)" class="rounded-circle flex-shrink-0" width="36" height="36" alt="" />
+          <span class="flex-grow-1 min-w-0">
+            <span class="chat-canal-fila__nombre text-truncate">{{ c.nombre }}</span>
+            <span class="chat-canal-fila__meta">
+              <span class="badge chat-canal-badge chat-canal-badge--privado">Privado</span>
+              {{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros
+            </span>
+          </span>
+          <span class="chat-canal-fila__accion">
+            <i class="bi bi-send" aria-hidden="true"></i> Invitar
+          </span>
+        </button>
+      </li>
+    </ul>
+    <div class="d-flex justify-content-end mt-3">
+      <button type="button" class="btn btn-outline-secondary" :disabled="enviandoInvitacion" @click="cerrarInvitacion">
+        Cancelar
+      </button>
     </div>
   </ModalFormulario>
 
@@ -2133,6 +2357,11 @@ onUnmounted(() => {
     </button>
     <button type="button" role="menuitem" class="context-menu-item" @click="abrirConversacionPrivada(contextMenuTarget.personajeId, contextMenuTarget.personajeNombre, contextMenuTarget.personajeAvatar)">
       <i class="bi bi-envelope" aria-hidden="true"></i> Mensaje Privado
+    </button>
+    <button v-if="canalesInvitables.length > 0
+                  && contextMenuTarget.personajeId !== characterSessionStore.sesionActual.value?.personajeId"
+            type="button" role="menuitem" class="context-menu-item" @click="abrirInvitacionA(contextMenuTarget)">
+      <i class="bi bi-person-plus" aria-hidden="true"></i> Invitar a un canal privado
     </button>
     <div v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'" class="context-menu-divider"></div>
     <button v-if="(miRolEnCanal === 'OWNER' || miRolEnCanal === 'ADMIN') && contextMenuTarget.rol === 'MEMBER'"
@@ -2475,6 +2704,21 @@ onUnmounted(() => {
 }
 .chat-miembros-lista__fila:hover {
   background: var(--pl-surface-soft);
+}
+
+.chat-invitar-buscador {
+  padding-bottom: 0.25rem;
+}
+
+.chat-invitar-resultados {
+  max-height: 210px;
+  margin-top: 0.5rem;
+  overflow-y: auto;
+}
+
+.chat-canal-fila:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 .chat-rol-badge {
