@@ -472,9 +472,16 @@ onUnmounted(cancelarPulsacion)
   transition: opacity var(--pl-duration-fast) var(--pl-ease-standard);
 }
 
-.msg-row:hover .msg-acciones,
 .msg-acciones:focus-within {
   opacity: 1;
+}
+
+/* El "hover pegajoso" de los navegadores moviles deja :hover activo despues de
+   un toque. El reveal por hover solo aplica cuando hay un puntero real. */
+@media (hover: hover) {
+  .msg-row:hover .msg-acciones {
+    opacity: 1;
+  }
 }
 
 /* Sin hover (tactil) la burbuja queda limpia: las acciones se abren con

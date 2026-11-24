@@ -201,6 +201,18 @@ describe('ChatMessage', () => {
       expect(w.find('.msg-menu-movil').exists()).toBe(false)
     })
 
+    it('un toque corto no abre la hoja de acciones', async () => {
+      const w = montar({ mostrarAcciones: true })
+      const burbuja = w.find('.msg-burbuja')
+
+      tocar(burbuja, 'touchstart')
+      tocar(burbuja, 'touchend')
+      vi.advanceTimersByTime(600)
+      await nextTick()
+
+      expect(w.find('.msg-menu-movil').exists()).toBe(false)
+    })
+
     it('no abre la hoja si el dedo se desplaza o se toca un boton', async () => {
       const w = montar({ mostrarAcciones: true, showHeader: true })
       const burbuja = w.find('.msg-burbuja')
