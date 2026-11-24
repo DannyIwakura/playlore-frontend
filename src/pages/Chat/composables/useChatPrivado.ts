@@ -3,7 +3,6 @@ import { nextTick } from 'vue'
 import { chatApi } from '../../../services/chatApi'
 import { characterSessionStore } from '../../../store/characterSessionStore'
 import { websocketService } from '../../../services/websocket'
-import { notificarPush, truncarTexto } from '../chatUtils'
 
 interface PrivadoDeps {
   canalActivo: Ref<any>
@@ -34,10 +33,18 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     } catch { /* ignore */ }
   }
 
-  async function cargarConversaciones() {
+  /**
+   * Carga las conversaciones de una sesion concreta. Sin argumentos usa la
+   * sesion activa y actualiza los refs visibles; con `tokenJwt`/`personajeId`
+   * solo devuelve el resultado para que ChatWindow lo guarde en el estado de
+   * esa sesion (que puede no ser la activa).
+   */
+  async function cargarConversaciones(tokenJwt?: string, personajeId?: number) {
+    const [pid, token] = tokenJwt != null && personajeId != null
+      ? [personajeId, tokenJwt]
+      : [characterSessionStore.sesionActual.value?.personajeId, characterSessionStore.getToken()]
     try {
-      const { data } = await chatApi.obtenerConversaciones()
-      const pid = characterSessionStore.sesionActual.value?.personajeId
+      const { data } = await chatApi.obtenerConversaciones(token)
       const grouped = new Map<number, any>()
       for (const msg of data) {
         const esReceptor = msg.receptorId === pid
@@ -56,11 +63,18 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
           grouped.get(otroId)!.noLeidos++
         }
       }
-      conversacionesPrivadas.value = Array.from(grouped.values())
-      noLeidosPriv.value = new Map(
-        Array.from(grouped.values()).map(c => [c.personajeId, c.noLeidos])
+      const conversaciones = Array.from(grouped.values())
+      const noLeidos = new Map<number, number>(
+        conversaciones.map(c => [c.personajeId, c.noLeidos])
       )
-    } catch {}
+      if (tokenJwt == null || personajeId == null) {
+        conversacionesPrivadas.value = conversaciones
+        noLeidosPriv.value = noLeidos
+      }
+      return { conversaciones, noLeidos }
+    } catch {
+      return { conversaciones: [] as any[], noLeidos: new Map<number, number>() }
+    }
   }
 
   function abrirConversacionPrivada(otroId: number, otroNombre: string, otroAvatar: string) {
@@ -85,7 +99,7 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     }
     cargandoPriv.value = true
     try {
-      const { data } = await chatApi.obtenerConversacion(conv.personajeId)
+      const { data } = await chatApi.obtenerConversacion(conv.personajeId, characterSessionStore.getToken())
       mensajesPrivados.value = data || []
       await nextTick()
       scrollAlFinal()
@@ -112,14 +126,10 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     mensajesPrivados.value.push(tempMsg)
     nextTick(() => scrollAlFinal())
     const receptorId = conversacionActiva.value.personajeId
-    websocketService.sendPrivateMessage(receptorId, texto)
-    if (characterSessionStore.sesiones.value.some(s => s.personajeId === receptorId)) {
-      const charCount = noLeidosCharacter.value.get(receptorId) || 0
-      noLeidosCharacter.value.set(receptorId, charCount + 1)
-      noLeidosCharacter.value = new Map(noLeidosCharacter.value)
-      reproducirSonidoPM()
-      notificarPush('Mensaje privado', truncarTexto(texto))
-    }
+    const sesionId = characterSessionStore.sesionActual.value?.idSesion
+    if (sesionId != null) websocketService.sendPrivateMessage(sesionId, receptorId, texto)
+    // El contador de la pestaña receptora lo pone su propia conexion WS al
+    // recibir el mensaje; sumarlo aqui duplicaria el aviso.
     const conv = conversacionesPrivadas.value.find(c => c.personajeId === receptorId)
     if (conv) { conv.ultimoMensaje = texto; conv.fecha = tempMsg.fechaEnvio }
   }

@@ -1,15 +1,15 @@
 import api from './api'
 import { characterSessionStore } from '../store/characterSessionStore'
 
-function getAuthHeaders() {
-  const token = characterSessionStore.getToken()
+function getAuthHeaders(tokenJwt?: string) {
+  const token = tokenJwt ?? characterSessionStore.getToken()
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
 export const chatApi = {
   // Canales
-  obtenerCanalesUnidos() {
-    return api.get('/canales/unidos', { headers: getAuthHeaders() })
+  obtenerCanalesUnidos(tokenJwt?: string) {
+    return api.get('/canales/unidos', { headers: getAuthHeaders(tokenJwt) })
   },
 
   obtenerCanalesDisponibles() {
@@ -112,10 +112,10 @@ export const chatApi = {
   },
 
   // Mensajes del canal
-  obtenerMensajesCanal(canalId: number, page = 0, size = 50) {
+  obtenerMensajesCanal(canalId: number, page = 0, size = 50, tokenJwt?: string) {
     return api.get(`/canales/${canalId}/mensajes`, {
       params: { page, size },
-      headers: getAuthHeaders(),
+      headers: getAuthHeaders(tokenJwt),
     })
   },
 
@@ -148,12 +148,12 @@ export const chatApi = {
   },
 
   // Mensajes privados entre personajes
-  obtenerConversaciones() {
-    return api.get('/chat/privado/conversaciones', { headers: getAuthHeaders() })
+  obtenerConversaciones(tokenJwt?: string) {
+    return api.get('/chat/privado/conversaciones', { headers: getAuthHeaders(tokenJwt) })
   },
 
-  obtenerConversacion(otroPersonajeId: number) {
-    return api.get(`/chat/privado/${otroPersonajeId}`, { headers: getAuthHeaders() })
+  obtenerConversacion(otroPersonajeId: number, tokenJwt?: string) {
+    return api.get(`/chat/privado/${otroPersonajeId}`, { headers: getAuthHeaders(tokenJwt) })
   },
 
   eliminarConversacion(otroPersonajeId: number) {
@@ -161,7 +161,7 @@ export const chatApi = {
   },
 
   // Presencia
-  actualizarStatus(personajeId: number, status: string) {
-    return api.put(`/personajes/${personajeId}/status`, { status }, { headers: getAuthHeaders() })
+  actualizarStatus(personajeId: number, status: string, tokenJwt?: string) {
+    return api.put(`/personajes/${personajeId}/status`, { status }, { headers: getAuthHeaders(tokenJwt) })
   },
 }

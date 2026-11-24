@@ -17,7 +17,7 @@ vi.mock('../../../services/chatApi', () => ({
 
 vi.mock('../../../services/websocket', () => ({
   websocketService: {
-    connected: { value: false },
+    isConnected: vi.fn(() => false),
     sendChannelMessage: vi.fn(),
   },
 }))
@@ -64,7 +64,7 @@ describe('useChatMensajes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     sesionConToken()
-    ;(websocketService as any).connected.value = false
+    ;(websocketService.isConnected as ReturnType<typeof vi.fn>).mockReturnValue(false)
   })
 
   afterEach(() => {
@@ -118,12 +118,12 @@ describe('useChatMensajes', () => {
   describe('enviarMensaje', () => {
     it('envía por WebSocket cuando hay conexión y token', async () => {
       const { ctx, channelMentionedMap } = setup()
-      ;(websocketService as any).connected.value = true
+      ;(websocketService.isConnected as ReturnType<typeof vi.fn>).mockReturnValue(true)
       ctx.mensajeEnRespuesta.value = msg(99)
 
       await ctx.enviarMensaje('hola')
 
-      expect(websocketService.sendChannelMessage).toHaveBeenCalledWith(5, 'hola', 99)
+      expect(websocketService.sendChannelMessage).toHaveBeenCalledWith(1, 5, 'hola', 99)
       expect(ctx.mensajeEnRespuesta.value).toBeNull()
       expect(ctx.enviando.value).toBe(false)
       expect(channelMentionedMap.value.get(5)).toBe(false)
@@ -193,9 +193,9 @@ describe('useChatMensajes', () => {
 
     it('handleSendCanal envía si no hay modo edición', async () => {
       const { ctx } = setup()
-      ;(websocketService as any).connected.value = true
+      ;(websocketService.isConnected as ReturnType<typeof vi.fn>).mockReturnValue(true)
       await ctx.handleSendCanal('nuevo')
-      expect(websocketService.sendChannelMessage).toHaveBeenCalledWith(5, 'nuevo', null)
+      expect(websocketService.sendChannelMessage).toHaveBeenCalledWith(1, 5, 'nuevo', null)
     })
   })
 

@@ -224,7 +224,11 @@ function enfocar() {
   editorRef.value?.focus()
 }
 
-defineExpose({ enfocar, limpiar: limpiarEditor, setContenido })
+function getContenido(): string {
+  return editorRef.value?.innerHTML ?? ''
+}
+
+defineExpose({ enfocar, limpiar: limpiarEditor, setContenido, getContenido })
 
 function getMentionSearch(): string {
   const sel = window.getSelection()

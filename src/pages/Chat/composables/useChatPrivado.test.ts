@@ -83,6 +83,21 @@ describe('useChatPrivado', () => {
       await ctx.cargarConversaciones()
       expect(ctx.conversacionesPrivadas.value).toEqual([])
     })
+
+    it('carga conversaciones de otra sesión sin tocar los refs visibles', async () => {
+      const { ctx } = setup()
+      ;(chatApi.obtenerConversaciones as ReturnType<typeof vi.fn>).mockResolvedValue({
+        data: [convMsg({ emisorId: 9, receptorId: 4, emisorNombre: 'Luna', leido: false })],
+      })
+
+      const resultado = await ctx.cargarConversaciones('otro-token', 4)
+
+      expect(chatApi.obtenerConversaciones).toHaveBeenCalledWith('otro-token')
+      expect(resultado.conversaciones[0].personajeId).toBe(9)
+      expect(resultado.noLeidos.get(9)).toBe(1)
+      expect(ctx.conversacionesPrivadas.value).toEqual([])
+      expect(ctx.noLeidosPriv.value.size).toBe(0)
+    })
   })
 
   describe('seleccionarConversacion', () => {
@@ -97,7 +112,7 @@ describe('useChatPrivado', () => {
 
       expect(canalActivo.value).toBeNull()
       expect(conversacionActiva.value).toEqual(conv)
-      expect(chatApi.obtenerConversacion).toHaveBeenCalledWith(2)
+      expect(chatApi.obtenerConversacion).toHaveBeenCalledWith(2, 'token')
       expect(ctx.mensajesPrivados.value).toHaveLength(1)
       expect(ctx.noLeidosPriv.value.get(2)).toBe(0)
       expect(ctx.cargandoPriv.value).toBe(false)
@@ -127,19 +142,19 @@ describe('useChatPrivado', () => {
       expect(ctx.mensajesPrivados.value).toHaveLength(1)
       expect(ctx.mensajesPrivados.value[0].contenido).toBe('hola bob')
       expect(ctx.mensajesPrivados.value[0].esMio).toBe(true)
-      expect(websocketService.sendPrivateMessage).toHaveBeenCalledWith(3, 'hola bob')
+      expect(websocketService.sendPrivateMessage).toHaveBeenCalledWith(1, 3, 'hola bob')
       const convActualizado = ctx.conversacionesPrivadas.value.find(c => c.personajeId === 3)
       expect(convActualizado?.ultimoMensaje).toBe('hola bob')
     })
 
-    it('incrementa no leídos y suena si el receptor es una sesión local', async () => {
+    it('no marca no leídos al enviar: los pone la conexión WS del receptor', async () => {
       const { ctx, conversacionActiva } = setup()
       conversacionActiva.value = { personajeId: 7, personajeNombre: 'Hero' }
 
       ctx.enviarMensajePrivadoWs('hola')
 
-      expect(ctx.noLeidosCharacter.value.get(7)).toBe(1)
-      expect(websocketService.sendPrivateMessage).toHaveBeenCalledWith(7, 'hola')
+      expect(ctx.noLeidosCharacter.value.get(7)).toBeUndefined()
+      expect(websocketService.sendPrivateMessage).toHaveBeenCalledWith(1, 7, 'hola')
     })
 
     it('ignora texto vacío o sin conversación activa', () => {

@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { computed, ref, type Ref } from 'vue'
 import { nextTick } from 'vue'
 import { chatApi } from '../../../services/chatApi'
 import { characterSessionStore } from '../../../store/characterSessionStore'
@@ -108,6 +108,8 @@ export function useChatMensajes({
     }
   }
 
+  const sesionId = computed(() => characterSessionStore.sesionActual.value?.idSesion)
+
   async function enviarMensaje(texto: string) {
     if (!texto.trim() || enviando.value || !canalActivo.value) return
     channelMentionedMap.value.set(canalActivo.value.id, false)
@@ -115,8 +117,8 @@ export function useChatMensajes({
     enviando.value = true
     const mensajePadreId = mensajeEnRespuesta.value?.id ?? null
     const token = characterSessionStore.getToken()
-    if (websocketService.connected.value && token) {
-      websocketService.sendChannelMessage(canalActivo.value.id, texto, mensajePadreId)
+    if (sesionId.value != null && websocketService.isConnected(sesionId.value) && token) {
+      websocketService.sendChannelMessage(sesionId.value, canalActivo.value.id, texto, mensajePadreId)
       mensajeEnRespuesta.value = null
       enviando.value = false
     } else {

@@ -21,6 +21,7 @@ import { useChatBusqueda } from './composables/useChatBusqueda'
 import { useChatPrivado } from './composables/useChatPrivado'
 import { useChatModeracion } from './composables/useChatModeracion'
 import { useChatDenuncias } from './composables/useChatDenuncias'
+import { registrarMensajeNoLeido, inicializarOSumarUltimo } from './chatNoLeidos'
 
 const router = useRouter()
 
@@ -68,16 +69,23 @@ function alternarSidebar() {
 }
 
 // ---- Estado de la conexion ----
-// El cliente STOMP reintenta solo cada 5 s. Exponemos su estado para avisar de
-// que los mensajes nuevos pueden no estar llegando mientras se reconecta.
-const wsConectado = websocketService.connected
-const conexionSolicitada = ref(false)
-const reconectando = ref(false)
+// Hay una conexion STOMP por sesion de personaje. El aviso amarillo solo se
+// muestra cuando la conexion de la sesion activa, que ya habia funcionado,
+// se cae: nunca al cambiar de pestaña ni durante la conexion inicial.
+const sesionActivaId = computed(() => characterSessionStore.sesionActual.value?.idSesion ?? null)
+const wsConectado = computed(() =>
+  sesionActivaId.value != null && websocketService.isConnected(sesionActivaId.value)
+)
+const conexionesEstablecidas = ref<Set<number>>(new Set())
+const conexionPerdida = computed(() =>
+  sesionActivaId.value != null &&
+  conexionesEstablecidas.value.has(sesionActivaId.value) &&
+  !wsConectado.value
+)
 
-watch(wsConectado, (conectado) => {
-  if (conectado) reconectando.value = false
-  else if (conexionSolicitada.value) reconectando.value = true
-})
+function marcarConexionEstablecida(idSesion: number) {
+  conexionesEstablecidas.value = new Set([...conexionesEstablecidas.value, idSesion])
+}
 
 function alCambiarLayout() {
   esMovil.value = consultaMovil.matches
@@ -160,8 +168,12 @@ const PAGE_SIZE = 15
 const unreadCountMap = ref<Map<number, number>>(new Map())
 const channelMentionedMap = ref<Map<number, boolean>>(new Map())
 const channelLastSeenIds = ref<Record<number, number>>({})
+// Ids de mensajes ya contados como no leidos: evita que el mismo mensaje
+// cuente dos veces (WS + recarga, o cambios de sesion).
+const unreadIdsPorCanal = ref<Record<number, Set<number>>>({})
 
 const chatEditorRef = ref<InstanceType<typeof ChatEditor> | null>(null)
+const chatEditorPrivadoRef = ref<InstanceType<typeof ChatEditor> | null>(null)
 const buscadorInputRef = ref<HTMLInputElement | null>(null)
 
 function abrirBuscador() {
@@ -529,7 +541,6 @@ async function buscarPersonajesParaInvitar(termino: string) {
  */
 async function abrirCanalTrasInvitacion(canalId: number) {
   await cargarCanalesUnidos()
-  suscribirCanales()
   const canal = canalesUnidos.value.find((c: any) => c.id === canalId)
   if (!canal) {
     mostrarMensajeModal(
@@ -589,10 +600,37 @@ watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
 })
 
-let wsSubscriptions: string[] = []
-let persistentSubscriptions: string[] = []
+interface SuscripcionesSesion {
+  persistentes: string[]
+  canales: string[]
+  presenciaCanal?: string | null
+}
+
+const suscripcionesPorSesion = new Map<number, SuscripcionesSesion>()
 let channelPresenceSubscription: string | null = null
 let pollingInterval: number | null = null
+let cambiandoSesion = false
+
+function susDe(sesionId: number): SuscripcionesSesion {
+  let sus = suscripcionesPorSesion.get(sesionId)
+  if (!sus) {
+    sus = { persistentes: [], canales: [], presenciaCanal: null }
+    suscripcionesPorSesion.set(sesionId, sus)
+  }
+  return sus
+}
+
+function limpiarSuscripciones(sesionId: number) {
+  const sus = suscripcionesPorSesion.get(sesionId)
+  if (!sus) return
+  sus.persistentes.forEach(s => websocketService.unsubscribe(sesionId, s))
+  sus.canales.forEach(s => websocketService.unsubscribe(sesionId, s))
+  suscripcionesPorSesion.delete(sesionId)
+}
+
+function esSesionActiva(sesion: { idSesion: number }): boolean {
+  return characterSessionStore.sesionActual.value?.idSesion === sesion.idSesion
+}
 
 async function cargarPersonajes() {
   if (!userStore.usuario.value?.id) return
@@ -611,33 +649,12 @@ async function cargarPersonajes() {
 async function iniciarSesionPersonaje(personajeId: number) {
   try {
     guardarEstadoSesion()
-    await characterSessionStore.iniciarSesion(personajeId)
+    const sesion = await characterSessionStore.iniciarSesion(personajeId)
     mostrarSelectorPersonajes.value = false
-    canalActivo.value = null
-    conversacionActiva.value = null
-    mensajes.value = []
-    mensajesPrivados.value = []
-    miembros.value = []
-    miembrosOnline.value = []
-    canalesUnidos.value = []
-    conversacionesPrivadas.value = []
-    unreadCountMap.value = new Map()
-    noLeidosPriv.value = new Map()
-    channelMentionedMap.value = new Map()
-    channelLastSeenIds.value = {}
-    cargandoCanales.value = true
-    persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
-    persistentSubscriptions = []
-    wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
-    wsSubscriptions = []
-    if (channelPresenceSubscription) {
-      websocketService.unsubscribe(channelPresenceSubscription)
-      channelPresenceSubscription = null
-    }
-    await websocketService.disconnect()
-    await conectarWebSocket()
-    await cargarCanalesUnidos()
-    suscribirCanales()
+    estadoDe(sesion.personajeId) // crea su estado UI vacio
+    aplicarEstadoVacio()
+    // El nuevo personaje se conecta sin desconectar a los demas.
+    await conectarSesion(sesion)
   } catch (e: any) {
     console.error('[Chat] Error al conectar personaje:', e)
     mostrarMensajeModal('Error', e.response?.data?.error || e.message || 'Error al iniciar sesión')
@@ -656,13 +673,24 @@ async function ejecutarDesconectar() {
   const idx = personajeDesconectarIdx.value
   mostrarConfirmacionDesconectar.value = false
   personajeDesconectarIdx.value = -1
-  if (idx >= 0) {
-    if (idx !== characterSessionStore.sesionActualIdx.value) {
-      guardarEstadoSesion()
-      characterSessionStore.seleccionarSesion(idx)
-    }
+  if (idx < 0) return
+  const sesion = characterSessionStore.sesiones.value[idx]
+  if (!sesion) return
+  guardarEstadoSesion()
+  if (idx === characterSessionStore.sesionActualIdx.value) {
     await cerrarSesionPersonaje()
+    return
   }
+  // Cerrar una pestaña inactiva no toca la conexion ni el estado del activo.
+  limpiarSuscripciones(sesion.idSesion)
+  try { await websocketService.disconnect(sesion.idSesion) } catch {}
+  try { await characterSessionStore.cerrarSesion(sesion) } catch {}
+  estadosSesion.delete(sesion.personajeId)
+  conexionesEstablecidas.value = new Set(
+    [...conexionesEstablecidas.value].filter(id => id !== sesion.idSesion)
+  )
+  onlineMap.value.set(sesion.personajeId, false)
+  onlineMap.value = new Map(onlineMap.value)
 }
 
 const personajeDesconectar = computed(() => {
@@ -672,41 +700,41 @@ const personajeDesconectar = computed(() => {
 
 async function cerrarSesionPersonaje() {
   guardarEstadoSesion()
-  const closedPersonajeId = characterSessionStore.sesionActual.value?.personajeId
-  try { await websocketService.disconnect() } catch {}
+  const sesion = characterSessionStore.sesionActual.value
+  if (!sesion) return
+  const closedPersonajeId = sesion.personajeId
+  limpiarSuscripciones(sesion.idSesion)
+  try { await websocketService.disconnect(sesion.idSesion) } catch {}
   try { await characterSessionStore.cerrarSesionActual() } catch {}
+  estadosSesion.delete(closedPersonajeId)
+  conexionesEstablecidas.value = new Set(
+    [...conexionesEstablecidas.value].filter(id => id !== sesion.idSesion)
+  )
   if (closedPersonajeId != null) {
     onlineMap.value.set(closedPersonajeId, false)
     onlineMap.value = new Map(onlineMap.value)
   }
-  canalActivo.value = null
-  mensajes.value = []
-  miembros.value = []
-  canalesUnidos.value = []
-  if (channelPresenceSubscription) {
-    websocketService.unsubscribe(channelPresenceSubscription)
-    channelPresenceSubscription = null
-  }
   if (characterSessionStore.sesiones.value.length > 0) {
-    const conCache = restaurarEstadoSesion()
-    try { await reconectarSesion(conCache) } catch {}
+    restaurarEstadoSesion()
+  } else {
+    aplicarEstadoVacio()
   }
 }
 
 async function cerrarTodasSesiones() {
-  try { await websocketService.disconnect() } catch {}
+  for (const sesion of [...characterSessionStore.sesiones.value]) {
+    limpiarSuscripciones(sesion.idSesion)
+    try { await websocketService.disconnect(sesion.idSesion) } catch {}
+  }
   try { await characterSessionStore.cerrarTodas() } catch {
     characterSessionStore.sesiones.value = []
     characterSessionStore.sesionActualIdx.value = 0
   }
-  canalActivo.value = null
-  mensajes.value = []
-  miembros.value = []
-  canalesUnidos.value = []
-  if (channelPresenceSubscription) {
-    websocketService.unsubscribe(channelPresenceSubscription)
-    channelPresenceSubscription = null
-  }
+  estadosSesion.clear()
+  idsPrivadosVistos.clear()
+  conexionesEstablecidas.value = new Set()
+  noLeidosCharacter.value = new Map()
+  aplicarEstadoVacio()
 }
 
 /**
@@ -715,31 +743,43 @@ async function cerrarTodasSesiones() {
  * la suspension global del canal.
  */
 function quitarCanalDeListas(canalId: number) {
+  const sesion = characterSessionStore.sesionActual.value
+  if (!sesion) return
   canalesUnidos.value = canalesUnidos.value.filter((c: any) => c.id !== canalId)
   canalesOficiales.value = canalesOficiales.value.filter((c: any) => c.id !== canalId)
   canalesUsuarios.value = canalesUsuarios.value.filter((c: any) => c.id !== canalId)
+  estadoDe(sesion.personajeId).canalesUnidos = canalesUnidos.value
   if (canalActivo.value?.id === canalId) {
     canalActivo.value = null
     mensajes.value = []
     miembros.value = []
     if (channelPresenceSubscription) {
-      websocketService.unsubscribe(channelPresenceSubscription)
+      websocketService.unsubscribe(sesion.idSesion, channelPresenceSubscription)
       channelPresenceSubscription = null
     }
   }
   unreadCountMap.value.delete(canalId)
   unreadCountMap.value = new Map(unreadCountMap.value)
-  websocketService.unsubscribe(`channel-${canalId}`)
-  websocketService.unsubscribe(`channel-presence-${canalId}`)
+  websocketService.unsubscribe(sesion.idSesion, `channel-${canalId}`)
+  websocketService.unsubscribe(sesion.idSesion, `channel-presence-${canalId}`)
 }
 
-async function conectarWebSocket() {
-  const token = characterSessionStore.getToken()
-  if (!token) return
-  conexionSolicitada.value = true
+/**
+ * Conecta una sesion de personaje sin tocar las demas. Cada conexion tiene sus
+ * propias suscripciones y sus callbacks escriben en el estado de SU personaje,
+ * asi que todos los personajes activos reciben mensajes a la vez aunque solo
+ * uno este visible.
+ */
+async function conectarSesion(sesion: any) {
+  if (!sesion?.tokenJwt) return
   try {
-    await websocketService.connect(token)
-    const subPres = websocketService.subscribeToPresence((data: any) => {
+    await websocketService.connect(sesion.idSesion, sesion.tokenJwt)
+    marcarConexionEstablecida(sesion.idSesion)
+    const sus = susDe(sesion.idSesion)
+    sus.persistentes.forEach(s => websocketService.unsubscribe(sesion.idSesion, s))
+    sus.persistentes = []
+
+    const subPres = websocketService.subscribeToPresence(sesion.idSesion, (data: any) => {
       onlineMap.value.set(data.personajeId, data.online)
       onlineMap.value = new Map(onlineMap.value)
       if (data.status) {
@@ -748,12 +788,12 @@ async function conectarWebSocket() {
       }
       cargarMiembrosOnline(true)
     })
-    persistentSubscriptions.push(subPres)
-    const charId = characterSessionStore.sesionActual.value?.personajeId
-    if (charId == null) return
-    const subPm = websocketService.subscribeToPrivateMessages(charId, (data: any) => {
+    sus.persistentes.push(subPres)
+
+    const pid = sesion.personajeId
+    const subPm = websocketService.subscribeToPrivateMessages(sesion.idSesion, pid, (data: any) => {
       if (data.tipo === 'SILENCIADO' || data.tipo === 'DESILENCIADO') {
-        if (canalActivo.value?.id === data.canalId) cargarMiembrosOnline()
+        if (esSesionActiva(sesion) && canalActivo.value?.id === data.canalId) cargarMiembrosOnline()
         if (data.tipo === 'SILENCIADO' && data.silenciadoHasta) {
           mostrarMensajeModal(
             'Has sido silenciado',
@@ -765,7 +805,8 @@ async function conectarWebSocket() {
         return
       }
       if (data.tipo === 'CANAL_SUSPENDIDO') {
-        quitarCanalDeListas(data.canalId)
+        if (esSesionActiva(sesion)) quitarCanalDeListas(data.canalId)
+        else quitarCanalDeListasDe(sesion, data.canalId)
         const hasta = data.hasta
           ? ` hasta ${new Date(data.hasta).toLocaleString('es-ES', { dateStyle: 'short', timeStyle: 'short' })}`
           : ' de forma indefinida'
@@ -777,17 +818,21 @@ async function conectarWebSocket() {
         return
       }
       if (data.tipo === 'CANAL_RESTAURADO') {
-        void cargarCanalesUnidos()
-        if (mostrarListaCanales.value) void cargarListaCanales()
+        void recargarCanalesDe(sesion)
+        if (esSesionActiva(sesion) && mostrarListaCanales.value) void cargarListaCanales()
         return
       }
       if (data.tipo === 'EXPULSADO' || data.tipo === 'BANEADO' || data.tipo === 'CANAL_ELIMINADO') {
-        quitarCanalDeListas(data.canalId)
+        if (esSesionActiva(sesion)) quitarCanalDeListas(data.canalId)
+        else quitarCanalDeListasDe(sesion, data.canalId)
         return
       }
       if (data.tipo === 'INVITACION_ACEPTADA' || data.tipo === 'INVITACION_RECHAZADA') {
         const estado = data.tipo === 'INVITACION_ACEPTADA' ? 'ACEPTADA' : 'RECHAZADA'
-        for (const m of mensajesPrivados.value) {
+        const activa = esSesionActiva(sesion)
+        const e = estadoDe(pid)
+        const mensajes = activa ? mensajesPrivados.value : e.mensajesPrivados
+        for (const m of mensajes) {
           if (m.invitacion?.id === data.invitacionId) m.invitacion.estado = estado
         }
         if (data.tipo === 'INVITACION_ACEPTADA') {
@@ -795,54 +840,103 @@ async function conectarWebSocket() {
             'Invitación aceptada',
             `${data.personajeNombre || 'El personaje'} se ha unido a ${data.canalNombre || 'tu canal'}.`
           )
-          if (canalActivo.value?.id === data.canalId) void cargarMiembrosOnline()
+          if (activa && canalActivo.value?.id === data.canalId) void cargarMiembrosOnline()
         }
         return
       }
-      const pid = characterSessionStore.sesionActual.value?.personajeId
+
+      const activa = esSesionActiva(sesion)
+      const e = estadoDe(pid)
+      // El backend calcula esMio con el emisor; cada conexion lo normaliza
+      // con su propio personaje.
       data.esMio = data.emisorId === pid
-      if (conversacionActiva.value?.personajeId === data.emisorId) {
-        mensajesPrivados.value.push(data)
-        nextTick(() => scrollAlFinal())
-      } else if (data.emisorId === pid && data.receptorId != null) {
-        const esOtroPersonaje = characterSessionStore.sesiones.value.some(
-          s => s.personajeId === data.receptorId
-        )
-        if (esOtroPersonaje) {
-          const charCount = noLeidosCharacter.value.get(data.receptorId) || 0
-          noLeidosCharacter.value.set(data.receptorId, charCount + 1)
-          noLeidosCharacter.value = new Map(noLeidosCharacter.value)
-          reproducirSonidoPM()
-          notificarPush('Mensaje privado', truncarTexto(data.contenido || ''))
-        }
-      } else if (data.emisorId !== pid) {
-        const count = noLeidosPriv.value.get(data.emisorId) || 0
-        noLeidosPriv.value.set(data.emisorId, count + 1)
-        noLeidosPriv.value = new Map(noLeidosPriv.value)
-        if (pid != null) {
-          const charCount = noLeidosCharacter.value.get(pid) || 0
-          noLeidosCharacter.value.set(pid, charCount + 1)
-          noLeidosCharacter.value = new Map(noLeidosCharacter.value)
-        }
+      const convActiva = activa ? conversacionActiva.value : e.conversacionActiva
+      const mensajesPriv = activa ? mensajesPrivados.value : e.mensajesPrivados
+      const convs = activa ? conversacionesPrivadas.value : e.conversacionesPrivadas
+      const noLeidos = activa ? noLeidosPriv.value : e.noLeidosPriv
+
+      if (!idsPrivadosVistos.has(pid)) idsPrivadosVistos.set(pid, new Set())
+      const vistos = idsPrivadosVistos.get(pid)!
+      const esNuevo = data.id == null || !vistos.has(data.id)
+      if (data.id != null) vistos.add(data.id)
+
+      const conConversacionAbierta = convActiva?.personajeId === data.emisorId ||
+        (data.esMio && convActiva?.personajeId === data.receptorId)
+      if (conConversacionAbierta) {
+        if (!mensajesPriv.some((m: any) => m.id === data.id)) mensajesPriv.push(data)
+        if (activa) nextTick(() => scrollAlFinal())
+      } else if (!data.esMio && esNuevo) {
+        const otroId = data.emisorId
+        noLeidos.set(otroId, (noLeidos.get(otroId) || 0) + 1)
+        const charCount = noLeidosCharacter.value.get(pid) || 0
+        noLeidosCharacter.value.set(pid, charCount + 1)
+        noLeidosCharacter.value = new Map(noLeidosCharacter.value)
         reproducirSonidoPM()
         notificarPush(data.emisorNombre || 'Mensaje privado', truncarTexto(data.contenido || ''))
       }
-      cargarConversaciones()
-    })
-    persistentSubscriptions.push(subPm)
-    for (const s of characterSessionStore.sesiones.value) {
-      onlineMap.value.set(s.personajeId, true)
-      if (!statusMap.value.has(s.personajeId)) {
-        statusMap.value.set(s.personajeId, 'conectado')
+
+      const otroId = data.esMio ? data.receptorId : data.emisorId
+      const conv = convs.find((c: any) => c.personajeId === otroId)
+      if (conv) { conv.ultimoMensaje = data.contenido; conv.fecha = data.fechaEnvio }
+      if (activa) {
+        noLeidosPriv.value = new Map(noLeidos)
+        conversacionesPrivadas.value = [...convs]
       }
-    }
+      void recargarConversacionesDe(sesion)
+    })
+    sus.persistentes.push(subPm)
+
+    onlineMap.value.set(pid, true)
+    if (!statusMap.value.has(pid)) statusMap.value.set(pid, 'conectado')
     onlineMap.value = new Map(onlineMap.value)
     statusMap.value = new Map(statusMap.value)
-    cargarConversaciones()
+
+    const { data: canales } = await chatApi.obtenerCanalesUnidos(sesion.tokenJwt)
+    const e = estadoDe(pid)
+    e.canalesUnidos = canales || []
+    if (esSesionActiva(sesion)) {
+      canalesUnidos.value = e.canalesUnidos
+      cargandoCanales.value = false
+      void cargarCanalesInvitables()
+    }
+    suscribirCanales(sesion)
+
+    const convs = await cargarConversaciones(sesion.tokenJwt, pid)
+    e.conversacionesPrivadas = convs.conversaciones
+    e.noLeidosPriv = convs.noLeidos
+    if (esSesionActiva(sesion)) {
+      conversacionesPrivadas.value = convs.conversaciones
+      noLeidosPriv.value = new Map(convs.noLeidos)
+    }
+    await actualizarNoLeidos(sesion)
+  } catch (e: any) {
+    console.error('[ChatWindow] Error conectando sesion:', e)
+    if (e?.response?.status === 401 || e?.response?.status === 403) await cerrarTodasSesiones()
+  }
+}
+
+async function recargarCanalesDe(sesion: any) {
+  try {
+    const { data } = await chatApi.obtenerCanalesUnidos(sesion.tokenJwt)
+    const canales = data || []
+    estadoDe(sesion.personajeId).canalesUnidos = canales
+    if (esSesionActiva(sesion)) canalesUnidos.value = canales
+    suscribirCanales(sesion)
   } catch {}
 }
 
-interface SessionCacheEntry {
+async function recargarConversacionesDe(sesion: any) {
+  const convs = await cargarConversaciones(sesion.tokenJwt, sesion.personajeId)
+  const e = estadoDe(sesion.personajeId)
+  e.conversacionesPrivadas = convs.conversaciones
+  e.noLeidosPriv = convs.noLeidos
+  if (esSesionActiva(sesion)) {
+    conversacionesPrivadas.value = convs.conversaciones
+    noLeidosPriv.value = new Map(convs.noLeidos)
+  }
+}
+
+interface EstadoSesionUI {
   canalActivo: any
   canalesUnidos: any[]
   channelLastSeen: Record<number, number>
@@ -851,21 +945,91 @@ interface SessionCacheEntry {
   pagina: number
   hayMasMensajes: boolean
   usuarioScrolledUp: boolean
-  conversacionActiva?: any
-  mensajesPrivados?: any[]
-  conversacionesPrivadas?: any[]
+  conversacionActiva: any | null
+  mensajesPrivados: any[]
+  conversacionesPrivadas: any[]
+  unreadCount: Map<number, number>
+  unreadIds: Record<number, Set<number>>
+  noLeidosPriv: Map<number, number>
+  channelMentioned: Map<number, boolean>
+  borradorCanal: string
+  borradorPrivado: string
 }
 
-const sessionCache = new Map<number, SessionCacheEntry>()
+const estadosSesion = new Map<number, EstadoSesionUI>()
+const idsPrivadosVistos = new Map<number, Set<number>>()
+
+function estadoVacioSesion(): EstadoSesionUI {
+  return {
+    canalActivo: null,
+    canalesUnidos: [],
+    channelLastSeen: {},
+    mensajes: [],
+    pagina: 0,
+    hayMasMensajes: true,
+    usuarioScrolledUp: false,
+    conversacionActiva: null,
+    mensajesPrivados: [],
+    conversacionesPrivadas: [],
+    unreadCount: new Map(),
+    unreadIds: {},
+    noLeidosPriv: new Map(),
+    channelMentioned: new Map(),
+    borradorCanal: '',
+    borradorPrivado: '',
+  }
+}
+
+function estadoDe(personajeId: number): EstadoSesionUI {
+  let estado = estadosSesion.get(personajeId)
+  if (!estado) {
+    estado = estadoVacioSesion()
+    estadosSesion.set(personajeId, estado)
+  }
+  return estado
+}
+
+function clonarUnreadIds(ids: Record<number, Set<number>>): Record<number, Set<number>> {
+  const copia: Record<number, Set<number>> = {}
+  for (const [canalId, conjunto] of Object.entries(ids)) {
+    copia[Number(canalId)] = new Set(conjunto)
+  }
+  return copia
+}
+
+function aplicarEstadoVacio() {
+  canalActivo.value = null
+  conversacionActiva.value = null
+  mensajes.value = []
+  canalesUnidos.value = []
+  channelLastSeenIds.value = {}
+  unreadCountMap.value = new Map()
+  unreadIdsPorCanal.value = {}
+  channelMentionedMap.value = new Map()
+  noLeidosPriv.value = new Map()
+  mensajesPrivados.value = []
+  conversacionesPrivadas.value = []
+  pagina.value = 0
+  hayMasMensajes.value = true
+  usuarioScrolledUp.value = false
+  channelPresenceSubscription = null
+  void nextTick(() => {
+    chatEditorRef.value?.limpiar?.()
+    chatEditorPrivadoRef.value?.limpiar?.()
+  })
+}
 
 function guardarEstadoSesion() {
-  const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid == null) return
-  sessionCache.set(pid, {
+  const sesion = characterSessionStore.sesionActual.value
+  if (!sesion) return
+  if (channelPresenceSubscription) {
+    susDe(sesion.idSesion).presenciaCanal = channelPresenceSubscription
+  }
+  estadosSesion.set(sesion.personajeId, {
     canalActivo: canalActivo.value,
     canalesUnidos: canalesUnidos.value,
     channelLastSeen: { ...channelLastSeenIds.value },
-    status: statusMap.value.get(pid),
+    status: statusMap.value.get(sesion.personajeId),
     mensajes: mensajes.value,
     pagina: pagina.value,
     hayMasMensajes: hayMasMensajes.value,
@@ -873,172 +1037,175 @@ function guardarEstadoSesion() {
     conversacionActiva: conversacionActiva.value,
     mensajesPrivados: mensajesPrivados.value,
     conversacionesPrivadas: conversacionesPrivadas.value,
+    unreadCount: new Map(unreadCountMap.value),
+    unreadIds: clonarUnreadIds(unreadIdsPorCanal.value),
+    noLeidosPriv: new Map(noLeidosPriv.value),
+    channelMentioned: new Map(channelMentionedMap.value),
+    borradorCanal: chatEditorRef.value?.getContenido?.() ?? '',
+    borradorPrivado: chatEditorPrivadoRef.value?.getContenido?.() ?? '',
   })
 }
 
-function restaurarEstadoSesion(): boolean {
-  const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid == null) return false
-  const cached = sessionCache.get(pid)
-  if (cached) {
-    if (cached.conversacionActiva) {
-      canalActivo.value = null
-      conversacionActiva.value = cached.conversacionActiva
-      mensajesPrivados.value = cached.mensajesPrivados || []
-    } else {
-      canalActivo.value = cached.canalActivo
-      conversacionActiva.value = null
-      mensajesPrivados.value = []
-    }
-    canalesUnidos.value = cached.canalesUnidos
-    channelLastSeenIds.value = cached.channelLastSeen ?? {}
-    if (cached.status) {
-      statusMap.value.set(pid, cached.status)
-      statusMap.value = new Map(statusMap.value)
-    }
-    mensajes.value = cached.mensajes
-    pagina.value = cached.pagina
-    hayMasMensajes.value = cached.hayMasMensajes
-    usuarioScrolledUp.value = cached.usuarioScrolledUp
-    conversacionesPrivadas.value = cached.conversacionesPrivadas || []
-    if (canalActivo.value && !canalesUnidos.value.some((c: any) => c.id === canalActivo.value.id)) {
-      canalActivo.value = null
-      mensajes.value = []
-    }
-  } else {
-    canalActivo.value = null
-    conversacionActiva.value = null
-    mensajesPrivados.value = []
-    canalesUnidos.value = []
-    channelLastSeenIds.value = {}
-    mensajes.value = []
-    pagina.value = 0
-    hayMasMensajes.value = true
-    usuarioScrolledUp.value = false
-    conversacionesPrivadas.value = []
+function restaurarEstadoSesion() {
+  const sesion = characterSessionStore.sesionActual.value
+  if (!sesion) { aplicarEstadoVacio(); return }
+  const estado = estadoDe(sesion.personajeId)
+  canalActivo.value = estado.canalActivo ?? null
+  conversacionActiva.value = estado.conversacionActiva ?? null
+  mensajes.value = estado.mensajes ?? []
+  canalesUnidos.value = estado.canalesUnidos ?? []
+  channelLastSeenIds.value = { ...estado.channelLastSeen }
+  pagina.value = estado.pagina
+  hayMasMensajes.value = estado.hayMasMensajes
+  usuarioScrolledUp.value = estado.usuarioScrolledUp
+  mensajesPrivados.value = estado.mensajesPrivados ?? []
+  conversacionesPrivadas.value = estado.conversacionesPrivadas ?? []
+  unreadCountMap.value = new Map(estado.unreadCount)
+  unreadIdsPorCanal.value = clonarUnreadIds(estado.unreadIds)
+  channelMentionedMap.value = new Map(estado.channelMentioned)
+  noLeidosPriv.value = new Map(estado.noLeidosPriv)
+  if (estado.status) {
+    statusMap.value.set(sesion.personajeId, estado.status)
+    statusMap.value = new Map(statusMap.value)
   }
-  noLeidosPriv.value = new Map()
-  unreadCountMap.value = new Map()
-  return !!cached
+  if (conversacionActiva.value) {
+    noLeidosCharacter.value.set(sesion.personajeId, 0)
+    noLeidosCharacter.value = new Map(noLeidosCharacter.value)
+  }
+  channelPresenceSubscription = susDe(sesion.idSesion).presenciaCanal ?? null
+  void nextTick(() => {
+    chatEditorRef.value?.setContenido?.(estado.borradorCanal || '')
+    chatEditorPrivadoRef.value?.setContenido?.(estado.borradorPrivado || '')
+    if (!usuarioScrolledUp.value) scrollAlFinal()
+  })
 }
 
-function suscribirCanales() {
-  wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
-  wsSubscriptions = []
-  for (const canal of canalesUnidos.value) {
-    const subMsgs = websocketService.subscribeToChannel(canal.id, (msg: any) => {
-      const pid = characterSessionStore.sesionActual.value?.personajeId
-      msg.esMio = msg.personajeId === pid
-      if (canalActivo.value?.id === canal.id) {
-        const idx = mensajes.value.findIndex((m: any) => m.id === msg.id)
+/** Version de `quitarCanalDeListas` para una sesion que no esta visible. */
+function quitarCanalDeListasDe(sesion: any, canalId: number) {
+  const e = estadoDe(sesion.personajeId)
+  e.canalesUnidos = e.canalesUnidos.filter((c: any) => c.id !== canalId)
+  if (e.canalActivo?.id === canalId) {
+    e.canalActivo = null
+    e.mensajes = []
+  }
+  e.unreadCount.delete(canalId)
+  delete e.unreadIds[canalId]
+  e.channelMentioned.delete(canalId)
+}
+
+function suscribirCanales(sesion: any) {
+  const sus = susDe(sesion.idSesion)
+  sus.canales.forEach(s => websocketService.unsubscribe(sesion.idSesion, s))
+  sus.canales = []
+  const e = estadoDe(sesion.personajeId)
+  const activa = esSesionActiva(sesion)
+  const canales = activa ? canalesUnidos.value : e.canalesUnidos
+  for (const canal of canales) {
+    const subMsgs = websocketService.subscribeToChannel(sesion.idSesion, canal.id, (msg: any) => {
+      // esMio se calcula con el dueno de la conexion, no con el personaje activo.
+      msg.esMio = msg.personajeId === sesion.personajeId
+      const activaAhora = esSesionActiva(sesion)
+      const estado = estadoDe(sesion.personajeId)
+      const mensajesDestino = activaAhora ? mensajes.value : estado.mensajes
+      const canalAbierto = (activaAhora ? canalActivo.value : estado.canalActivo)?.id === canal.id
+      const lastSeen = activaAhora ? channelLastSeenIds.value : estado.channelLastSeen
+
+      if (canalAbierto) {
+        const idx = mensajesDestino.findIndex((m: any) => m.id === msg.id)
         if (idx >= 0) {
-          const existing = mensajes.value[idx]
+          const existing = mensajesDestino[idx]
           if (existing.eliminado) return
-          mensajes.value[idx] = msg
+          mensajesDestino[idx] = msg
         } else {
-          mensajes.value.push(msg)
-          if (!usuarioScrolledUp.value) scrollAlFinal()
+          mensajesDestino.push(msg)
+          if (activaAhora && !usuarioScrolledUp.value) scrollAlFinal()
         }
-        if (msg.id > (channelLastSeenIds.value[canal.id] ?? 0)) {
-          channelLastSeenIds.value[canal.id] = msg.id
-        }
-      } else {
-        if (msg.eliminado) return
-        const current = unreadCountMap.value.get(canal.id) || 0
-        unreadCountMap.value.set(canal.id, current + 1)
-        unreadCountMap.value = new Map(unreadCountMap.value)
-        const content = (msg.contenido || '').replace(/&#64;/g, '@')
-        const anyMentioned = characterSessionStore.sesiones.value
-          .filter((s: any) => s.personajeId !== msg.personajeId)
-          .some((s: any) => content.includes(`@${s.personajeNombre}`))
-        if (anyMentioned) {
-          channelMentionedMap.value.set(canal.id, true)
-          channelMentionedMap.value = new Map(channelMentionedMap.value)
-          reproducirSonidoPM()
-          notificarPush('Te mencionaron en #' + (canal.nombre || 'canal'), truncarTexto(msg.contenido || ''))
-        }
+        if (msg.id > (lastSeen[canal.id] ?? 0)) lastSeen[canal.id] = msg.id
+        if (activaAhora) channelLastSeenIds.value = { ...lastSeen }
+        return
+      }
+
+      if (msg.eliminado) return
+      const ids = activaAhora ? unreadIdsPorCanal.value : estado.unreadIds
+      const counts = activaAhora ? unreadCountMap.value : estado.unreadCount
+      const mentioned = activaAhora ? channelMentionedMap.value : estado.channelMentioned
+      registrarMensajeNoLeido({ lastSeen, ids, counts }, canal.id, msg.id)
+      const contenido = (msg.contenido || '').replace(/&#64;/g, '@')
+      const mencionado = msg.personajeId !== sesion.personajeId &&
+        contenido.includes(`@${sesion.personajeNombre}`)
+      if (mencionado) mentioned.set(canal.id, true)
+      if (activaAhora) {
+        unreadIdsPorCanal.value = { ...ids }
+        unreadCountMap.value = new Map(counts)
+        channelMentionedMap.value = new Map(mentioned)
+      }
+      if (mencionado) {
+        reproducirSonidoPM()
+        notificarPush('Te mencionaron en #' + (canal.nombre || 'canal'), truncarTexto(msg.contenido || ''))
       }
     })
-    wsSubscriptions.push(subMsgs)
+    sus.canales.push(subMsgs)
   }
 }
 
-async function actualizarNoLeidos() {
-  const activoId = canalActivo.value?.id ?? -1
-  const promises = canalesUnidos.value
-    .filter((c: any) => c.id !== activoId)
+async function actualizarNoLeidos(sesion: any) {
+  const activa = esSesionActiva(sesion)
+  const e = estadoDe(sesion.personajeId)
+  const canales = activa ? canalesUnidos.value : e.canalesUnidos
+  const lastSeen = activa ? channelLastSeenIds.value : e.channelLastSeen
+  const ids = activa ? unreadIdsPorCanal.value : e.unreadIds
+  const counts = activa ? unreadCountMap.value : e.unreadCount
+  const canalAbiertoId = (activa ? canalActivo.value : e.canalActivo)?.id ?? -1
+
+  await Promise.all(canales
+    .filter((c: any) => c.id !== canalAbiertoId)
     .map(async (c: any) => {
       try {
-        const { data } = await chatApi.obtenerMensajesCanal(c.id, 0, 1)
-        const content: any[] = data.content || []
-        const ultimo = content[0]
-        if (ultimo && !ultimo.eliminado && ultimo.id > (channelLastSeenIds.value[c.id] ?? 0)) {
-          const current = unreadCountMap.value.get(c.id) || 0
-          unreadCountMap.value.set(c.id, current + 1)
-        }
+        const { data } = await chatApi.obtenerMensajesCanal(c.id, 0, 1, sesion.tokenJwt)
+        const ultimo: any = (data.content || [])[0]
+        if (!ultimo || ultimo.eliminado) return
+        // Primera carga: el historial antiguo no es un mensaje nuevo.
+        inicializarOSumarUltimo({ lastSeen, ids, counts }, c.id, ultimo.id)
       } catch {}
-    })
-  await Promise.all(promises)
-  unreadCountMap.value = new Map(unreadCountMap.value)
-}
+    }))
 
-async function reconectarSesion(conCache = false) {
-  await websocketService.disconnect()
-  persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
-  persistentSubscriptions = []
-  wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
-  wsSubscriptions = []
-  if (channelPresenceSubscription) {
-    websocketService.unsubscribe(channelPresenceSubscription)
-    channelPresenceSubscription = null
+  if (activa) {
+    channelLastSeenIds.value = { ...lastSeen }
+    unreadIdsPorCanal.value = { ...ids }
+    unreadCountMap.value = new Map(counts)
   }
-  await conectarWebSocket()
-  const pid = characterSessionStore.sesionActual.value?.personajeId
-  if (pid) {
-    const saved = sessionCache.get(pid)?.status
-    if (saved && saved !== 'conectado') {
-      try { await chatApi.actualizarStatus(pid, saved) } catch {}
-    }
-  }
-  if (conCache) {
-    cargandoCanales.value = false
-  } else {
-    await cargarCanalesUnidos()
-  }
-  await cargarConversaciones()
-  suscribirCanales()
-  if (canalActivo.value) {
-    if (mensajes.value.length === 0) {
-      try {
-        const { data } = await chatApi.obtenerMensajesCanal(canalActivo.value.id, 0, PAGE_SIZE)
-        const content: any[] = data.content || []
-        hayMasMensajes.value = !data.last
-        mensajes.value = content.reverse()
-        scrollAlFinal()
-      } catch { mensajes.value = [] }
-    } else {
-      await refrescarMensajesActivos()
-      scrollAlFinal()
-    }
-    cargarMiembrosOnline()
-  }
-  await actualizarNoLeidos()
 }
 
 async function cambiarSesion(index: number) {
-  if (index === characterSessionStore.sesionActualIdx.value) return
-  guardarEstadoSesion()
-  characterSessionStore.seleccionarSesion(index)
-  channelMentionedMap.value = new Map()
-  const conCache = restaurarEstadoSesion()
-  await reconectarSesion(conCache)
+  if (cambiandoSesion || index === characterSessionStore.sesionActualIdx.value) return
+  const sesion = characterSessionStore.sesiones.value[index]
+  if (!sesion) return
+  cambiandoSesion = true
+  try {
+    guardarEstadoSesion()
+    characterSessionStore.seleccionarSesion(index)
+    // Solo cambiamos que estado se muestra: no desconectamos, no reconectamos
+    // y no recargamos canales, asi que no aparece el aviso amarillo.
+    restaurarEstadoSesion()
+    if (canalActivo.value) {
+      await refrescarMensajesActivos()
+      scrollAlFinal()
+      cargarMiembrosOnline()
+    }
+  } finally {
+    cambiandoSesion = false
+  }
 }
 
 async function cargarCanalesUnidos() {
+  const sesion = characterSessionStore.sesionActual.value
+  if (!sesion) return
   cargandoCanales.value = true
   try {
-    const { data } = await chatApi.obtenerCanalesUnidos()
+    const { data } = await chatApi.obtenerCanalesUnidos(sesion.tokenJwt)
     canalesUnidos.value = data
+    estadoDe(sesion.personajeId).canalesUnidos = data
+    suscribirCanales(sesion)
   } catch (e: any) {
     console.error('[ChatWindow] Error cargando canales unidos:', e)
     if (e?.response?.status === 401 || e?.response?.status === 403) {
@@ -1053,6 +1220,7 @@ async function cargarCanalesUnidos() {
 }
 
 async function seleccionarCanal(canal: any) {
+  const sesion = characterSessionStore.sesionActual.value
   conversacionActiva.value = null
   canalActivo.value = canal
   mensajeEnRespuesta.value = null
@@ -1060,6 +1228,8 @@ async function seleccionarCanal(canal: any) {
   cerrarBusqueda()
   unreadCountMap.value.set(canal.id, 0)
   unreadCountMap.value = new Map(unreadCountMap.value)
+  delete unreadIdsPorCanal.value[canal.id]
+  unreadIdsPorCanal.value = { ...unreadIdsPorCanal.value }
   channelMentionedMap.value.set(canal.id, false)
   channelMentionedMap.value = new Map(channelMentionedMap.value)
   cargando.value = true
@@ -1067,21 +1237,27 @@ async function seleccionarCanal(canal: any) {
   pagina.value = 0
   hayMasMensajes.value = true
   usuarioScrolledUp.value = false
+  noLeidosCharacter.value.set(sesion?.personajeId ?? -1, 0)
+  noLeidosCharacter.value = new Map(noLeidosCharacter.value)
   if (esMovil.value) cerrarSidebar()
 
-  // Cancelar suscripción anterior de presencia por canal
-  if (channelPresenceSubscription) {
-    websocketService.unsubscribe(channelPresenceSubscription)
-    channelPresenceSubscription = null
+  // La presencia se suscribe en la conexion de la sesion activa.
+  if (sesion) {
+    if (channelPresenceSubscription) {
+      websocketService.unsubscribe(sesion.idSesion, channelPresenceSubscription)
+      channelPresenceSubscription = null
+    }
   }
 
   try {
-    const { data } = await chatApi.obtenerMensajesCanal(canal.id, 0, PAGE_SIZE)
+    const { data } = await chatApi.obtenerMensajesCanal(canal.id, 0, PAGE_SIZE, sesion?.tokenJwt)
     const content: any[] = data.content || []
     hayMasMensajes.value = !data.last
     mensajes.value = content.reverse()
     if (content.length > 0) {
       channelLastSeenIds.value[canal.id] = content[content.length - 1].id
+    } else if (channelLastSeenIds.value[canal.id] === undefined) {
+      channelLastSeenIds.value[canal.id] = 0
     }
   } catch (e: any) {
     if (e.response?.status === 403) errorMsg.value = 'No tienes acceso a este canal'
@@ -1092,9 +1268,8 @@ async function seleccionarCanal(canal: any) {
   }
   cargarMiembrosOnline()
 
-  // Suscribirse a la presencia por canal para actualizaciones en tiempo real
-  if (websocketService.connected.value) {
-    channelPresenceSubscription = websocketService.subscribeToChannelPresence(canal.id, (data: any) => {
+  if (sesion && websocketService.isConnected(sesion.idSesion)) {
+    channelPresenceSubscription = websocketService.subscribeToChannelPresence(sesion.idSesion, canal.id, (data: any) => {
       onlineMap.value.set(data.personajeId, data.online)
       onlineMap.value = new Map(onlineMap.value)
       if (data.status) {
@@ -1103,6 +1278,7 @@ async function seleccionarCanal(canal: any) {
       }
       cargarMiembrosOnline(true)
     })
+    susDe(sesion.idSesion).presenciaCanal = channelPresenceSubscription
   }
 }
 
@@ -1129,7 +1305,6 @@ async function unirseACanal(canalId: number) {
   try {
     await chatApi.unirseACanal(canalId)
     await cargarCanalesUnidos()
-    suscribirCanales()
     mostrarListaCanales.value = false
   } catch (e: any) {
     mostrarMensajeModal('Error', e.response?.data?.error || 'Error al unirse')
@@ -1247,7 +1422,6 @@ async function crearCanal() {
     nuevoCanalData.value = { nombre: '', descripcion: '', privado: false }
     quitarImagenCanal()
     await cargarCanalesUnidos()
-    suscribirCanales()
     seleccionarCanal(data)
   } catch (e: any) {
     if (canalCreado) {
@@ -1363,7 +1537,6 @@ async function eliminarCanalConfirmado() {
     unreadCountMap.value = new Map(unreadCountMap.value)
     mostrarModalEditarCanal.value = false
     await cargarCanalesUnidos()
-    suscribirCanales()
   } catch (e: any) {
     errorEliminarCanal.value = extraerError(e, 'Error al eliminar el canal')
   } finally {
@@ -1383,15 +1556,16 @@ async function salirDelCanal() {
       unreadCountMap.value.delete(canalId)
       unreadCountMap.value = new Map(unreadCountMap.value)
       await cargarCanalesUnidos()
-      suscribirCanales()
     } catch (e: any) { errorMsg.value = e.response?.data?.mensaje || e.response?.data?.error || 'Error al salir del canal' }
   })
 }
 
 function handleBeforeUnload() {
-  // Solo desconectamos el WebSocket (presencia). Las sesiones de personaje
+  // Solo desconectamos los WebSocket (presencia). Las sesiones de personaje
   // se mantienen activas en el servidor para poder restaurarlas al volver.
-  try { websocketService.disconnect() } catch {}
+  for (const sesion of characterSessionStore.sesiones.value) {
+    try { void websocketService.disconnect(sesion.idSesion) } catch {}
+  }
 }
 
 onMounted(async () => {
@@ -1408,14 +1582,12 @@ onMounted(async () => {
     await characterSessionStore.limpiarExpiradas()
     const activas = await characterSessionStore.obtenerSesionesActivas()
     if (activas.length > 0) {
-      try {
-        await conectarWebSocket()
-        await cargarCanalesUnidos()
-        suscribirCanales()
-      } catch (e) {
-        console.error('[ChatWindow] Error reconectando sesiones previas:', e)
-        await cerrarTodasSesiones()
-      }
+      // Todas las sesiones activas se conectan: no solo la seleccionada.
+      await Promise.all(activas.map(sesion => conectarSesion(sesion)))
+      await cargarCanalesUnidos()
+      await cargarConversaciones()
+      const sesion = characterSessionStore.sesionActual.value
+      if (sesion) await actualizarNoLeidos(sesion)
     }
   } catch (e) {
     console.error('[ChatWindow] Error obteniendo sesiones activas:', e)
@@ -1436,11 +1608,11 @@ onUnmounted(() => {
   document.removeEventListener('keydown', alPulsarEscape)
   document.removeEventListener('click', cerrarEstadoFuera)
   document.removeEventListener('click', cerrarAccionesFuera)
-  persistentSubscriptions.forEach(s => websocketService.unsubscribe(s))
-  wsSubscriptions.forEach(s => websocketService.unsubscribe(s))
-  if (channelPresenceSubscription) {
-    websocketService.unsubscribe(channelPresenceSubscription)
+  for (const sesion of characterSessionStore.sesiones.value) {
+    limpiarSuscripciones(sesion.idSesion)
+    try { void websocketService.disconnect(sesion.idSesion) } catch {}
   }
+  channelPresenceSubscription = null
   window.removeEventListener('beforeunload', handleBeforeUnload)
   window.removeEventListener('pagehide', handleBeforeUnload)
   if (pollingInterval != null) {
@@ -1531,12 +1703,11 @@ onUnmounted(() => {
       </button>
     </div>
 
-    <!-- Estado de la conexion: solo aparece cuando ya se intento conectar -->
-    <div v-if="conexionSolicitada && !wsConectado" class="chat-conexion-banner"
+    <!-- Aviso solo si la conexion de la sesion activa se cayo de verdad -->
+    <div v-if="conexionPerdida" class="chat-conexion-banner"
          role="status" aria-live="polite">
       <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
-      <span v-if="reconectando">Sin conexión con el chat. Reintentando cada 5 segundos; los mensajes nuevos pueden tardar en aparecer.</span>
-      <span v-else>Conectando con el chat…</span>
+      <span>Sin conexión con el chat. Reintentando cada 5 segundos; los mensajes nuevos pueden tardar en aparecer.</span>
     </div>
 
     <div class="d-flex flex-grow-1 min-h-0">
@@ -1957,6 +2128,7 @@ onUnmounted(() => {
 
           <!-- PM Input -->
           <ChatEditor
+            ref="chatEditorPrivadoRef"
             :miembros-online="miembrosOnline"
             :sending="enviando"
             @send="handleSendPm"
