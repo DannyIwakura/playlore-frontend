@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import ChatEditor from './ChatEditor.vue'
 
 const MIEMBROS = [
@@ -292,5 +293,64 @@ describe('ChatEditor', () => {
     await botonToolbar(w, 'Ayuda del editor').trigger('click')
     expect(w.find('#editor-picker-emojis').exists()).toBe(false)
     expect(w.find('[role="dialog"]').exists()).toBe(true)
+  })
+
+  describe('barra compacta en movil', () => {
+    it('el boton Más reune los formatos que no caben en la barra', async () => {
+      const w = montar()
+      const mas = w.find('.editor-toolbar__mas')
+
+      expect(mas.attributes('aria-label')).toBe('Más formatos')
+      expect(mas.attributes('aria-expanded')).toBe('false')
+      expect(w.find('#editor-mas-menu').exists()).toBe(false)
+
+      await mas.trigger('click')
+
+      expect(mas.attributes('aria-expanded')).toBe('true')
+      const etiquetas = w
+        .find('#editor-mas-menu')
+        .findAll('.editor-mas-menu__btn')
+        .map((b) => b.attributes('aria-label'))
+      expect(etiquetas).toEqual([
+        'Tachado',
+        'Subrayado',
+        'Cita en bloque',
+        'Encabezado grande',
+        'Encabezado pequeño',
+        'Mencionar personaje',
+        'Insertar enlace',
+        'Spoiler',
+        'Limpiar formato',
+        'Ayuda del editor',
+      ])
+      expect(etiquetas).not.toContain('Negrita')
+      expect(etiquetas).not.toContain('Insertar emoji')
+    })
+
+    it('ejecuta una accion del menu Más y lo cierra', async () => {
+      const w = montar()
+      await w.find('.editor-toolbar__mas').trigger('click')
+
+      const ayuda = w
+        .find('#editor-mas-menu')
+        .findAll('.editor-mas-menu__btn')
+        .find((b) => b.attributes('aria-label') === 'Ayuda del editor')
+      expect(ayuda).toBeDefined()
+
+      await ayuda!.trigger('click')
+      expect(w.find('#editor-mas-menu').exists()).toBe(false)
+      expect(w.find('[role="dialog"]').exists()).toBe(true)
+    })
+
+    it('Escape cierra el menu Más', async () => {
+      const w = montar()
+      await w.find('.editor-toolbar__mas').trigger('click')
+      expect(w.find('#editor-mas-menu').exists()).toBe(true)
+
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+      await nextTick()
+
+      expect(w.find('#editor-mas-menu').exists()).toBe(false)
+    })
   })
 })

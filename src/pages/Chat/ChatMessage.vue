@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onUnmounted, ref } from 'vue'
+import ModalFormulario from '../../components/ModalFormulario.vue'
 import { avatarUrl, formatFecha, truncarTexto } from './chatUtils'
 
 const props = defineProps<{
@@ -46,6 +47,92 @@ function etiqueta(accion: string): string {
 
 const personajeId = computed(() => props.msg.emisorId ?? props.msg.personajeId)
 const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAvatar))
+
+/* En pantallas tactiles las acciones se esconden y se abren con pulsacion larga.
+   El temporizador se cancela si el dedo se mueve (scroll) o se levanta antes. */
+const menuAbierto = ref(false)
+const PULSACION_LARGA_MS = 500
+const UMBRAL_MOVIMIENTO_PX = 10
+let temporizadorPulsacion: ReturnType<typeof setTimeout> | null = null
+let inicioPulsacion: { x: number; y: number } | null = null
+
+function cancelarPulsacion() {
+  if (temporizadorPulsacion !== null) {
+    clearTimeout(temporizadorPulsacion)
+    temporizadorPulsacion = null
+  }
+  inicioPulsacion = null
+}
+
+function alIniciarPulsacion(evento: TouchEvent) {
+  cancelarPulsacion()
+  if (!props.mostrarAcciones || props.msg.eliminado) return
+  if ((evento.target as HTMLElement).closest('button')) return
+  if (evento.touches.length !== 1) return
+
+  const toque = evento.touches[0]
+  inicioPulsacion = { x: toque.clientX, y: toque.clientY }
+  temporizadorPulsacion = setTimeout(() => {
+    temporizadorPulsacion = null
+    inicioPulsacion = null
+    // La pulsacion larga manda: descartamos la seleccion nativa de texto.
+    window.getSelection()?.removeAllRanges()
+    menuAbierto.value = true
+  }, PULSACION_LARGA_MS)
+}
+
+function alMoverPulsacion(evento: TouchEvent) {
+  if (!inicioPulsacion || evento.touches.length !== 1) return
+  const toque = evento.touches[0]
+  const seHaMovido =
+    Math.abs(toque.clientX - inicioPulsacion.x) > UMBRAL_MOVIMIENTO_PX ||
+    Math.abs(toque.clientY - inicioPulsacion.y) > UMBRAL_MOVIMIENTO_PX
+  if (seHaMovido) cancelarPulsacion()
+}
+
+type AccionMensaje = {
+  id: string
+  etiqueta: string
+  icono: string
+  peligro?: boolean
+  ejecutar: () => void
+}
+
+const accionesMenu = computed<AccionMensaje[]>(() => {
+  const acciones: AccionMensaje[] = [
+    { id: 'responder', etiqueta: 'Responder', icono: 'bi-reply', ejecutar: () => emit('responder', props.msg) },
+    { id: 'copiar', etiqueta: 'Copiar', icono: 'bi-clipboard', ejecutar: () => emit('copiar', props.msg) },
+  ]
+  if (props.canEditar) {
+    acciones.push({ id: 'editar', etiqueta: 'Editar', icono: 'bi-pencil', ejecutar: () => emit('editar', props.msg) })
+  }
+  if (props.canDelete) {
+    acciones.push({
+      id: 'eliminar',
+      etiqueta: 'Eliminar',
+      icono: 'bi-trash',
+      peligro: true,
+      ejecutar: () => emit('delete', props.msg.id),
+    })
+  }
+  if (props.canDenunciar) {
+    acciones.push({
+      id: 'denunciar',
+      etiqueta: 'Denunciar',
+      icono: 'bi-flag',
+      peligro: true,
+      ejecutar: () => emit('denunciar', props.msg),
+    })
+  }
+  return acciones
+})
+
+function ejecutarAccion(accion: AccionMensaje) {
+  menuAbierto.value = false
+  accion.ejecutar()
+}
+
+onUnmounted(cancelarPulsacion)
 </script>
 
 <template>
@@ -63,7 +150,14 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
       <img :src="avatar" alt="" width="34" height="34" />
     </button>
 
-    <div class="msg-burbuja" :class="esMio ? 'msg-burbuja--mio' : 'msg-burbuja--otro'">
+    <div
+      class="msg-burbuja"
+      :class="esMio ? 'msg-burbuja--mio' : 'msg-burbuja--otro'"
+      @touchstart.passive="alIniciarPulsacion"
+      @touchmove.passive="alMoverPulsacion"
+      @touchend.passive="cancelarPulsacion"
+      @touchcancel.passive="cancelarPulsacion"
+    >
       <div v-if="showHeader" class="msg-cabecera">
         <button type="button" class="msg-autor" @click="emit('verPerfil', msg.personajeId)">
           {{ msg.personajeNombre }}
@@ -131,6 +225,27 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
         </button>
       </div>
     </div>
+
+    <ModalFormulario v-if="menuAbierto" titulo="Acciones del mensaje" @cerrar="menuAbierto = false">
+      <div class="msg-menu-movil" role="group" aria-label="Acciones disponibles">
+        <template v-for="(accion, indice) in accionesMenu" :key="accion.id">
+          <div
+            v-if="indice > 0 && accion.peligro && !accionesMenu[indice - 1].peligro"
+            class="msg-menu-movil__divisor"
+            role="separator"
+          ></div>
+          <button
+            type="button"
+            class="msg-menu-movil__btn"
+            :class="{ 'msg-menu-movil__btn--peligro': accion.peligro }"
+            @click="ejecutarAccion(accion)"
+          >
+            <i class="bi" :class="accion.icono" aria-hidden="true"></i>
+            <span>{{ accion.etiqueta }}</span>
+          </button>
+        </template>
+      </div>
+    </ModalFormulario>
   </article>
 </template>
 
@@ -362,18 +477,79 @@ const avatar = computed(() => props.avatarSrc ?? avatarUrl(props.msg.personajeAv
   opacity: 1;
 }
 
-/* Sin hover (tactil) las acciones no pueden depender del puntero: se muestran
-   siempre, dentro de la burbuja y con area tactil suficiente. */
+/* Sin hover (tactil) la burbuja queda limpia: las acciones se abren con
+   pulsacion larga. :focus-within conserva el acceso con teclado. */
 @media (hover: none) {
+  .msg-burbuja {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
   .msg-acciones {
-    position: static;
-    justify-content: flex-end;
-    margin-top: 0.35rem;
-    padding: 0;
-    border: 0;
-    background: transparent;
-    box-shadow: none;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .msg-acciones:focus-within {
     opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* ---- Hoja de acciones (pulsacion larga en moviles) ---- */
+
+.msg-menu-movil {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.msg-menu-movil__btn {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  min-height: 44px;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid transparent;
+  border-radius: var(--pl-radius-sm);
+  background: transparent;
+  color: var(--pl-ink);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.msg-menu-movil__btn:hover,
+.msg-menu-movil__btn:focus-visible {
+  border-color: var(--pl-border);
+  background: var(--pl-surface-soft);
+}
+
+.msg-menu-movil__btn i {
+  width: 1.25rem;
+  color: var(--pl-muted);
+  text-align: center;
+}
+
+.msg-menu-movil__btn--peligro {
+  color: var(--pl-danger-ink);
+}
+
+.msg-menu-movil__btn--peligro i {
+  color: var(--pl-danger-ink);
+}
+
+.msg-menu-movil__divisor {
+  height: 1px;
+  margin: 0.35rem 0;
+  background: var(--pl-border);
+}
+
+@media (pointer: coarse) {
+  .msg-menu-movil__btn {
+    min-height: 48px;
   }
 }
 

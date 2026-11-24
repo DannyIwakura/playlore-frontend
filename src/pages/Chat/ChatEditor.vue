@@ -48,6 +48,7 @@ const mentionSearch = ref('')
 const mentionHighlightIndex = ref(-1)
 
 const mostrarAyudaEditor = ref(false)
+const mostrarMenuMas = ref(false)
 
 const filteredMentions = computed(() => {
   const list = props.miembrosOnline
@@ -474,6 +475,26 @@ const GRUPOS_TOOLBAR: BotonToolbar[][] = [
   ],
 ]
 
+// En movil solo quedan visibles los formatos mas usados; el resto se agrupa
+// bajo "Más". Los id's siguen siendo los mismos en barra y menu.
+const IDS_TOOLBAR_MOVIL = new Set(['negrita', 'cursiva', 'dados', 'emojis'])
+
+const gruposToolbarOcultos = computed(() =>
+  GRUPOS_TOOLBAR.map((grupo) => grupo.filter((boton) => !IDS_TOOLBAR_MOVIL.has(boton.id))).filter(
+    (grupo) => grupo.length > 0
+  )
+)
+
+function toggleMenuMas() {
+  mostrarMenuMas.value = !mostrarMenuMas.value
+  if (mostrarMenuMas.value) cerrarPickers()
+}
+
+function ejecutarBotonOculto(boton: BotonToolbar) {
+  mostrarMenuMas.value = false
+  boton.accion()
+}
+
 function enviar() {
   const texto = obtenerContenidoEditor()
   if (!texto || props.sending) return
@@ -547,6 +568,7 @@ function handleOverlayClick(pickerType: 'emoji' | 'dice' | 'mention') {
 
 function onDocumentKeydown(e: KeyboardEvent) {
   if (e.key !== 'Escape') return
+  if (mostrarMenuMas.value) mostrarMenuMas.value = false
   if (mostrarAyudaEditor.value) mostrarAyudaEditor.value = false
   if (mostrarModalEnlace.value) mostrarModalEnlace.value = false
   if (mostrarEmojiPicker.value) closeEmojiPicker()
@@ -605,7 +627,10 @@ onUnmounted(() => {
             :key="boton.id"
             type="button"
             class="editor-toolbar__btn"
-            :class="{ 'editor-toolbar__btn--activo': boton.expandido?.() }"
+            :class="{
+              'editor-toolbar__btn--activo': boton.expandido?.(),
+              'editor-toolbar__btn--movil-oculto': !IDS_TOOLBAR_MOVIL.has(boton.id),
+            }"
             :title="boton.etiqueta"
             :aria-label="boton.etiqueta"
             :aria-controls="boton.controla"
@@ -619,6 +644,54 @@ onUnmounted(() => {
             </span>
           </button>
         </template>
+        <button
+          type="button"
+          class="editor-toolbar__btn editor-toolbar__mas"
+          title="Más formatos"
+          aria-label="Más formatos"
+          aria-controls="editor-mas-menu"
+          :aria-expanded="String(mostrarMenuMas)"
+          @mousedown.prevent
+          @click="toggleMenuMas"
+        >
+          <i class="bi bi-three-dots" aria-hidden="true"></i>
+          <span>Más</span>
+        </button>
+
+        <div
+          v-if="mostrarMenuMas"
+          id="editor-mas-menu"
+          class="editor-mas-menu"
+          role="group"
+          aria-label="Más formatos"
+        >
+          <template v-for="(grupo, gi) in gruposToolbarOcultos" :key="gi">
+            <span
+              v-if="gi > 0"
+              class="editor-mas-menu__separador"
+              role="separator"
+              aria-orientation="vertical"
+            ></span>
+            <button
+              v-for="boton in grupo"
+              :key="boton.id"
+              type="button"
+              class="editor-toolbar__btn editor-mas-menu__btn"
+              :class="{ 'editor-toolbar__btn--activo': boton.expandido?.() }"
+              :title="boton.etiqueta"
+              :aria-label="boton.etiqueta"
+              :aria-controls="boton.controla"
+              :aria-expanded="boton.expandido ? String(boton.expandido()) : undefined"
+              @mousedown.prevent
+              @click="ejecutarBotonOculto(boton)"
+            >
+              <i v-if="boton.icono" class="bi" :class="boton.icono" aria-hidden="true"></i>
+              <span v-else class="editor-toolbar__glifo" :class="`editor-toolbar__glifo--${boton.glifo}`">
+                {{ boton.texto }}
+              </span>
+            </button>
+          </template>
+        </div>
       </div>
 
       <!-- Emoji picker -->
@@ -748,6 +821,13 @@ onUnmounted(() => {
       </div>
 
       <!-- Capa para cerrar los paneles al hacer clic fuera -->
+      <div
+        v-if="mostrarMenuMas"
+        class="editor-overlay editor-overlay--mas"
+        aria-hidden="true"
+        @click="mostrarMenuMas = false"
+        @contextmenu.prevent="mostrarMenuMas = false"
+      ></div>
       <div
         v-if="mostrarEmojiPicker"
         class="editor-overlay"
@@ -988,6 +1068,49 @@ onUnmounted(() => {
   .editor-aviso__cerrar {
     width: 44px;
     height: 44px;
+  }
+}
+
+/* ---- Barra compacta y menu "Más" (solo pantallas tactiles) ---- */
+
+.editor-toolbar__mas {
+  display: none;
+  gap: 0.3rem;
+  font-weight: 600;
+}
+
+.editor-mas-menu {
+  position: absolute;
+  bottom: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 1045;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  max-width: min(92vw, 420px);
+  padding: 0.4rem;
+  border: 1px solid var(--pl-border);
+  border-radius: var(--pl-radius-md);
+  background: var(--pl-surface);
+  box-shadow: var(--pl-shadow-md);
+}
+
+.editor-mas-menu__separador {
+  width: 1px;
+  height: 18px;
+  margin: 0 0.3rem;
+  background: var(--pl-border);
+}
+
+@media (pointer: coarse) {
+  .editor-toolbar__btn--movil-oculto,
+  .editor-toolbar > .editor-toolbar__separador {
+    display: none;
+  }
+
+  .editor-toolbar__mas {
+    display: inline-flex;
   }
 }
 
@@ -1266,6 +1389,10 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 1030;
+}
+
+.editor-overlay--mas {
+  z-index: 1035;
 }
 
 /* ---- Ayuda del editor ---- */

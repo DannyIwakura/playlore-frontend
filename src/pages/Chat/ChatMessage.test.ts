@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import ChatMessage from './ChatMessage.vue'
 
 const MSG = {
@@ -158,5 +159,78 @@ describe('ChatMessage', () => {
   it('destacar marca la fila para el resaltado temporal', () => {
     const w = montar({ destacar: true })
     expect(w.find('.msg-row--destacado').exists()).toBe(true)
+  })
+
+  describe('acciones en pantallas tactiles', () => {
+    beforeEach(() => vi.useFakeTimers())
+    afterEach(() => vi.useRealTimers())
+
+    function tocar(elemento: { element: Element }, tipo: string, x = 20, y = 20) {
+      const evento = new Event(tipo, { bubbles: true })
+      Object.defineProperty(evento, 'touches', { value: [{ clientX: x, clientY: y }] })
+      elemento.element.dispatchEvent(evento)
+    }
+
+    it('abre la hoja con pulsacion larga y ejecuta la accion elegida', async () => {
+      const w = montar({
+        mostrarAcciones: true,
+        canDelete: true,
+        canEditar: true,
+        canDenunciar: true,
+      })
+      const burbuja = w.find('.msg-burbuja')
+
+      tocar(burbuja, 'touchstart')
+      vi.advanceTimersByTime(499)
+      await nextTick()
+      expect(w.find('.msg-menu-movil').exists()).toBe(false)
+
+      vi.advanceTimersByTime(1)
+      await nextTick()
+      expect(w.find('.msg-menu-movil').exists()).toBe(true)
+      expect(w.findAll('.msg-menu-movil__btn').map((b) => b.text().trim())).toEqual([
+        'Responder',
+        'Copiar',
+        'Editar',
+        'Eliminar',
+        'Denunciar',
+      ])
+
+      await w.findAll('.msg-menu-movil__btn')[0].trigger('click')
+      expect(w.emitted('responder')).toHaveLength(1)
+      expect(w.find('.msg-menu-movil').exists()).toBe(false)
+    })
+
+    it('no abre la hoja si el dedo se desplaza o se toca un boton', async () => {
+      const w = montar({ mostrarAcciones: true, showHeader: true })
+      const burbuja = w.find('.msg-burbuja')
+
+      tocar(burbuja, 'touchstart')
+      tocar(burbuja, 'touchmove', 80, 20)
+      vi.advanceTimersByTime(600)
+      await nextTick()
+      expect(w.find('.msg-menu-movil').exists()).toBe(false)
+
+      tocar(w.find('.msg-autor'), 'touchstart')
+      vi.advanceTimersByTime(600)
+      await nextTick()
+      expect(w.find('.msg-menu-movil').exists()).toBe(false)
+    })
+
+    it('la hoja respeta los permisos y separa las acciones destructivas', async () => {
+      const w = montar({ mostrarAcciones: true, canDelete: true })
+
+      tocar(w.find('.msg-burbuja'), 'touchstart')
+      vi.advanceTimersByTime(500)
+      await nextTick()
+
+      expect(w.findAll('.msg-menu-movil__btn').map((b) => b.text().trim())).toEqual([
+        'Responder',
+        'Copiar',
+        'Eliminar',
+      ])
+      expect(w.findAll('.msg-menu-movil__divisor')).toHaveLength(1)
+      expect(w.find('.msg-menu-movil__btn--peligro').exists()).toBe(true)
+    })
   })
 })
