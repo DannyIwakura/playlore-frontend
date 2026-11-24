@@ -3,6 +3,7 @@ import {
   avatarUrl,
   canalAvatar,
   combinarCanales,
+  etiquetaRolCanal,
   formatFecha,
   getStatusColor,
   notificarPush,
@@ -69,6 +70,21 @@ describe('chatUtils', () => {
       expect(getStatusColor('ausente')).toBe('#eab308')
       expect(getStatusColor(undefined)).toBe('#22c55e')
       expect(getStatusColor('inexistente')).toBe('#22c55e')
+    })
+  })
+
+  describe('etiquetaRolCanal', () => {
+    it('traduce los roles de canal al español', () => {
+      expect(etiquetaRolCanal('OWNER')).toBe('DUEÑO')
+      expect(etiquetaRolCanal('MOD')).toBe('MOD')
+      expect(etiquetaRolCanal('MEMBER')).toBe('MIEMBRO')
+      expect(etiquetaRolCanal('ADMIN')).toBe('ADMIN')
+    })
+
+    it('usa MIEMBRO por defecto y conserva roles desconocidos', () => {
+      expect(etiquetaRolCanal(null)).toBe('MIEMBRO')
+      expect(etiquetaRolCanal(undefined)).toBe('MIEMBRO')
+      expect(etiquetaRolCanal('INVITADO')).toBe('INVITADO')
     })
   })
 

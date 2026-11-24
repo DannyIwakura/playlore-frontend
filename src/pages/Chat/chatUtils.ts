@@ -9,6 +9,19 @@ export const statusOptions = [
 
 export const roleOrder: Record<string, number> = { OWNER: 0, ADMIN: 1, MOD: 2, MEMBER: 3 }
 
+const etiquetasRolesCanal: Record<string, string> = {
+  OWNER: 'DUEÑO',
+  ADMIN: 'ADMIN',
+  MOD: 'MOD',
+  MEMBER: 'MIEMBRO',
+}
+
+/** Etiqueta visible de un rol de canal; los valores internos no cambian. */
+export function etiquetaRolCanal(rol: string | null | undefined): string {
+  if (!rol) return 'MIEMBRO'
+  return etiquetasRolesCanal[rol] ?? rol
+}
+
 export function avatarUrl(avatar: string | null | undefined): string {
   if (!avatar || avatar.includes('AVATAR.png')) return AVATAR_DEFECTO
   if (avatar.startsWith('http')) return avatar

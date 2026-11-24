@@ -7,7 +7,7 @@ import { websocketService } from '../../services/websocket'
 import { chatApi } from '../../services/chatApi'
 import api from '../../services/api'
 import PerfilPersonajeView from '../Personajes/PerfilPersonajeView.vue'
-import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha, combinarCanales } from './chatUtils'
+import { statusOptions, getStatusColor, avatarUrl, canalAvatar, solicitarPermisoNotificacion, notificarPush, truncarTexto, formatFecha, combinarCanales, etiquetaRolCanal } from './chatUtils'
 import ChatEditor from './ChatEditor.vue'
 import ChatMessage from './ChatMessage.vue'
 import MensajeInvitacion from './MensajeInvitacion.vue'
@@ -1847,7 +1847,7 @@ onUnmounted(() => {
                             title="Te han mencionado">
                         @<span class="visually-hidden">Te han mencionado</span>
                       </span>
-                      <span v-if="canal.miRol" class="badge bg-secondary pl-text-xs">{{ canal.miRol }}</span>
+                      <span v-if="canal.miRol" class="badge bg-secondary pl-text-xs">{{ etiquetaRolCanal(canal.miRol) }}</span>
                     </span>
                   </span>
                   <span class="channel-item__meta d-block">{{ canal.miembroCount }} miembros</span>
@@ -2249,7 +2249,7 @@ onUnmounted(() => {
           <div class="flex-grow-1 min-w-0">
             <div class="fw-medium small text-truncate">{{ m.personajeNombre }}</div>
             <span class="badge chat-rol-badge" :class="`chat-rol-badge--${(m.rol || 'MEMBER').toLowerCase()}`">
-              {{ m.rol }}
+              {{ etiquetaRolCanal(m.rol) }}
             </span>
             <span v-if="m.esStaff" class="badge chat-canal-badge chat-canal-badge--staff">Staff</span>
           </div>
@@ -2362,7 +2362,7 @@ onUnmounted(() => {
                 {{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros
               </span>
             </span>
-            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ c.miRol }}</span>
+            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ etiquetaRolCanal(c.miRol) }}</span>
             <span v-else class="chat-canal-fila__accion">Unirse</span>
           </button>
         </li>
@@ -2387,7 +2387,7 @@ onUnmounted(() => {
                 {{ c.descripcion || 'Sin descripción' }} · {{ c.miembroCount }} miembros
               </span>
             </span>
-            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ c.miRol }}</span>
+            <span v-if="c.miRol" class="badge chat-rol-badge" :class="`chat-rol-badge--${(c.miRol || 'member').toLowerCase()}`">{{ etiquetaRolCanal(c.miRol) }}</span>
             <span v-else class="chat-canal-fila__accion">Unirse</span>
           </button>
         </li>

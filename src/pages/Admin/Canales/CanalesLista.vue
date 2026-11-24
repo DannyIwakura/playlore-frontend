@@ -908,7 +908,7 @@ onBeforeUnmount(limpiarResaltado)
               <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresOficial.personaje }}
             </p>
             <p v-else id="oficial-personaje-ayuda" class="pl-field__hint">
-              Quedará como OWNER y podrá gestionar nombre, descripción, miembros e invitaciones.
+              Quedará como DUEÑO y podrá gestionar nombre, descripción, miembros e invitaciones.
             </p>
           </div>
 
