@@ -190,16 +190,33 @@ function cerrarBuscador() {
 const mostrarPerfil = ref(false)
 const perfilPersonajeId = ref<number | null>(null)
 
-const conversacionAEliminar = ref<any>(null)
+const conversacionACerrar = ref<any>(null)
 
-function pedirEliminarConversacion(conv: any) {
-  conversacionAEliminar.value = conv
+function pedirCerrarConversacion(conv: any) {
+  conversacionACerrar.value = conv
 }
 
-function confirmarEliminarConversacion() {
-  const conv = conversacionAEliminar.value
-  conversacionAEliminar.value = null
-  if (conv) eliminarConversacionDeLista(conv)
+async function confirmarCerrarConversacion() {
+  const conv = conversacionACerrar.value
+  conversacionACerrar.value = null
+  if (!conv) return
+  const personajeId = characterSessionStore.sesionActual.value?.personajeId
+  const cerrada = await cerrarConversacionDeLista(conv)
+  if (!cerrada || personajeId == null) return
+  // El composable actualiza la vista activa; aqui mantenemos sincronizado el
+  // estado guardado de la sesion para que no reaparezca al cambiar de personaje.
+  const estado = estadosSesion.get(personajeId)
+  if (!estado) return
+  estado.conversacionesPrivadas = estado.conversacionesPrivadas.filter(
+    c => c.personajeId !== conv.personajeId
+  )
+  const noLeidos = new Map(estado.noLeidosPriv)
+  noLeidos.delete(conv.personajeId)
+  estado.noLeidosPriv = noLeidos
+  if (estado.conversacionActiva?.personajeId === conv.personajeId) {
+    estado.conversacionActiva = null
+    estado.mensajesPrivados = []
+  }
 }
 
 function verPerfil(personajeId: number) {
@@ -342,7 +359,7 @@ const {
   conversacionesPrivadas, mensajesPrivados, noLeidosPriv, noLeidosCharacter, cargandoPriv,
   reproducirSonidoPM, cargarConversaciones,
   abrirConversacionPrivada, seleccionarConversacion, cerrarConversacion, enviarMensajePrivadoWs,
-  handleSendPm, eliminarConversacionDeLista,
+  handleSendPm, cerrarConversacionDeLista,
 } = useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal, cerrarContextMenu })
 
 const {
@@ -594,7 +611,7 @@ const cualquierModalAbierto = computed(() =>
   mostrarModalCrear.value || mostrarModalEditarCanal.value || mostrarPerfil.value ||
   mostrarConfirmacionDesconectar.value || !!mensajeModal.value || !!confirmModal.value ||
   mostrarConfirmacionEliminar.value || !!banTarget.value || !!denunciaTarget.value || !!silenciarTarget.value ||
-  mostrarBaneados.value || !!conversacionAEliminar.value || !!invitacionTarget.value
+  mostrarBaneados.value || !!conversacionACerrar.value || !!invitacionTarget.value
 )
 watch(cualquierModalAbierto, (abierto) => {
   if (abierto) window.dispatchEvent(new CustomEvent('pl:modal-abierto'))
@@ -1786,8 +1803,8 @@ onUnmounted(() => {
               </button>
               <button type="button"
                       class="conversation-close-btn btn border-0 p-0 position-absolute d-flex align-items-center justify-content-center"
-                      :aria-label="`Eliminar la conversación con ${conv.personajeNombre}`"
-                      @click.stop="pedirEliminarConversacion(conv)">
+                      :aria-label="`Cerrar la conversación con ${conv.personajeNombre}`"
+                      @click.stop="pedirCerrarConversacion(conv)">
                 <i class="bi bi-x" aria-hidden="true"></i>
               </button>
             </li>
@@ -2668,15 +2685,14 @@ onUnmounted(() => {
     </ul>
   </ModalFormulario>
 
-  <!-- Modal: Confirmación de eliminar conversación privada -->
+  <!-- Modal: Confirmación de cerrar conversación privada -->
   <ModalConfirmacion
-    v-if="conversacionAEliminar"
-    titulo="Eliminar conversación"
-    :mensaje="`¿Seguro que quieres eliminar la conversación con ${conversacionAEliminar.personajeNombre}? Se borrarán los mensajes de tu bandeja.`"
-    boton-confirmar="Eliminar"
-    peligro
-    @confirmar="confirmarEliminarConversacion"
-    @cancelar="conversacionAEliminar = null"
+    v-if="conversacionACerrar"
+    titulo="Cerrar conversación"
+    :mensaje="`¿Cerrar la conversación con ${conversacionACerrar.personajeNombre}? Los mensajes se conservarán y volverán a aparecer al escribir de nuevo.`"
+    boton-confirmar="Cerrar"
+    @confirmar="confirmarCerrarConversacion"
+    @cancelar="conversacionACerrar = null"
   />
 
   <!-- Modal: Perfil completo del personaje (pantalla completa) -->

@@ -138,11 +138,11 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     enviarMensajePrivadoWs(texto)
   }
 
-  async function eliminarConversacionDeLista(conv: any) {
+  async function cerrarConversacionDeLista(conv: any): Promise<boolean> {
     try {
-      await chatApi.eliminarConversacion(conv.personajeId)
+      await chatApi.cerrarConversacion(conv.personajeId)
     } catch {
-      return
+      return false
     }
     if (conversacionActiva.value?.personajeId === conv.personajeId) {
       cerrarConversacion()
@@ -152,6 +152,7 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     )
     noLeidosPriv.value.delete(conv.personajeId)
     noLeidosPriv.value = new Map(noLeidosPriv.value)
+    return true
   }
 
   return {
@@ -167,6 +168,6 @@ export function useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal,
     cerrarConversacion,
     enviarMensajePrivadoWs,
     handleSendPm,
-    eliminarConversacionDeLista,
+    cerrarConversacionDeLista,
   }
 }

@@ -9,7 +9,7 @@ vi.mock('../../../services/chatApi', () => ({
   chatApi: {
     obtenerConversaciones: vi.fn(),
     obtenerConversacion: vi.fn(),
-    eliminarConversacion: vi.fn(),
+    cerrarConversacion: vi.fn(),
   },
 }))
 
@@ -164,30 +164,30 @@ describe('useChatPrivado', () => {
     })
   })
 
-  describe('eliminar conversaciones', () => {
-    it('elimina de la lista y del mapa de no leídos', async () => {
+  describe('cerrar conversaciones', () => {
+    it('la oculta de la lista sin borrar sus mensajes', async () => {
       const { ctx, conversacionActiva } = setup()
       const conv = { personajeId: 2, personajeNombre: 'Ana', noLeidos: 1 }
       ctx.conversacionesPrivadas.value = [conv]
       ctx.noLeidosPriv.value = new Map([[2, 1]])
       conversacionActiva.value = conv
-      ;(chatApi.eliminarConversacion as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
+      ;(chatApi.cerrarConversacion as ReturnType<typeof vi.fn>).mockResolvedValue({ data: {} })
 
-      await ctx.eliminarConversacionDeLista(conv)
+      await ctx.cerrarConversacionDeLista(conv)
 
-      expect(chatApi.eliminarConversacion).toHaveBeenCalledWith(2)
+      expect(chatApi.cerrarConversacion).toHaveBeenCalledWith(2)
       expect(ctx.conversacionesPrivadas.value).toEqual([])
       expect(ctx.noLeidosPriv.value.has(2)).toBe(false)
       expect(ctx.mensajesPrivados.value).toEqual([])
     })
 
-    it('no borra la conversación activa si la API falla', async () => {
+    it('no cierra la conversación si la API falla', async () => {
       const { ctx } = setup()
       const conv = { personajeId: 2, personajeNombre: 'Ana' }
       ctx.conversacionesPrivadas.value = [conv]
-      ;(chatApi.eliminarConversacion as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('x'))
+      ;(chatApi.cerrarConversacion as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('x'))
 
-      await ctx.eliminarConversacionDeLista(conv)
+      await ctx.cerrarConversacionDeLista(conv)
 
       expect(ctx.conversacionesPrivadas.value).toEqual([conv])
     })

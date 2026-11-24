@@ -156,8 +156,19 @@ export const chatApi = {
     return api.get(`/chat/privado/${otroPersonajeId}`, { headers: getAuthHeaders(tokenJwt) })
   },
 
-  eliminarConversacion(otroPersonajeId: number) {
-    return api.delete(`/chat/privado/conversaciones/${otroPersonajeId}`, { headers: getAuthHeaders() })
+  // Cerrar solo la oculta para el personaje actual; los mensajes se conservan
+  // y reaparecen al volver a escribir (o al recibir un mensaje nuevo).
+  cerrarConversacion(otroPersonajeId: number, tokenJwt?: string) {
+    return api.post(
+      `/chat/privado/conversaciones/${otroPersonajeId}/cerrar`,
+      {},
+      { headers: getAuthHeaders(tokenJwt) },
+    )
+  },
+
+  /** @deprecated Usar cerrarConversacion: el backend ya no borra mensajes. */
+  eliminarConversacion(otroPersonajeId: number, tokenJwt?: string) {
+    return this.cerrarConversacion(otroPersonajeId, tokenJwt)
   },
 
   // Presencia
