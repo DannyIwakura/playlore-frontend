@@ -132,6 +132,16 @@ onUnmounted(() => {
           </router-link>
         </div>
         <div class="col-6 col-md-4 col-xl-3">
+          <router-link to="/anuncios" class="pl-card pl-card-hover pl-feature-card quick-action-card">
+            <span class="pl-icon-tile pl-icon-tile--info"><i class="bi bi-megaphone" aria-hidden="true"></i></span>
+            <h3>Anuncios RP</h3>
+            <p>Busca compañeros de historia o publica tu propio anuncio.</p>
+            <span class="pl-card-link">
+              Explorar anuncios <i class="bi bi-arrow-right ms-1" aria-hidden="true"></i>
+            </span>
+          </router-link>
+        </div>
+        <div class="col-6 col-md-4 col-xl-3">
           <router-link to="/amigos" class="pl-card pl-card-hover pl-feature-card quick-action-card">
             <span class="pl-icon-tile pl-icon-tile--warning"><i class="bi bi-person-heart" aria-hidden="true"></i></span>
             <h3>Amigos</h3>

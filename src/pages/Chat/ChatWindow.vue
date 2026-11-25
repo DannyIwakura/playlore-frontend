@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { userStore } from '../../store/userStore'
 import { characterSessionStore } from '../../store/characterSessionStore'
 import { websocketService } from '../../services/websocket'
@@ -22,8 +22,10 @@ import { useChatPrivado } from './composables/useChatPrivado'
 import { useChatModeracion } from './composables/useChatModeracion'
 import { useChatDenuncias } from './composables/useChatDenuncias'
 import { registrarMensajeNoLeido, inicializarOSumarUltimo } from './chatNoLeidos'
+import { parsearDmDeQuery } from './deepLinkDm'
 
 const router = useRouter()
+const route = useRoute()
 
 const personajes = ref<any[]>([])
 const cargandoPersonajes = ref(true)
@@ -1585,6 +1587,26 @@ function handleBeforeUnload() {
   }
 }
 
+/** Deep-link de los anuncios: `/chat?dm=<id>` abre la conversación ya seleccionada. */
+async function abrirDmDesdeEnlace() {
+  const personajeId = parsearDmDeQuery(route.query.dm)
+  if (personajeId === null) return
+
+  if (!characterSessionStore.haySesionActiva()) {
+    aviso.value = 'Inicia sesión con un personaje en el chat para escribir un mensaje privado.'
+    return
+  }
+
+  try {
+    // El enlace llega con el token de usuario: el perfil público basta para
+    // conseguir el nombre y el avatar que muestra la conversación.
+    const { data } = await api.get<{ nombre?: string; avatar?: string | null }>(`/personajes/${personajeId}`)
+    abrirConversacionPrivada(personajeId, data?.nombre ?? 'Personaje', data?.avatar ?? '')
+  } catch {
+    aviso.value = 'No pudimos abrir la conversación con ese personaje. Revisa el enlace e inténtalo de nuevo.'
+  }
+}
+
 onMounted(async () => {
   consultaMovil.addEventListener('change', alCambiarLayout)
   consultaCompacta.addEventListener('change', alCambiarLayout)
@@ -1610,6 +1632,7 @@ onMounted(async () => {
     console.error('[ChatWindow] Error obteniendo sesiones activas:', e)
   }
   await cargarPersonajes()
+  await abrirDmDesdeEnlace()
   cargando.value = false
   window.addEventListener('beforeunload', handleBeforeUnload)
   window.addEventListener('pagehide', handleBeforeUnload)

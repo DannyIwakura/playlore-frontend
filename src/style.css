@@ -549,7 +549,6 @@ section[id] {
   position: relative;
   min-height: 680px;
   overflow: hidden;
-  border-radius: 1.25rem;
   color: #fff;
   background: #151b2c;
   box-shadow: var(--pl-shadow-lg);
@@ -676,7 +675,7 @@ section[id] {
 }
 
 .pl-hero-meta i {
-  color: var(--pl-cyan);
+  color: var(--pl-primary-light);
 }
 
 .auth-layout {
@@ -1901,10 +1900,6 @@ table.pl-tabla-admin tbody th .pl-tabla-admin__secundario {
   .pl-hero,
   .pl-hero-content {
     min-height: 620px;
-  }
-
-  .pl-hero {
-    border-radius: 1.35rem;
   }
 
   .pl-hero-content {

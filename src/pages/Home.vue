@@ -222,14 +222,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-/* El hero es full-bleed: va pegado a la navbar y sin esquinas
-   redondeadas arriba, que dejarian ver el fondo claro de la pagina. */
+/* El hero es full-bleed: va pegado a la navbar y sin redondear
+   ninguna esquina, para que no se vea el fondo claro de la página. */
 .pl-page {
   padding-top: 0;
-}
-
-.pl-hero {
-  border-radius: 0 0 1.25rem 1.25rem;
 }
 
 /* El hero llena la pantalla: alto del viewport menos la navbar sticky
@@ -253,19 +249,40 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Bootstrap hace clicable toda la franja lateral del 15% del carrusel, que
-   se come los botones del hero. Solo la flecha debe recibir el clic. */
+/* Las flechas van en las esquinas inferiores: en el centro vertical
+   solapaban el texto del hero, sobre todo en móvil. El botón mide solo
+   la flecha para no robar clics a los enlaces del hero. */
 .pl-hero .carousel-control-prev,
 .pl-hero .carousel-control-next {
-  pointer-events: none;
+  top: auto;
+  bottom: 1rem;
+  width: 3rem;
+  height: 3rem;
+  opacity: 1;
+}
+
+.pl-hero .carousel-control-prev {
+  left: 0.5rem;
+  right: auto;
+}
+
+.pl-hero .carousel-control-next {
+  right: 0.5rem;
+  left: auto;
 }
 
 .pl-hero .carousel-control-prev-icon,
 .pl-hero .carousel-control-next-icon {
-  width: 2.75rem;
-  height: 2.75rem;
-  background-size: 2rem 2rem;
-  pointer-events: auto;
+  width: 2rem;
+  height: 2rem;
+  background-size: 1.75rem 1.75rem;
+}
+
+.pl-hero .carousel-control-prev:focus-visible,
+.pl-hero .carousel-control-next:focus-visible {
+  outline: 3px solid rgba(var(--pl-primary-rgb), 0.4);
+  outline-offset: 2px;
+  border-radius: 50%;
 }
 
 /* Los indicadores de Bootstrap miden 23 px de alto (3 px + bordes

@@ -71,6 +71,16 @@ describe('EditarPersonajeForm', () => {
     expect(w.find('.galeria-seccion').exists()).toBe(true)
   })
 
+  it('muestra los anuncios del personaje para editarlos o crear otros nuevos', async () => {
+    const w = montar()
+    await flushPromises()
+
+    const seccion = w.find('.anuncios-seccion')
+    expect(seccion.exists()).toBe(true)
+    expect(seccion.text()).toContain('Anuncios RP')
+    expect(seccion.text()).toContain('Nuevo anuncio')
+  })
+
   it('muestra el avatar actual con una ruta resuelta', async () => {
     const w = montar()
     await flushPromises()

@@ -45,7 +45,6 @@ const props = withDefaults(defineProps<{ logeado?: boolean }>(), {
 <style scoped>
 .pl-footer {
   position: relative;
-  margin-top: 4rem;
   color: rgba(255, 255, 255, 0.76);
   background: var(--pl-dark);
 }

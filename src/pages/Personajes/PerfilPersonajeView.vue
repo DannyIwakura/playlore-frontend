@@ -7,6 +7,7 @@ import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
 import ModalFormulario from '../../components/ModalFormulario.vue'
+import AnunciosPersonajePanel from '../../components/AnunciosPersonajePanel.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import { indicePestanaParaTecla } from '../../composables/usePestanas'
@@ -70,6 +71,7 @@ const aviso = ref<string | null>(null)
 const PESTANAS = [
   { id: 'trasfondo', etiqueta: 'Trasfondo', icono: 'bi-book' },
   { id: 'categorias', etiqueta: 'Categorías', icono: 'bi-tags' },
+  { id: 'anuncios', etiqueta: 'Anuncios RP', icono: 'bi-megaphone' },
   { id: 'galeria', etiqueta: 'Galería', icono: 'bi-images' },
 ] as const
 
@@ -198,15 +200,25 @@ async function cargar() {
 }
 
 // --- Pestanas (patron ARIA) ---
+function enfocarPestana(indice: number) {
+  nextTick(() => {
+    const pestana = tablistRef.value?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[indice]
+    pestana?.focus()
+    pestana?.scrollIntoView?.({ block: 'nearest', inline: 'nearest', container: 'nearest' })
+  })
+}
+
+function seleccionarPestana(indice: number) {
+  tabActiva.value = PESTANAS[indice].id
+  enfocarPestana(indice)
+}
+
 function onTeclaPestana(event: KeyboardEvent, indice: number) {
   const nuevo = indicePestanaParaTecla(event.key, indice, PESTANAS.length)
   if (nuevo === null) return
 
   event.preventDefault()
-  tabActiva.value = PESTANAS[nuevo].id
-  nextTick(() => {
-    tablistRef.value?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[nuevo]?.focus()
-  })
+  seleccionarPestana(nuevo)
 }
 
 // --- Acciones ---
@@ -604,9 +616,8 @@ watch(
                 class="perfil-tab"
                 :class="{ 'is-active': tabActiva === pestana.id }"
                 :aria-selected="tabActiva === pestana.id"
-                :aria-controls="`panel-${pestana.id}`"
                 :tabindex="tabActiva === pestana.id ? 0 : -1"
-                @click="tabActiva = pestana.id"
+                @click="seleccionarPestana(indice)"
                 @keydown="onTeclaPestana($event, indice)"
               >
                 <i :class="`bi ${pestana.icono}`" aria-hidden="true"></i>
@@ -669,7 +680,21 @@ watch(
             </section>
 
             <section
-              v-else
+              v-else-if="tabActiva === 'anuncios'"
+              id="panel-anuncios"
+              class="pl-card perfil-panel"
+              role="tabpanel"
+              aria-labelledby="tab-anuncios"
+              tabindex="0"
+            >
+              <AnunciosPersonajePanel
+                :personaje-id="personaje.idPersonaje"
+                :es-propietario="esMiPersonaje"
+              />
+            </section>
+
+            <section
+              v-else-if="tabActiva === 'galeria'"
               id="panel-galeria"
               class="pl-card perfil-panel"
               role="tabpanel"
@@ -683,6 +708,7 @@ watch(
             </section>
           </div>
         </div>
+
       </div>
     </main>
   </div>
@@ -1005,7 +1031,7 @@ watch(
 
 .perfil-tab {
   display: inline-flex;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
@@ -1229,12 +1255,7 @@ watch(
 }
 
 @media (max-width: 575.98px) {
-  .perfil-tabs {
-    overflow-x: visible;
-  }
-
   .perfil-tab {
-    flex: 1 1 0;
     padding: 0.55rem 0.4rem;
     font-size: 0.84rem;
   }
@@ -1247,4 +1268,5 @@ watch(
     width: 100%;
   }
 }
+
 </style>

@@ -14,6 +14,7 @@ const routes = [
   { path: '/personajes/editar/:id', component: () => import('../pages/Personajes/EditarPersonajeForm.vue'), meta: { requiresAuth: true } },
   { path: '/personajes/categorias/:id', component: () => import('../pages/Admin/Categorias/CategoriasLista.vue'), meta: { requiresAuth: true } },
   { path: '/personajes/buscar', component: () => import('../pages/Personajes/BuscarPersonajes.vue'), meta: { requiresAuth: true } },
+  { path: '/anuncios', component: () => import('../pages/Anuncios/AnunciosRPView.vue'), meta: { requiresAuth: true } },
   { path: '/perfil/:id', component: () => import('../pages/Usuarios/PerfilUsuario.vue'), meta: { requiresAuth: true } },
   { path: '/personaje/:id', component: () => import('../pages/Personajes/PerfilPersonajeView.vue'), meta: { requiresAuth: true } },
   { path: '/amigos/', component: () => import('../pages/Usuarios/AmigosList.vue'), meta: { requiresAuth: true } },

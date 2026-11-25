@@ -5,6 +5,7 @@ import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
 import GaleriaImagenes from '../../components/GaleriaImagenes.vue'
+import AnunciosPersonajePanel from '../../components/AnunciosPersonajePanel.vue'
 import api from '../../services/api'
 import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
 import defaultAvatar from '../../assets/img/AVATAR.png'
@@ -445,6 +446,17 @@ onUnmounted(liberarPreview)
             </p>
             <GaleriaImagenes :personaje-id="personajeId" :es-propietario="true" />
           </section>
+
+          <section class="anuncios-seccion" aria-labelledby="seccion-anuncios">
+            <h2 id="seccion-anuncios" class="galeria-seccion__titulo">
+              <i class="bi bi-megaphone" aria-hidden="true"></i>
+              Anuncios RP
+            </h2>
+            <p class="galeria-seccion__ayuda">
+              Crea y edita los anuncios de este personaje. Nacen inactivos y puedes tener hasta tres activos.
+            </p>
+            <AnunciosPersonajePanel :personaje-id="personajeId" :es-propietario="true" />
+          </section>
         </template>
       </div>
     </div>
@@ -499,7 +511,8 @@ onUnmounted(liberarPreview)
   box-shadow: inset 0 0 0 1px var(--pl-border);
 }
 
-.galeria-seccion {
+.galeria-seccion,
+.anuncios-seccion {
   margin-top: 2rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--pl-border);

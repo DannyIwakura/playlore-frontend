@@ -109,11 +109,11 @@ describe('PerfilPersonajeView', () => {
     expect(tablist.attributes('aria-label')).toBeTruthy()
 
     const tabs = w.findAll('[role="tab"]')
-    expect(tabs).toHaveLength(3)
+    expect(tabs).toHaveLength(4)
     expect(tabs[0].attributes('aria-selected')).toBe('true')
     expect(tabs[0].attributes('tabindex')).toBe('0')
     expect(tabs[1].attributes('tabindex')).toBe('-1')
-    expect(tabs[0].attributes('aria-controls')).toBe('panel-trasfondo')
+    expect(tabs[0].attributes('aria-controls')).toBeUndefined()
 
     const panel = w.find('#panel-trasfondo')
     expect(panel.attributes('role')).toBe('tabpanel')
@@ -131,6 +131,20 @@ describe('PerfilPersonajeView', () => {
 
     await tab(w, 'Trasfondo').trigger('keydown', { key: 'ArrowLeft' })
     expect(tab(w, 'Galería').attributes('aria-selected')).toBe('true')
+  })
+
+  it('muestra los anuncios en su propia pestaña, fuera del trasfondo', async () => {
+    const w = montar()
+    await flushPromises()
+
+    expect(tab(w, 'Anuncios RP').exists()).toBe(true)
+    await tab(w, 'Anuncios RP').trigger('click')
+
+    const panel = w.find('#panel-anuncios')
+    expect(panel.attributes('role')).toBe('tabpanel')
+    expect(panel.attributes('aria-labelledby')).toBe('tab-anuncios')
+    expect(panel.text()).toContain('Anuncios RP')
+    expect(w.find('#panel-trasfondo').exists()).toBe(false)
   })
 
   it('lista las categorias con nombre y descripcion visibles, sin tooltip', async () => {

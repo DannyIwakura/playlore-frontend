@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 import { userStore } from '../store/userStore'
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import axios from '../services/api'
 
 const props = defineProps<{ logeado: boolean }>()
@@ -20,6 +20,27 @@ const isMenuOpen = ref(false)
 const dropdownPersonajesAbierto = ref(false)
 const dropdownPersonajesRef = ref<HTMLElement | null>(null)
 const dropdownPersonajesTriggerRef = ref<HTMLButtonElement | null>(null)
+
+// El menú se controla desde Vue: importar Bootstrap dos veces (main.ts y Home.vue)
+// registraba dos manejadores de collapse y el segundo clic volvía a abrirlo.
+const mediaEscritorio = window.matchMedia?.('(min-width: 992px)') ?? null
+
+function alternarMenu() {
+  isMenuOpen.value = !isMenuOpen.value
+}
+
+function cerrarMenu() {
+  isMenuOpen.value = false
+}
+
+function alCambiarTamano(e: MediaQueryListEvent) {
+  if (e.matches) cerrarMenu()
+}
+
+watch(
+  () => router.currentRoute?.value?.fullPath,
+  () => cerrarMenu(),
+)
 
 let heartbeatInterval: ReturnType<typeof setInterval> | undefined
 
@@ -62,6 +83,7 @@ const logout = () => {
 }
 
 onMounted(async () => {
+  mediaEscritorio?.addEventListener?.('change', alCambiarTamano)
   if (props.logeado && usuario.value?.id) {
     try {
       const { data } = await axios.get(`/amistades/pendientes-recibidas/${usuario.value.id}`)
@@ -79,6 +101,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  mediaEscritorio?.removeEventListener?.('change', alCambiarTamano)
   if (heartbeatInterval) clearInterval(heartbeatInterval)
 })
 
@@ -101,18 +124,19 @@ onUnmounted(() => {
       <button
         class="navbar-toggler navbar-toggler-pl"
         type="button"
-        data-bs-toggle="collapse"
-        data-bs-target="#navbarText"
         aria-controls="navbarText"
-        aria-expanded="false"
-        aria-label="Abrir menú"
-        @shown="isMenuOpen = true"
-        @hidden="isMenuOpen = false"
+        :aria-expanded="isMenuOpen"
+        :aria-label="isMenuOpen ? 'Cerrar menú' : 'Abrir menú'"
+        @click="alternarMenu"
       >
         <span class="navbar-toggler-icon"></span>
       </button>
 
-      <div class="collapse navbar-collapse" id="navbarText" :class="{ 'is-open': isMenuOpen }">
+      <div
+        class="collapse navbar-collapse"
+        id="navbarText"
+        :class="{ 'is-open': isMenuOpen, show: isMenuOpen }"
+      >
         <ul class="navbar-nav navbar-nav-pl me-auto" v-if="!props.logeado">
           <li class="nav-item">
             <router-link to="/" class="nav-link nav-link-pl">Inicio</router-link>
@@ -156,6 +180,12 @@ onUnmounted(() => {
                 <i class="bi bi-search me-2" aria-hidden="true"></i>Buscar personajes
               </router-link>
             </div>
+          </li>
+
+          <li class="nav-item">
+            <router-link to="/anuncios" class="nav-link nav-link-pl">
+              <i class="bi bi-megaphone me-2" aria-hidden="true"></i>Anuncios RP
+            </router-link>
           </li>
 
           <li class="nav-item">
@@ -423,11 +453,11 @@ onUnmounted(() => {
   width: 1.25em;
   height: 1.25em;
   vertical-align: -0.125em;
-  border: 2px solid currentColor;
-  border-radius: 999px;
-  background: linear-gradient(currentColor 0 0) no-repeat 0.18em 0.28em / 100% 2px,
-    linear-gradient(currentColor 0 0) no-repeat 0.18em 0.62em / 100% 2px,
-    linear-gradient(currentColor 0 0) no-repeat 0.18em 0.96em / 100% 2px;
+  background-image: linear-gradient(currentColor 0 0), linear-gradient(currentColor 0 0),
+    linear-gradient(currentColor 0 0);
+  background-repeat: no-repeat;
+  background-size: 100% 2px;
+  background-position: center 20%, center 50%, center 80%;
 }
 
 .navbar-nav-pl {
@@ -535,6 +565,7 @@ onUnmounted(() => {
 
   .user-dropdown {
     width: 100%;
+    justify-content: center;
   }
 
   .user-trigger {
