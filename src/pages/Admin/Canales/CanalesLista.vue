@@ -36,9 +36,12 @@ type ModoOficial = 'marcar' | 'desmarcar'
 type FiltroEstado = '' | 'activos' | 'suspendidos'
 type FiltroTipo = '' | 'OFFICIAL' | 'USER_CREATED'
 
-interface PersonajeOpcion {
+interface PersonajeResponsable {
   idPersonaje: number
   nombre: string
+  avatar: string | null
+  userId: number | null
+  usuarioNombre: string | null
 }
 
 const props = withDefaults(
@@ -91,14 +94,17 @@ const enviando = ref(false)
 const confirmacionOficial = ref<{ canal: CanalModerado; modo: ModoOficial } | null>(null)
 const procesandoOficial = ref(false)
 
-// Crear un canal oficial nuevo con un personaje responsable.
-const personajes = ref<PersonajeOpcion[]>([])
-const cargandoPersonajes = ref(false)
+// Crear un canal oficial nuevo con un personaje responsable (solo ADMIN/MOD).
+const responsables = ref<PersonajeResponsable[]>([])
+const busquedaResponsable = ref('')
+const buscandoResponsables = ref(false)
+const busquedaRealizada = ref(false)
+const responsableSeleccionado = ref<PersonajeResponsable | null>(null)
+let temporizadorBusquedaResponsable: number | null = null
 const modalOficialAbierto = ref(false)
 const oficialFormRef = ref<HTMLElement | null>(null)
 const oficialNombre = ref('')
 const oficialDescripcion = ref('')
-const oficialPersonajeId = ref<number | ''>('')
 const oficialImagen = ref<File | null>(null)
 const oficialImagenPreview = ref<string | null>(null)
 const inputImagenOficialRef = ref<HTMLInputElement | null>(null)
@@ -355,32 +361,66 @@ async function confirmarCambioOficial() {
   }
 }
 
-async function cargarPersonajes() {
-  if (personajes.value.length > 0 || cargandoPersonajes.value) return
-  cargandoPersonajes.value = true
+async function buscarResponsables() {
+  const q = busquedaResponsable.value.trim()
+  if (q.length < 2) {
+    responsables.value = []
+    busquedaRealizada.value = false
+    return
+  }
+  buscandoResponsables.value = true
   try {
-    const { data } = await api.get('/personajes')
-    personajes.value = Array.isArray(data) ? data : []
+    const { data } = await api.get('/moderacion/canales/oficiales/responsables', { params: { q } })
+    responsables.value = Array.isArray(data) ? data : []
   } catch {
-    personajes.value = []
+    responsables.value = []
   } finally {
-    cargandoPersonajes.value = false
+    buscandoResponsables.value = false
+    busquedaRealizada.value = true
   }
 }
 
-async function abrirModalOficial() {
+watch(busquedaResponsable, (valor) => {
+  if (responsableSeleccionado.value && valor !== responsableSeleccionado.value.nombre) {
+    responsableSeleccionado.value = null
+  }
+  if (temporizadorBusquedaResponsable) window.clearTimeout(temporizadorBusquedaResponsable)
+  if (valor.trim().length < 2) {
+    responsables.value = []
+    busquedaRealizada.value = false
+    return
+  }
+  busquedaRealizada.value = false
+  temporizadorBusquedaResponsable = window.setTimeout(() => void buscarResponsables(), 300)
+})
+
+function seleccionarResponsable(p: PersonajeResponsable) {
+  responsableSeleccionado.value = p
+  busquedaResponsable.value = p.nombre
+  responsables.value = []
+  limpiarErrorOficial('personaje')
+}
+
+function limpiarResponsable() {
+  responsableSeleccionado.value = null
+  busquedaResponsable.value = ''
+  responsables.value = []
+  busquedaRealizada.value = false
+}
+
+function abrirModalOficial() {
   oficialNombre.value = ''
   oficialDescripcion.value = ''
-  oficialPersonajeId.value = ''
+  limpiarResponsable()
   erroresOficial.value = {}
   errorOficial.value = ''
   limpiarImagenOficial()
   modalOficialAbierto.value = true
-  await cargarPersonajes()
 }
 
 function cerrarModalOficial() {
   if (enviandoOficial.value) return
+  if (temporizadorBusquedaResponsable) window.clearTimeout(temporizadorBusquedaResponsable)
   limpiarImagenOficial()
   modalOficialAbierto.value = false
 }
@@ -447,8 +487,8 @@ async function enviarCrearOficial() {
 
   if (descripcion.length > 500) errores.descripcion = 'La descripción no puede superar 500 caracteres.'
 
-  if (oficialPersonajeId.value === '' || oficialPersonajeId.value == null) {
-    errores.personaje = 'Elige el personaje responsable del canal.'
+  if (!responsableSeleccionado.value) {
+    errores.personaje = 'Elige un personaje responsable de una cuenta ADMIN o MOD.'
   }
 
   erroresOficial.value = errores
@@ -472,7 +512,7 @@ async function enviarCrearOficial() {
     const datos = {
       nombre,
       descripcion: descripcion || null,
-      personajeResponsableId: Number(oficialPersonajeId.value),
+      personajeResponsableId: responsableSeleccionado.value!.idPersonaje,
     }
     const formData = new FormData()
     formData.append('datos', new Blob([JSON.stringify(datos)], { type: 'application/json' }))
@@ -880,27 +920,53 @@ onBeforeUnmount(limpiarResaltado)
             <label class="form-label" for="oficial-personaje">
               Personaje responsable <span class="text-danger" aria-hidden="true">*</span>
             </label>
-            <select
-              id="oficial-personaje"
-              v-model="oficialPersonajeId"
-              class="form-select"
-              :disabled="cargandoPersonajes"
-              :aria-invalid="erroresOficial.personaje ? 'true' : undefined"
-              :aria-describedby="
-                erroresOficial.personaje ? 'oficial-personaje-error' : 'oficial-personaje-ayuda'
-              "
-              @change="limpiarErrorOficial('personaje')"
-            >
-              <option value="">{{ cargandoPersonajes ? 'Cargando personajes…' : 'Selecciona un personaje' }}</option>
-              <option v-for="p in personajes" :key="p.idPersonaje" :value="p.idPersonaje">
-                {{ p.nombre }}
-              </option>
-            </select>
-            <p v-if="erroresOficial.personaje" id="oficial-personaje-error" class="pl-field__error">
+            <div class="position-relative">
+              <input
+                id="oficial-personaje"
+                v-model="busquedaResponsable"
+                type="search"
+                class="form-control"
+                autocomplete="off"
+                placeholder="Escribe al menos 2 caracteres…"
+                :aria-invalid="erroresOficial.personaje ? 'true' : undefined"
+                :aria-describedby="
+                  erroresOficial.personaje ? 'oficial-personaje-error' : 'oficial-personaje-ayuda'
+                "
+                @input="limpiarErrorOficial('personaje')"
+              />
+              <ul
+                v-if="busquedaResponsable.trim().length >= 2 && !responsableSeleccionado && (buscandoResponsables || responsables.length > 0 || busquedaRealizada)"
+                class="list-group position-absolute w-100 shadow-sm mt-1 z-3"
+                style="max-height: 220px; overflow-y: auto;"
+              >
+                <li v-if="buscandoResponsables" class="list-group-item text-muted small">Buscando…</li>
+                <li v-else-if="responsables.length === 0" class="list-group-item text-muted small">No hay personajes de ADMIN/MOD que coincidan.</li>
+                <li
+                  v-for="p in responsables"
+                  v-else
+                  :key="p.idPersonaje"
+                  class="list-group-item list-group-item-action d-flex justify-content-between align-items-center"
+                  role="button"
+                  @mousedown.prevent="seleccionarResponsable(p)"
+                >
+                  <span>
+                    <strong>{{ p.nombre }}</strong>
+                    <span v-if="p.usuarioNombre" class="text-muted small ms-1">({{ p.usuarioNombre }})</span>
+                  </span>
+                  <span class="badge text-bg-secondary">Staff</span>
+                </li>
+              </ul>
+            </div>
+            <p v-if="responsableSeleccionado" id="oficial-personaje-ayuda" class="pl-field__hint">
+              Seleccionado: <strong>{{ responsableSeleccionado.nombre }}</strong>
+              <span v-if="responsableSeleccionado.usuarioNombre"> ({{ responsableSeleccionado.usuarioNombre }})</span>.
+              <button type="button" class="btn btn-link btn-sm p-0 ms-1 align-baseline" @click="limpiarResponsable">Quitar</button>
+            </p>
+            <p v-else-if="erroresOficial.personaje" id="oficial-personaje-error" class="pl-field__error">
               <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ erroresOficial.personaje }}
             </p>
             <p v-else id="oficial-personaje-ayuda" class="pl-field__hint">
-              Quedará como DUEÑO y podrá gestionar nombre, descripción, miembros e invitaciones.
+              Busca personajes de cuentas ADMIN o MOD. Quedará como DUEÑO del canal.
             </p>
           </div>
 
@@ -971,7 +1037,7 @@ onBeforeUnmount(limpiarResaltado)
           <button
             type="submit"
             class="pl-btn pl-btn--primary"
-            :disabled="enviandoOficial || cargandoPersonajes"
+            :disabled="enviandoOficial"
           >
             <span v-if="enviandoOficial" class="spinner-border spinner-border-sm" aria-hidden="true"></span>
             <i v-else class="bi bi-check-lg" aria-hidden="true"></i>
