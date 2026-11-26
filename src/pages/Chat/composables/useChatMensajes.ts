@@ -120,7 +120,9 @@ export function useChatMensajes({
     if (sesionId.value != null && websocketService.isConnected(sesionId.value) && token) {
       websocketService.sendChannelMessage(sesionId.value, canalActivo.value.id, texto, mensajePadreId)
       mensajeEnRespuesta.value = null
+      usuarioScrolledUp.value = false
       enviando.value = false
+      scrollAlFinal()
     } else {
       try {
         await chatApi.enviarMensajeCanal(canalActivo.value.id, texto, mensajePadreId)

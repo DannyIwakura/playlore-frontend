@@ -2104,25 +2104,32 @@ onUnmounted(() => {
             </div>
           </div>
 
-          <!-- Botón volver al final -->
-          <transition name="fade">
-            <button v-if="usuarioScrolledUp" class="btn btn-light btn-sm rounded-pill shadow scroll-bottom-btn position-absolute"
-                    @click="scrollAlFinalForzado" aria-label="Ir al último mensaje" title="Ir al último mensaje">
-              <i class="bi bi-arrow-down" aria-hidden="true"></i>
-            </button>
-          </transition>
-
           <!-- Input canal -->
-          <ChatEditor
-            ref="chatEditorRef"
-            :miembros-online="miembrosOnline"
-            :sending="enviando"
-            :mensaje-en-respuesta="mensajeEnRespuesta"
-            :modo-edicion="modoEdicion"
-            @send="handleSendCanal"
-            @cancelar-respuesta="mensajeEnRespuesta = null"
-            @cancelar-edicion="cancelarEdicion"
-          />
+          <div class="chat-editor-wrap position-relative">
+            <transition name="fade">
+              <button
+                v-if="usuarioScrolledUp"
+                type="button"
+                class="scroll-bottom-btn"
+                @click="scrollAlFinalForzado"
+                aria-label="Ir al final del chat"
+                title="Ir al final del chat"
+              >
+                <span>Ir al final</span>
+                <i class="bi bi-arrow-down" aria-hidden="true"></i>
+              </button>
+            </transition>
+            <ChatEditor
+              ref="chatEditorRef"
+              :miembros-online="miembrosOnline"
+              :sending="enviando"
+              :mensaje-en-respuesta="mensajeEnRespuesta"
+              :modo-edicion="modoEdicion"
+              @send="handleSendCanal"
+              @cancelar-respuesta="mensajeEnRespuesta = null"
+              @cancelar-edicion="cancelarEdicion"
+            />
+          </div>
         </template>
 
         <!-- Conversación privada seleccionada -->
@@ -2180,12 +2187,27 @@ onUnmounted(() => {
           </div>
 
           <!-- PM Input -->
-          <ChatEditor
-            ref="chatEditorPrivadoRef"
-            :miembros-online="miembrosOnline"
-            :sending="enviando"
-            @send="handleSendPm"
-          />
+          <div class="chat-editor-wrap position-relative">
+            <transition name="fade">
+              <button
+                v-if="usuarioScrolledUp"
+                type="button"
+                class="scroll-bottom-btn"
+                @click="scrollAlFinalForzado"
+                aria-label="Ir al final del chat"
+                title="Ir al final del chat"
+              >
+                <span>Ir al final</span>
+                <i class="bi bi-arrow-down" aria-hidden="true"></i>
+              </button>
+            </transition>
+            <ChatEditor
+              ref="chatEditorPrivadoRef"
+              :miembros-online="miembrosOnline"
+              :sending="enviando"
+              @send="handleSendPm"
+            />
+          </div>
         </template>
       </main>
 
@@ -3629,14 +3651,32 @@ onUnmounted(() => {
 .chat-mensajes { background: var(--pl-surface); }
 .chat-mensajes .msg-row { scroll-margin-block: 80px; }
 .scroll-bottom-btn {
-  bottom: 70px;
-  right: 20px;
-  z-index: 5;
-  font-size: 0.85rem;
-  padding: 0.25rem 0.75rem;
-  opacity: 0.9;
+  position: absolute;
+  right: 1rem;
+  bottom: calc(100% + 0.5rem);
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--pl-primary-300, rgba(197, 160, 89, 0.45));
+  border-radius: var(--pl-radius-pill, 999px);
+  background: var(--pl-surface-overlay, #2f333a);
+  color: var(--pl-text, #e8edf2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  line-height: 1;
+  box-shadow: var(--pl-shadow-md, 0 8px 24px rgba(0, 0, 0, 0.25));
 }
-.scroll-bottom-btn:hover { opacity: 1; }
+.scroll-bottom-btn:hover,
+.scroll-bottom-btn:focus-visible {
+  background: var(--pl-surface-raised, #3a3f47);
+  color: var(--pl-primary-200, #d6bc8b);
+}
+.scroll-bottom-btn:focus-visible {
+  outline: 2px solid var(--pl-focus-ring, #c5a059);
+  outline-offset: 2px;
+}
 .fade-enter-active, .fade-leave-active { transition: opacity var(--pl-duration-base) var(--pl-ease-standard); }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
 
