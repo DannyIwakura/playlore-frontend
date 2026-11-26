@@ -107,6 +107,22 @@ describe('useChatBusqueda', () => {
 
     expect(ctx.busquedaAbierta.value).toBe(false)
     expect(ctx.terminoBusqueda.value).toBe('')
+    expect(ctx.ultimoTerminoBuscado.value).toBe('')
+    expect(ctx.resultados.value).toEqual([])
+    expect(ctx.hayMasResultados.value).toBe(false)
+  })
+
+  it('al escribir un termino nuevo limpia resultados viejos hasta buscar', async () => {
+    const { ctx } = setup()
+    vi.mocked(chatApi.buscarMensajesCanal).mockResolvedValue({
+      data: { content: [{ id: 1, contenido: 'hola' }], last: true },
+    } as any)
+
+    await ctx.buscar('hola')
+    ctx.terminoBusqueda.value = 'hol'
+    await Promise.resolve()
+
+    expect(ctx.ultimoTerminoBuscado.value).toBe('hola')
     expect(ctx.resultados.value).toEqual([])
     expect(ctx.hayMasResultados.value).toBe(false)
   })

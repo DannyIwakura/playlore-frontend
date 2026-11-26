@@ -378,7 +378,7 @@ const {
 } = useChatDenuncias({ canalActivo, cerrarContextMenu, aviso })
 
 const {
-  busquedaAbierta, terminoBusqueda, buscando, cargandoMas: cargandoMasResultados, resultados, hayMasResultados, errorBusqueda,
+  busquedaAbierta, terminoBusqueda, ultimoTerminoBuscado, buscando, cargandoMas: cargandoMasResultados, resultados, hayMasResultados, errorBusqueda,
   buscar, cargarMasResultados, cerrarBusqueda, irAResultado: cerrarPanelBusqueda,
 } = useChatBusqueda({ canalActivo })
 
@@ -2029,8 +2029,11 @@ onUnmounted(() => {
                 <div class="small mt-1">Buscando...</div>
               </div>
               <div v-else-if="errorBusqueda" class="text-center text-danger small py-4">{{ errorBusqueda }}</div>
-              <div v-else-if="resultados.length === 0 && terminoBusqueda" class="text-center text-muted small py-4">
-                Sin resultados para "{{ terminoBusqueda }}"
+              <div v-else-if="resultados.length === 0 && ultimoTerminoBuscado" class="text-center text-muted small py-4">
+                Sin resultados para "{{ ultimoTerminoBuscado }}"
+              </div>
+              <div v-else-if="terminoBusqueda.trim() && terminoBusqueda.trim() !== ultimoTerminoBuscado" class="text-center text-muted small py-4">
+                Pulsa Enter o el botón de búsqueda para buscar "{{ terminoBusqueda.trim() }}"
               </div>
               <div v-else>
                 <button v-for="r in resultados" :key="r.id"

@@ -1,4 +1,4 @@
-import { ref, type Ref } from 'vue'
+import { ref, watch, type Ref } from 'vue'
 import { chatApi } from '../../../services/chatApi'
 
 const RESULTADOS_POR_PAGINA = 15
@@ -6,6 +6,7 @@ const RESULTADOS_POR_PAGINA = 15
 export function useChatBusqueda({ canalActivo }: { canalActivo: Ref<any> }) {
   const busquedaAbierta = ref(false)
   const terminoBusqueda = ref('')
+  const ultimoTerminoBuscado = ref('')
   const buscando = ref(false)
   const cargandoMas = ref(false)
   const resultados = ref<any[]>([])
@@ -13,10 +14,21 @@ export function useChatBusqueda({ canalActivo }: { canalActivo: Ref<any> }) {
   const paginaResultados = ref(0)
   const errorBusqueda = ref('')
 
+  watch(terminoBusqueda, (valor) => {
+    if (valor.trim() !== ultimoTerminoBuscado.value) {
+      resultados.value = []
+      hayMasResultados.value = false
+      paginaResultados.value = 0
+      errorBusqueda.value = ''
+      if (!valor.trim()) ultimoTerminoBuscado.value = ''
+    }
+  })
+
   async function buscar(q: string) {
     const termino = (q || '').trim()
     if (!termino || !canalActivo.value) return
     terminoBusqueda.value = termino
+    ultimoTerminoBuscado.value = termino
     busquedaAbierta.value = true
     buscando.value = true
     errorBusqueda.value = ''
@@ -65,6 +77,7 @@ export function useChatBusqueda({ canalActivo }: { canalActivo: Ref<any> }) {
   function cerrarBusqueda() {
     busquedaAbierta.value = false
     terminoBusqueda.value = ''
+    ultimoTerminoBuscado.value = ''
     resultados.value = []
     hayMasResultados.value = false
     paginaResultados.value = 0
@@ -79,6 +92,7 @@ export function useChatBusqueda({ canalActivo }: { canalActivo: Ref<any> }) {
   return {
     busquedaAbierta,
     terminoBusqueda,
+    ultimoTerminoBuscado,
     buscando,
     cargandoMas,
     resultados,
