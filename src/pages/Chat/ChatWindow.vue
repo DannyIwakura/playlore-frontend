@@ -365,12 +365,14 @@ const {
   handleSendPm, cerrarConversacionDeLista,
 } = useChatPrivado({ canalActivo, conversacionActiva, scrollAlFinal, cerrarContextMenu })
 
+const recargarMiembrosLista = ref<(() => Promise<void>) | null>(null)
+
 const {
   miRolEnCanal, puedeSilenciarContextMenu, banTarget, banDuracion, opcionesBan, silenciarTarget,
   silenciarDuracion, opcionesSilenciar, mostrarBaneados, baneados, cargandoBaneados, ascenderAMod,
   descenderAMember, expulsarDelCanal, estaSilenciado, abrirBanModal, confirmarBan, abrirSilenciarModal,
   confirmarSilenciar, desilenciar, abrirModalBaneados, desbanearPersonaje,
-} = useChatModeracion({ canalActivo, contextMenuTarget, cargarMiembrosOnline, cerrarContextMenu, mostrarConfirmModal, aviso })
+} = useChatModeracion({ canalActivo, contextMenuTarget, cargarMiembrosOnline, cerrarContextMenu, mostrarConfirmModal, aviso, recargarMiembrosLista })
 
 const {
   denunciaTarget, denunciaMotivo, denunciaDetalle, enviandoDenuncia, denunciarMensaje,
@@ -420,6 +422,15 @@ const miembrosLista = ref<any[]>([])
 const paginaMiembros = ref(0)
 const cargandoMiembros = ref(false)
 const hayMasMiembros = ref(true)
+const filtroRolMiembros = ref<'TODOS' | 'STAFF' | 'MOD' | 'ADMIN' | 'MEMBER'>('TODOS')
+
+const miembrosListaFiltrados = computed(() => {
+  if (filtroRolMiembros.value === 'TODOS') return miembrosLista.value
+  if (filtroRolMiembros.value === 'STAFF') {
+    return miembrosLista.value.filter((m: any) => ['OWNER', 'ADMIN', 'MOD'].includes(m.rol))
+  }
+  return miembrosLista.value.filter((m: any) => m.rol === filtroRolMiembros.value)
+})
 
 async function abrirListaMiembros() {
   if (!canalActivo.value) return
@@ -427,6 +438,7 @@ async function abrirListaMiembros() {
   miembrosLista.value = []
   paginaMiembros.value = 0
   hayMasMiembros.value = true
+  filtroRolMiembros.value = 'TODOS'
   limpiarBuscadorInvitados()
   void cargarCanalesInvitables()
   await cargarMasMiembros()
@@ -434,6 +446,7 @@ async function abrirListaMiembros() {
 
 function cerrarListaMiembros() {
   mostrarListaMiembros.value = false
+  filtroRolMiembros.value = 'TODOS'
   limpiarBuscadorInvitados()
 }
 
@@ -448,6 +461,23 @@ async function cargarMasMiembros() {
     paginaMiembros.value++
   } catch {} finally { cargandoMiembros.value = false }
 }
+
+async function recargarListaMiembros() {
+  if (!canalActivo.value || !mostrarListaMiembros.value) return
+  const paginasCargadas = Math.max(1, paginaMiembros.value)
+  cargandoMiembros.value = true
+  try {
+    const respuestas = await Promise.all(
+      Array.from({ length: paginasCargadas }, (_, page) => chatApi.listarMiembros(canalActivo.value.id, page, 10)),
+    )
+    miembrosLista.value = respuestas.flatMap((r) => r.data?.content || [])
+    const ultima = respuestas[respuestas.length - 1]?.data
+    hayMasMiembros.value = ultima ? !ultima.last : false
+    paginaMiembros.value = paginasCargadas
+  } catch {} finally { cargandoMiembros.value = false }
+}
+
+recargarMiembrosLista.value = recargarListaMiembros
 
 // ---- Invitaciones a canales privados ----
 // `canalesInvitables` son los privados donde el personaje puede gestionar
@@ -2295,13 +2325,28 @@ onUnmounted(() => {
       </p>
     </div>
     <hr class="my-3" />
+    <div class="d-flex align-items-center justify-content-between gap-2 mb-2">
+      <label for="chat-filtro-rol-miembros" class="form-label small fw-semibold mb-0">Miembros</label>
+      <select id="chat-filtro-rol-miembros" v-model="filtroRolMiembros" class="form-select form-select-sm" style="max-width: 12rem;">
+        <option value="TODOS">Todos</option>
+        <option value="STAFF">Staff canal (OWNER/ADMIN/MOD)</option>
+        <option value="MOD">Solo moderadores</option>
+        <option value="ADMIN">Solo admins</option>
+        <option value="MEMBER">Solo miembros</option>
+      </select>
+    </div>
     <div v-if="cargandoMiembros && miembrosLista.length === 0" class="chat-mensajes__estado" role="status">
       <span class="spinner-border spinner-border-sm text-primary" aria-hidden="true"></span>
       <span>Cargando miembros</span>
     </div>
     <div v-else class="miembros-lista">
       <ul class="chat-miembros-lista">
-        <li v-for="m in miembrosLista" :key="m.id" class="chat-miembros-lista__fila">
+        <li
+          v-for="m in miembrosListaFiltrados"
+          :key="m.id"
+          class="chat-miembros-lista__fila chat-miembros-lista__fila--accionable"
+          @contextmenu.prevent="abrirContextMenu($event, m)"
+        >
           <img :src="avatarUrl(m.personajeAvatar)" class="pl-avatar flex-shrink-0"
                width="36" height="36" alt="" />
           <div class="flex-grow-1 min-w-0">
@@ -2311,8 +2356,22 @@ onUnmounted(() => {
             </span>
             <span v-if="m.esStaff" class="badge chat-canal-badge chat-canal-badge--staff">Staff</span>
           </div>
+          <button
+            type="button"
+            class="chat-conectado__menu"
+            aria-haspopup="menu"
+            :aria-controls="contextMenuTarget?.id === m.id ? 'chat-miembro-menu' : undefined"
+            :aria-expanded="contextMenuTarget?.id === m.id"
+            :aria-label="`Acciones sobre ${m.personajeNombre}`"
+            @click="abrirContextMenuDesde($event.currentTarget as HTMLElement, m)"
+          >
+            <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
+          </button>
         </li>
       </ul>
+      <p v-if="!cargandoMiembros && miembrosLista.length > 0 && miembrosListaFiltrados.length === 0" class="text-muted small text-center py-2 mb-0">
+        No hay miembros con ese filtro. Carga más miembros si aún no están todos.
+      </p>
       <div v-if="cargandoMiembros && miembrosLista.length > 0" class="chat-mensajes__estado" role="status">
         <span class="spinner-border spinner-border-sm text-secondary" aria-hidden="true"></span>
         <span>Cargando más miembros</span>
@@ -2976,6 +3035,9 @@ onUnmounted(() => {
 }
 .chat-miembros-lista__fila:hover {
   background: var(--pl-surface-soft);
+}
+.chat-miembros-lista__fila--accionable {
+  cursor: context-menu;
 }
 
 .chat-invitar-buscador {

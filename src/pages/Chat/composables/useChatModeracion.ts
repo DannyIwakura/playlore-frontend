@@ -9,6 +9,7 @@ interface ModeracionDeps {
   cerrarContextMenu: () => void
   mostrarConfirmModal: (titulo: string, texto: string, onConfirm: () => void) => void
   aviso: Ref<string | null>
+  recargarMiembrosLista?: Ref<(() => Promise<void>) | null>
 }
 
 export function useChatModeracion({
@@ -18,6 +19,7 @@ export function useChatModeracion({
   cerrarContextMenu,
   mostrarConfirmModal,
   aviso,
+  recargarMiembrosLista,
 }: ModeracionDeps) {
   const miRolEnCanal = computed(() => canalActivo.value?.miRol)
 
@@ -52,12 +54,17 @@ export function useChatModeracion({
   const baneados = ref<any[]>([])
   const cargandoBaneados = ref(false)
 
+  async function refrescarMiembrosTrasAccion() {
+    await cargarMiembrosOnline()
+    await recargarMiembrosLista?.value?.()
+  }
+
   async function ascenderAMod(m: any) {
     cerrarContextMenu()
     mostrarConfirmModal('Ascender a moderador', `¿Ascender a ${m.personajeNombre} a moderador?`, async () => {
       try {
         await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MOD')
-        await cargarMiembrosOnline()
+        await refrescarMiembrosTrasAccion()
       } catch {}
     })
   }
@@ -67,7 +74,7 @@ export function useChatModeracion({
     mostrarConfirmModal('Descender a miembro', `¿Descender a ${m.personajeNombre} a miembro?`, async () => {
       try {
         await chatApi.cambiarRol(canalActivo.value!.id, m.personajeId, 'MEMBER')
-        await cargarMiembrosOnline()
+        await refrescarMiembrosTrasAccion()
       } catch {}
     })
   }
@@ -77,7 +84,7 @@ export function useChatModeracion({
     mostrarConfirmModal('Expulsar del canal', `¿Expulsar a ${m.personajeNombre} del canal?`, async () => {
       try {
         await chatApi.expulsarMiembro(canalActivo.value!.id, m.personajeId)
-        await cargarMiembrosOnline()
+        await refrescarMiembrosTrasAccion()
       } catch {}
     })
   }
@@ -97,7 +104,7 @@ export function useChatModeracion({
     try {
       await chatApi.banearMiembro(canalActivo.value.id, banTarget.value.personajeId, banDuracion.value)
       banTarget.value = null
-      await cargarMiembrosOnline()
+      await refrescarMiembrosTrasAccion()
     } catch {}
   }
 
@@ -112,7 +119,7 @@ export function useChatModeracion({
     try {
       await chatApi.silenciarMiembro(canalActivo.value.id, silenciarTarget.value.personajeId, silenciarDuracion.value)
       silenciarTarget.value = null
-      await cargarMiembrosOnline()
+      await refrescarMiembrosTrasAccion()
     } catch {}
   }
 
@@ -125,7 +132,7 @@ export function useChatModeracion({
       async () => {
         try {
           await chatApi.desilenciarMiembro(canalActivo.value!.id, m.personajeId)
-          await cargarMiembrosOnline()
+          await refrescarMiembrosTrasAccion()
         } catch {}
       }
     )
