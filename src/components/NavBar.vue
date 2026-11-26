@@ -367,11 +367,14 @@ onUnmounted(() => {
   border: 1px solid transparent;
   color: rgba(255, 255, 255, 0.76);
   cursor: pointer;
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
-  padding: 0.55rem 0.8rem;
-  font-size: 0.95rem;
+  gap: 0.4rem;
+  padding: 0.6rem 0.75rem;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: 650;
+  line-height: inherit;
   border-radius: var(--pl-radius-md);
   transition: color var(--pl-duration-fast) var(--pl-ease-standard), background var(--pl-duration-fast) var(--pl-ease-standard);
 }
@@ -542,7 +545,8 @@ onUnmounted(() => {
     gap: 0.25rem;
   }
 
-  .nav-link-pl {
+  .nav-link-pl,
+  .btn-nav-dropdown {
     width: 100%;
     padding: 0.7rem 0.8rem !important;
   }
