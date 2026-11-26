@@ -2358,12 +2358,12 @@ onUnmounted(() => {
           </div>
           <button
             type="button"
-            class="chat-conectado__menu"
+            class="miembro-fila__acciones"
             aria-haspopup="menu"
             :aria-controls="contextMenuTarget?.id === m.id ? 'chat-miembro-menu' : undefined"
             :aria-expanded="contextMenuTarget?.id === m.id"
             :aria-label="`Acciones sobre ${m.personajeNombre}`"
-            @click="abrirContextMenuDesde($event.currentTarget as HTMLElement, m)"
+            @click.stop="abrirContextMenuDesde($event.currentTarget as HTMLElement, m)"
           >
             <i class="bi bi-three-dots-vertical" aria-hidden="true"></i>
           </button>
@@ -3030,14 +3030,30 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.65rem;
-  padding: 0.4rem 0.35rem;
+  padding: 0.4rem 0.5rem;
   border-radius: var(--pl-radius-md);
+  transition: background var(--pl-duration-fast) var(--pl-ease-standard);
 }
-.chat-miembros-lista__fila:hover {
-  background: var(--pl-surface-soft);
+.chat-miembros-lista__fila:hover,
+.chat-miembros-lista__fila:focus-within {
+  background: rgba(var(--pl-primary-rgb), 0.06);
 }
 .chat-miembros-lista__fila--accionable {
   cursor: context-menu;
+}
+.chat-miembros-lista__fila .miembro-fila__acciones {
+  opacity: 0.55;
+}
+.chat-miembros-lista__fila:hover .miembro-fila__acciones,
+.chat-miembros-lista__fila:focus-within .miembro-fila__acciones,
+.chat-miembros-lista__fila .miembro-fila__acciones:focus-visible,
+.chat-miembros-lista__fila .miembro-fila__acciones[aria-expanded='true'] {
+  opacity: 1;
+}
+@media (hover: none) {
+  .chat-miembros-lista__fila .miembro-fila__acciones {
+    opacity: 1;
+  }
 }
 
 .chat-invitar-buscador {
