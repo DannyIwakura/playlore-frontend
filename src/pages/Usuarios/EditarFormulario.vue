@@ -5,6 +5,7 @@ import NavBar from '../../components/NavBar.vue'
 import Footer from '../../components/Footer.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
 import ModalInput from '../../components/ModalInput.vue'
+import ImageCropModal from '../../components/ImageCropModal.vue'
 import { userStore } from '../../store/userStore'
 import api from '../../services/api'
 import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
@@ -12,7 +13,7 @@ import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
 const BASE_URL = import.meta.env.VITE_API_URL
 const AVATAR_DEFECTO = `${import.meta.env.VITE_API_URL}/images/AVATAR.png`
 const TIPOS_AVATAR = ['image/jpeg', 'image/png', 'image/webp']
-const TAMANIO_MAXIMO_AVATAR = 2 * 1024 * 1024
+const TAMANIO_MAXIMO_AVATAR = 200 * 1024
 const LADO_MAXIMO_AVATAR = 200
 const PATRON_EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -29,6 +30,8 @@ const avatarActual = ref<string | null>(null)
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
 const inputAvatar = ref<HTMLInputElement | null>(null)
+const archivoParaRecortar = ref<File | null>(null)
+const mostrarCropper = ref(false)
 
 // UI
 const cargando = ref(true)
@@ -107,30 +110,29 @@ async function onAvatarChange(e: Event) {
   exito.value = false
   if (!file) return
 
-  // Si la imagen nueva no vale, no se conserva la anterior como si fuera la elegida.
-  revocarPreview()
-  avatarFile.value = null
-
   if (!TIPOS_AVATAR.includes(file.type)) {
     errores.avatarFile = 'El avatar debe ser JPG, PNG o WEBP.'
     input.value = ''
     return
   }
 
-  if (file.size > TAMANIO_MAXIMO_AVATAR) {
-    errores.avatarFile = 'El avatar no puede superar 2 MB.'
-    input.value = ''
-    return
-  }
+  archivoParaRecortar.value = file
+  mostrarCropper.value = true
+  input.value = ''
+}
 
-  if (!(await comprobarDimensiones(file))) {
-    errores.avatarFile = `El avatar no puede superar ${LADO_MAXIMO_AVATAR}x${LADO_MAXIMO_AVATAR} px.`
-    input.value = ''
-    return
-  }
-
+function onAvatarRecortado(file: File) {
+  revocarPreview()
   avatarFile.value = file
   avatarPreview.value = URL.createObjectURL(file)
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
+  delete errores.avatarFile
+}
+
+function cancelarRecorte() {
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
 }
 
 function quitarAvatar() {
@@ -293,6 +295,17 @@ onUnmounted(revocarPreview)
       <template v-else>
         <form ref="formRef" novalidate @submit.prevent="guardar" :aria-busy="guardando || undefined">
           <section class="pl-card editar-card" aria-labelledby="datos-titulo">
+            <ImageCropModal
+              v-if="mostrarCropper && archivoParaRecortar"
+              :archivo="archivoParaRecortar"
+              :aspect-ratio="1"
+              :max-width="LADO_MAXIMO_AVATAR"
+              :max-height="LADO_MAXIMO_AVATAR"
+              :max-bytes="TAMANIO_MAXIMO_AVATAR"
+              titulo="Ajustar avatar"
+              @confirmar="onAvatarRecortado"
+              @cancelar="cancelarRecorte"
+            />
             <div class="editar-avatar">
               <img
                 :src="avatarPreview ?? avatarUrl(avatarActual)"
@@ -321,7 +334,7 @@ onUnmounted(revocarPreview)
                     <i class="bi bi-x-lg" aria-hidden="true"></i>Quitar
                   </button>
                 </div>
-                <p id="avatar-hint" class="pl-field__hint">JPG, PNG o WEBP. Máx. 2 MB y 200x200 px.</p>
+                <p id="avatar-hint" class="pl-field__hint">JPG, PNG o WEBP. Podrás recortarlo antes de guardar. Máx. 200 KB.</p>
                 <p v-if="errores.avatarFile" id="avatar-error" class="pl-field__error">
                   <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.avatarFile }}
                 </p>

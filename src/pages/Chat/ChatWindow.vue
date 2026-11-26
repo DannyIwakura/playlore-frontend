@@ -13,6 +13,7 @@ import ChatMessage from './ChatMessage.vue'
 import MensajeInvitacion from './MensajeInvitacion.vue'
 import ExpandableText from '../../components/ExpandableText.vue'
 import ModalAviso from '../../components/ModalAviso.vue'
+import ImageCropModal from '../../components/ImageCropModal.vue'
 import ModalConfirmacion from '../../components/ModalConfirmacion.vue'
 import ModalFormulario from '../../components/ModalFormulario.vue'
 import { useChatPresencia } from './composables/useChatPresencia'
@@ -585,6 +586,8 @@ const errorCrear = ref('')
 const imagenCanal = ref<File | null>(null)
 const imagenPreview = ref<string | null>(null)
 const inputImagenRef = ref<HTMLInputElement | null>(null)
+const archivoCanalParaRecortar = ref<File | null>(null)
+const mostrarCropperCanal = ref(false)
 
 // Editar canal
 const mostrarModalEditarCanal = ref(false)
@@ -594,6 +597,8 @@ const imagenEdicionCanal = ref<File | null>(null)
 const imagenEdicionPreview = ref<string | null>(null)
 const quitarImagenEdicion = ref(false)
 const inputImagenEdicionRef = ref<HTMLInputElement | null>(null)
+const archivoCanalEdicionParaRecortar = ref<File | null>(null)
+const mostrarCropperCanalEdicion = ref(false)
 const mostrarEliminarCanal = ref(false)
 const passwordEliminarCanal = ref('')
 const errorEliminarCanal = ref('')
@@ -1373,36 +1378,40 @@ function obtenerDimensionesImagen(file: File): Promise<{ width: number; height: 
   })
 }
 
-async function validarImagenCanal(file: File): Promise<string | null> {
+function validarTipoImagenCanal(file: File): string | null {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     return 'Formato no permitido. Solo JPG, PNG y WEBP'
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    return 'La imagen no puede superar 10 MB'
-  }
-  const dims = await obtenerDimensionesImagen(file)
-  if (!dims) {
-    return 'El archivo no es una imagen válida'
-  }
-  if (dims.width > 400 || dims.height > 400) {
-    return `La imagen no puede superar 400x400 píxeles (la actual tiene ${dims.width}x${dims.height}). Reduce su tamaño o recorta la imagen antes de subirla.`
   }
   return null
 }
 
-async function onImagenCanalChange(event: Event) {
+function onImagenCanalChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  imagenCanal.value = file
-  const error = await validarImagenCanal(file)
+  const error = validarTipoImagenCanal(file)
   if (error) {
     errorCrear.value = error
+    input.value = ''
     return
   }
+  archivoCanalParaRecortar.value = file
+  mostrarCropperCanal.value = true
+  input.value = ''
+}
+
+function onImagenCanalRecortada(file: File) {
   if (imagenPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenPreview.value)
+  imagenCanal.value = file
   imagenPreview.value = URL.createObjectURL(file)
+  mostrarCropperCanal.value = false
+  archivoCanalParaRecortar.value = null
   errorCrear.value = ''
+}
+
+function cancelarRecorteCanal() {
+  mostrarCropperCanal.value = false
+  archivoCanalParaRecortar.value = null
 }
 
 function quitarImagenCanal() {
@@ -1422,13 +1431,6 @@ function extraerError(e: any, fallback: string): string {
 async function crearCanal() {
   if (!nuevoCanalData.value.nombre.trim()) { errorCrear.value = 'El nombre es obligatorio'; return }
   errorCrear.value = ''
-  if (imagenCanal.value) {
-    const errImg = await validarImagenCanal(imagenCanal.value)
-    if (errImg) {
-      errorCrear.value = errImg
-      return
-    }
-  }
   let canalCreado: any = null
   try {
     const { data } = await chatApi.crearCanal(nuevoCanalData.value)
@@ -1484,20 +1486,34 @@ async function cancelarEliminarCanal() {
   botonEliminarCanalRef.value?.focus()
 }
 
-async function onImagenEdicionCanalChange(event: Event) {
+function onImagenEdicionCanalChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  imagenEdicionCanal.value = file
-  const error = await validarImagenCanal(file)
+  const error = validarTipoImagenCanal(file)
   if (error) {
     errorEditarCanal.value = error
+    input.value = ''
     return
   }
+  archivoCanalEdicionParaRecortar.value = file
+  mostrarCropperCanalEdicion.value = true
+  input.value = ''
+}
+
+function onImagenEdicionCanalRecortada(file: File) {
   if (imagenEdicionPreview.value?.startsWith('blob:')) URL.revokeObjectURL(imagenEdicionPreview.value)
+  imagenEdicionCanal.value = file
   imagenEdicionPreview.value = URL.createObjectURL(file)
   quitarImagenEdicion.value = false
+  mostrarCropperCanalEdicion.value = false
+  archivoCanalEdicionParaRecortar.value = null
   errorEditarCanal.value = ''
+}
+
+function cancelarRecorteCanalEdicion() {
+  mostrarCropperCanalEdicion.value = false
+  archivoCanalEdicionParaRecortar.value = null
 }
 
 function quitarImagenEdicionActual() {
@@ -1514,13 +1530,7 @@ async function guardarEdicionCanal() {
     return
   }
   errorEditarCanal.value = ''
-  if (imagenEdicionCanal.value) {
-    const errImg = await validarImagenCanal(imagenEdicionCanal.value)
-    if (errImg) {
-      errorEditarCanal.value = errImg
-      return
-    }
-  }
+
   try {
     let { data } = await chatApi.editarCanal(canalActivo.value.id, editarCanalData.value)
     if (imagenEdicionCanal.value) {
@@ -2448,9 +2458,22 @@ onUnmounted(() => {
                   aria-label="Quitar la imagen del canal" @click="quitarImagenCanal">
             <i class="bi bi-x-lg" aria-hidden="true"></i>
           </button>
+          <p class="pl-field__hint mb-0 mt-1">JPG, PNG o WEBP. Recorte 1:1 antes de guardar. Máx. 300 KB.</p>
         </div>
       </div>
     </div>
+
+    <ImageCropModal
+      v-if="mostrarCropperCanal && archivoCanalParaRecortar"
+      :archivo="archivoCanalParaRecortar"
+      :aspect-ratio="1"
+      :max-width="400"
+      :max-height="400"
+      :max-bytes="300 * 1024"
+      titulo="Ajustar imagen del canal"
+      @confirmar="onImagenCanalRecortada"
+      @cancelar="cancelarRecorteCanal"
+    />
     <div class="mb-3 form-check">
       <input v-model="nuevoCanalData.privado" type="checkbox" class="form-check-input" id="chkPrivado" />
       <label class="form-check-label small" for="chkPrivado">Canal privado (solo por invitación)</label>
@@ -2493,9 +2516,22 @@ onUnmounted(() => {
                   aria-label="Quitar la imagen del canal" @click="quitarImagenEdicionActual">
             <i class="bi bi-x-lg" aria-hidden="true"></i>
           </button>
+          <p class="pl-field__hint mb-0 mt-1">JPG, PNG o WEBP. Recorte 1:1 antes de guardar. Máx. 300 KB.</p>
         </div>
       </div>
     </div>
+
+    <ImageCropModal
+      v-if="mostrarCropperCanalEdicion && archivoCanalEdicionParaRecortar"
+      :archivo="archivoCanalEdicionParaRecortar"
+      :aspect-ratio="1"
+      :max-width="400"
+      :max-height="400"
+      :max-bytes="300 * 1024"
+      titulo="Ajustar imagen del canal"
+      @confirmar="onImagenEdicionCanalRecortada"
+      @cancelar="cancelarRecorteCanalEdicion"
+    />
     <div v-if="canalActivo?.tipo === 'OFFICIAL'" class="mb-3">
       <p class="small text-muted mb-0">
         <i class="bi bi-patch-check-fill" aria-hidden="true"></i>

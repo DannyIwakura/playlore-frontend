@@ -2,6 +2,7 @@
 import { ref, onMounted, computed, onUnmounted, watch } from 'vue'
 import api from '../services/api'
 import ModalAviso from './ModalAviso.vue'
+import ImageCropModal from './ImageCropModal.vue'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -28,6 +29,8 @@ const dragOver = ref(false)
 const indiceActual = ref<number | null>(null)
 const eliminarConfirm = ref<number | null>(null)
 const aviso = ref<string | null>(null)
+const archivoParaRecortar = ref<File | null>(null)
+const mostrarCropper = ref(false)
 
 const MAX_IMAGENES = 30
 
@@ -138,11 +141,6 @@ async function subirArchivo(file: File) {
     return
   }
 
-  if (file.size > 10 * 1024 * 1024) {
-    aviso.value = 'La imagen no puede superar los 10MB'
-    return
-  }
-
   subiendo.value = true
   try {
     const formData = new FormData()
@@ -165,8 +163,26 @@ function handleFileInput(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
-  subirArchivo(file)
+  const tiposValidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!tiposValidos.includes(file.type)) {
+    aviso.value = 'Formato no permitido. Solo JPG, PNG, WEBP y GIF'
+    input.value = ''
+    return
+  }
+  archivoParaRecortar.value = file
+  mostrarCropper.value = true
   input.value = ''
+}
+
+async function onImagenRecortada(file: File) {
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
+  await subirArchivo(file)
+}
+
+function cancelarRecorte() {
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
 }
 
 function onDragOver(e: DragEvent) {
@@ -189,7 +205,13 @@ function onDrop(e: DragEvent) {
   if (!puedeSubir.value) return
   const file = e.dataTransfer?.files?.[0]
   if (!file) return
-  subirArchivo(file)
+  const tiposValidos = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+  if (!tiposValidos.includes(file.type)) {
+    aviso.value = 'Formato no permitido. Solo JPG, PNG, WEBP y GIF'
+    return
+  }
+  archivoParaRecortar.value = file
+  mostrarCropper.value = true
 }
 
 async function eliminarImagen(idImagen: number) {
@@ -398,6 +420,19 @@ onMounted(cargarImagenes)
       </dialog>
     </Teleport>
   </div>
+
+  <ImageCropModal
+    v-if="mostrarCropper && archivoParaRecortar"
+    :archivo="archivoParaRecortar"
+    :aspect-ratio="null"
+    :max-width="1920"
+    :max-height="1920"
+    :max-bytes="1024 * 1024"
+    :salida-cuadrada="false"
+    titulo="Ajustar imagen de galería"
+    @confirmar="onImagenRecortada"
+    @cancelar="cancelarRecorte"
+  />
 
   <ModalAviso v-if="aviso" :mensaje="aviso" @cerrar="aviso = null" />
 </template>

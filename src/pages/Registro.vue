@@ -2,6 +2,7 @@
 import Footer from '../components/Footer.vue'
 import NavBar from '../components/NavBar.vue'
 import ReCaptcha from '../components/ReCaptcha.vue'
+import ImageCropModal from '../components/ImageCropModal.vue'
 import { ref } from 'vue'
 import api from '../services/api'
 import { useRouter } from 'vue-router'
@@ -14,17 +15,34 @@ const password = ref('')
 const errores = ref<Record<string, string>>({})
 const avatarFile = ref<File | null>(null)
 const avatarPreview = ref<string | null>(null)
+const archivoParaRecortar = ref<File | null>(null)
+const mostrarCropper = ref(false)
 const captchaRef = ref<InstanceType<typeof ReCaptcha> | null>(null)
 const formRef = ref<HTMLFormElement | null>(null)
 const enviando = ref(false)
 
 const onFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
-
-  if (target.files && target.files[0]) {
-    avatarFile.value = target.files[0]
-    avatarPreview.value = URL.createObjectURL(target.files[0])
+  const file = target.files?.[0]
+  if (file) {
+    archivoParaRecortar.value = file
+    mostrarCropper.value = true
   }
+  target.value = ''
+}
+
+function onAvatarRecortado(file: File) {
+  if (avatarPreview.value) URL.revokeObjectURL(avatarPreview.value)
+  avatarFile.value = file
+  avatarPreview.value = URL.createObjectURL(file)
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
+  delete errores.value.avatarFile
+}
+
+function cancelarRecorte() {
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
 }
 
 const registrarUsuario = async () => {
@@ -161,7 +179,7 @@ const registrarUsuario = async () => {
               :aria-invalid="errores.avatarFile ? 'true' : undefined"
               @change="onFileChange"
             />
-            <small id="avatar-hint" class="text-muted d-block mt-1">JPG, PNG o WEBP. Máx. 2 MB. 200x200 px</small>
+            <small id="avatar-hint" class="text-muted d-block mt-1">JPG, PNG o WEBP. Podrás recortarlo antes de guardar. Máx. 200 KB.</small>
             <div v-if="avatarPreview" class="mt-2">
               <img :src="avatarPreview" alt="Vista previa del avatar" class="img-thumbnail avatar-preview" />
             </div>
@@ -169,6 +187,18 @@ const registrarUsuario = async () => {
               <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>{{ errores.avatarFile }}
             </p>
           </div>
+
+          <ImageCropModal
+            v-if="mostrarCropper && archivoParaRecortar"
+            :archivo="archivoParaRecortar"
+            :aspect-ratio="1"
+            :max-width="200"
+            :max-height="200"
+            :max-bytes="200 * 1024"
+            titulo="Ajustar avatar"
+            @confirmar="onAvatarRecortado"
+            @cancelar="cancelarRecorte"
+          />
 
           <ReCaptcha ref="captchaRef" />
           <div v-if="errores.captcha" class="pl-alert pl-alert--danger" role="alert">

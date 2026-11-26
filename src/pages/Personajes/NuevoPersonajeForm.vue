@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import Footer from '../../components/Footer.vue'
 import NavBar from '../../components/NavBar.vue'
 import RichTextEditor from '../../components/RichTextEditor.vue'
+import ImageCropModal from '../../components/ImageCropModal.vue'
 import api from '../../services/api'
 import { userStore } from '../../store/userStore'
 import { enfocarPrimerError } from '../../composables/useFocoPrimerError'
@@ -14,6 +15,8 @@ const errorGeneral = ref('')
 const formRef = ref<HTMLFormElement | null>(null)
 const enviando = ref(false)
 const avatarPreview = ref('')
+const archivoParaRecortar = ref<File | null>(null)
+const mostrarCropper = ref(false)
 
 const personaje = reactive({
   nombre: '',
@@ -51,15 +54,24 @@ function liberarPreview() {
 function onFileChange(event: Event) {
   const target = event.target as HTMLInputElement
   const file = target.files?.[0]
-  liberarPreview()
-  if (!file) {
-    personaje.avatar = null
-    return
-  }
+  if (!file) return
+  archivoParaRecortar.value = file
+  mostrarCropper.value = true
+  target.value = ''
+}
 
+function onAvatarRecortado(file: File) {
+  liberarPreview()
   personaje.avatar = file
   avatarPreview.value = URL.createObjectURL(file)
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
   delete errores.avatarFile
+}
+
+function cancelarRecorte() {
+  mostrarCropper.value = false
+  archivoParaRecortar.value = null
 }
 
 // Espejo de las restricciones del backend: evita un viaje de ida y vuelta
@@ -328,7 +340,7 @@ onUnmounted(liberarPreview)
                 @change="onFileChange"
               />
               <p id="avatar-hint" class="pl-field__hint">
-                JPG, PNG, WEBP o GIF. Máx. 400x400 px.
+                JPG, PNG o WEBP. Recorte 1:1 antes de guardar. Máx. 300 KB.
                 <template v-if="nombreArchivo"> · {{ nombreArchivo }}</template>
               </p>
               <p v-if="errores.avatarFile" id="avatar-error" class="pl-field__error">
@@ -336,6 +348,18 @@ onUnmounted(liberarPreview)
               </p>
             </div>
           </div>
+
+          <ImageCropModal
+            v-if="mostrarCropper && archivoParaRecortar"
+            :archivo="archivoParaRecortar"
+            :aspect-ratio="1"
+            :max-width="400"
+            :max-height="400"
+            :max-bytes="300 * 1024"
+            titulo="Ajustar avatar del personaje"
+            @confirmar="onAvatarRecortado"
+            @cancelar="cancelarRecorte"
+          />
         </section>
 
         <section class="pl-form-seccion" aria-labelledby="seccion-historia">
