@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import api from '../../../services/api'
+import ImageCropModal from '../../../components/ImageCropModal.vue'
 import ModalConfirmacion from '../../../components/ModalConfirmacion.vue'
 import ModalFormulario from '../../../components/ModalFormulario.vue'
 import { enfocarPrimerError } from '../../../composables/useFocoPrimerError'
@@ -101,6 +102,8 @@ const oficialPersonajeId = ref<number | ''>('')
 const oficialImagen = ref<File | null>(null)
 const oficialImagenPreview = ref<string | null>(null)
 const inputImagenOficialRef = ref<HTMLInputElement | null>(null)
+const archivoOficialParaRecortar = ref<File | null>(null)
+const mostrarCropperOficial = ref(false)
 const erroresOficial = ref<{ nombre?: string; descripcion?: string; personaje?: string; imagen?: string }>({})
 const errorOficial = ref('')
 const enviandoOficial = ref(false)
@@ -382,53 +385,42 @@ function cerrarModalOficial() {
   modalOficialAbierto.value = false
 }
 
-function obtenerDimensionesImagen(file: File): Promise<{ width: number; height: number } | null> {
-  return new Promise((resolve) => {
-    const url = URL.createObjectURL(file)
-    const img = new Image()
-    img.onload = () => {
-      URL.revokeObjectURL(url)
-      resolve({ width: img.naturalWidth, height: img.naturalHeight })
-    }
-    img.onerror = () => {
-      URL.revokeObjectURL(url)
-      resolve(null)
-    }
-    img.src = url
-  })
-}
-
-async function validarImagenOficial(file: File): Promise<string | null> {
+function validarTipoImagenOficial(file: File): string | null {
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
     return 'Formato no permitido. Solo JPG, PNG y WEBP.'
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    return 'La imagen no puede superar 10 MB.'
-  }
-  const dims = await obtenerDimensionesImagen(file)
-  if (!dims) return 'El archivo no es una imagen válida.'
-  if (dims.width > 400 || dims.height > 400) {
-    return `La imagen no puede superar 400x400 píxeles (la actual tiene ${dims.width}x${dims.height}).`
   }
   return null
 }
 
-async function onImagenOficialChange(event: Event) {
+function onImagenOficialChange(event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
 
-  const error = await validarImagenOficial(file)
+  const error = validarTipoImagenOficial(file)
   if (error) {
     erroresOficial.value = { ...erroresOficial.value, imagen: error }
     input.value = ''
     return
   }
 
+  archivoOficialParaRecortar.value = file
+  mostrarCropperOficial.value = true
+  input.value = ''
+}
+
+function onImagenOficialRecortada(file: File) {
   limpiarImagenOficial()
   oficialImagen.value = file
   oficialImagenPreview.value = URL.createObjectURL(file)
+  mostrarCropperOficial.value = false
+  archivoOficialParaRecortar.value = null
   erroresOficial.value = { ...erroresOficial.value, imagen: undefined }
+}
+
+function cancelarRecorteOficial() {
+  mostrarCropperOficial.value = false
+  archivoOficialParaRecortar.value = null
 }
 
 function limpiarImagenOficial() {
@@ -466,7 +458,7 @@ async function enviarCrearOficial() {
   }
 
   if (oficialImagen.value) {
-    const errorImagen = await validarImagenOficial(oficialImagen.value)
+    const errorImagen = validarTipoImagenOficial(oficialImagen.value)
     if (errorImagen) {
       erroresOficial.value = { ...erroresOficial.value, imagen: errorImagen }
       await enfocarPrimerError(oficialFormRef.value)
@@ -932,7 +924,7 @@ onBeforeUnmount(limpiarResaltado)
                   accept="image/jpeg,image/png,image/webp"
                   @change="onImagenOficialChange"
                 />
-                <p class="pl-field__hint mb-0">JPG, PNG o WEBP. Máx. 400x400 px y 10 MB.</p>
+                <p class="pl-field__hint mb-0">JPG, PNG o WEBP. Recorte 1:1 antes de guardar. Máx. 300 KB.</p>
               </div>
               <button
                 v-if="oficialImagenPreview"
@@ -949,6 +941,18 @@ onBeforeUnmount(limpiarResaltado)
             </p>
           </div>
         </div>
+
+        <ImageCropModal
+          v-if="mostrarCropperOficial && archivoOficialParaRecortar"
+          :archivo="archivoOficialParaRecortar"
+          :aspect-ratio="1"
+          :max-width="400"
+          :max-height="400"
+          :max-bytes="300 * 1024"
+          titulo="Ajustar imagen del canal oficial"
+          @confirmar="onImagenOficialRecortada"
+          @cancelar="cancelarRecorteOficial"
+        />
 
         <p v-if="errorOficial" class="pl-alert pl-alert--danger mt-3" role="alert">
           <i class="bi bi-exclamation-triangle" aria-hidden="true"></i>
