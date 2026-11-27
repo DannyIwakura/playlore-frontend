@@ -6,6 +6,10 @@
   "engines": {
     "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
   },
+  "overrides": {
+    "editorconfig": "^4.0.1",
+    "glob": "^14.0.6"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
