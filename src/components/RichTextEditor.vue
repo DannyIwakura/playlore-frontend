@@ -7,7 +7,7 @@ import TextAlign from '@tiptap/extension-text-align'
 import { TextStyle } from '@tiptap/extension-text-style'
 import Color from '@tiptap/extension-color'
 import { Extension } from '@tiptap/core'
-import { Bold, Italic, List, AlignLeft, AlignCenter, AlignRight, ImagesIcon } from 'lucide-vue-next'
+import { Bold, Italic, List, AlignLeft, AlignCenter, AlignRight, ImagesIcon } from '@lucide/vue'
 import ModalInput from './ModalInput.vue'
 
 const props = defineProps<{

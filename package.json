@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": "^22.22.2 || ^24.15.0 || >=26.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -14,6 +17,7 @@
     "lint:fix": "eslint . --fix"
   },
   "dependencies": {
+    "@lucide/vue": "^1.82.0",
     "@stomp/stompjs": "^7.3.0",
     "@tiptap/extension-color": "^3.22.3",
     "@tiptap/extension-image": "^3.22.3",
@@ -27,7 +31,6 @@
     "bootstrap-icons": "^1.13.1",
     "dompurify": "^3.4.13",
     "jwt-decode": "^4.0.0",
-    "lucide-vue-next": "^1.0.0",
     "sockjs-client": "^1.6.1",
     "vue": "^3.5.25",
     "vue-advanced-chat": "^2.1.2",
