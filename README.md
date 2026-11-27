@@ -6,7 +6,7 @@ Frontend de PlayLore/PlayRole. Vue 3 + TypeScript + Vite + Bootstrap 5.
 
 ## Requisitos previos
 
-- **Node.js 22+** ([Descargar](https://nodejs.org/es/download))
+- **Node.js 22.22.2+** (o 24.15+ / 26+; exigido por jsdom 31 y Vitest 5) ([Descargar](https://nodejs.org/es/download))
 - **npm** (incluido con Node)
 - **Backend corriendo** en `http://localhost:8080` (ver repositorio del backend)
 
